@@ -1,0 +1,47 @@
+# Entornos locales
+.venv/
+env/
+venv/
+ENV/
+
+# Salidas generadas por Flet/Flutter/Python
+build/
+dist/
+dist_windows/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Archivos temporales y logs
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Backups y datos personales/generados por la app
+backups/
+storage/
+camino1_refactor_base/
+camino1_servicios_extra/
+datos/*
+!datos/biblia_rvr1960.json
+!datos/biblia_rvr1960.formato.json
+!datos/.gitkeep
+
+# Exportaciones generadas por el usuario
+datos/exportaciones/
+
+# Configuracion local de editores
+.vscode/
+.idea/
+
+# Archivos del sistema
+Thumbs.db
+Desktop.ini
+.DS_Store

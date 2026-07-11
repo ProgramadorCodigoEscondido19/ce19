@@ -1,0 +1,16 @@
+{
+    "libros": [
+        {
+            "nombre": "Nombre del libro",
+            "capitulos": [
+                [
+                    "Texto del versiculo 1",
+                    "Texto del versiculo 2"
+                ],
+                [
+                    "Texto del capitulo 2, versiculo 1"
+                ]
+            ]
+        }
+    ]
+}

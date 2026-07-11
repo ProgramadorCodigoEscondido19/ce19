@@ -1,0 +1,17 @@
+if(EXISTS "C:/WINDOWS/System32/vcruntime140_1.dll")
+    message("EXISTE_SYSTEM32=SI")
+else()
+    message("EXISTE_SYSTEM32=NO")
+endif()
+
+if(EXISTS "C:/Windows/System32/vcruntime140_1.dll")
+    message("EXISTE_WINDOWS_SYSTEM32=SI")
+else()
+    message("EXISTE_WINDOWS_SYSTEM32=NO")
+endif()
+
+if(EXISTS "C:/Windows/SysWOW64/vcruntime140_1.dll")
+    message("EXISTE_SYSWOW64=SI")
+else()
+    message("EXISTE_SYSWOW64=NO")
+endif()
