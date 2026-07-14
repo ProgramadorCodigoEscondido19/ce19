@@ -11,24 +11,13 @@ def _ancho_pagina(page):
     return ancho or 420
 
 
-def _alto_pagina(page):
-    alto = getattr(page, "height", None)
-    if alto is None and hasattr(page, "window"):
-        alto = getattr(page.window, "height", None)
-    return alto or 720
-
-
 def _medidas_dialogo(page):
     ancho = _ancho_pagina(page)
-    alto = _alto_pagina(page)
     es_movil = ancho < 560
     return {
         "es_movil": es_movil,
         "ancho": min(430, max(280, ancho - 32)),
-        "alto_lista": 150 if es_movil else 240,
-        "alto_contenido": min(430, max(290, alto - 230)) if es_movil else None,
-        "padding": ft.Padding(16, 14, 16, 10) if es_movil else None,
-        "inset": ft.Padding(14, 18, 14, 18) if es_movil else None,
+        "alto_lista": 130 if es_movil else 240,
     }
 
 
@@ -42,12 +31,11 @@ def pedir_nombre_guardado(
     campo = ft.TextField(
         label="Nombre",
         value=valor_sugerido or "",
-        autofocus=True,
+        autofocus=False,
         on_tap_outside=lambda e: ocultar_teclado(page, e.control),
     )
 
     def cerrar(e=None):
-        ocultar_teclado(page, campo)
         dialog.open = False
         page.update()
 
@@ -68,20 +56,15 @@ def pedir_nombre_guardado(
 
     medidas = _medidas_dialogo(page)
     dialog = ft.AlertDialog(
-        modal=True,
         title=ft.Text(titulo),
         content=ft.Container(
             width=medidas["ancho"],
-            height=medidas["alto_contenido"],
             content=ft.Column(
-                tight=not medidas["es_movil"],
-                scroll=ft.ScrollMode.AUTO if medidas["es_movil"] else None,
+                tight=True,
                 spacing=10,
                 controls=controles,
             ),
         ),
-        inset_padding=medidas["inset"],
-        content_padding=medidas["padding"],
         actions_alignment=ft.MainAxisAlignment.END,
         actions=[
             ft.TextButton("Cancelar", on_click=cerrar),
@@ -110,7 +93,7 @@ def pedir_nombre_y_carpeta_guardado(
     campo = ft.TextField(
         label="Nombre",
         value=valor_sugerido or "",
-        autofocus=True,
+        autofocus=False,
         on_tap_outside=lambda e: ocultar_teclado(page, e.control),
     )
     destino = ft.Text(
@@ -225,7 +208,6 @@ def pedir_nombre_y_carpeta_guardado(
             pass
 
     def cerrar(e=None):
-        ocultar_teclado(page, campo)
         dialog.open = False
         page.update()
 
@@ -256,20 +238,15 @@ def pedir_nombre_y_carpeta_guardado(
     )
 
     dialog = ft.AlertDialog(
-        modal=True,
         title=ft.Text(titulo),
         content=ft.Container(
             width=medidas["ancho"],
-            height=medidas["alto_contenido"],
             content=ft.Column(
-                tight=not medidas["es_movil"],
-                scroll=ft.ScrollMode.AUTO if medidas["es_movil"] else None,
+                tight=True,
                 spacing=10,
                 controls=controles,
             ),
         ),
-        inset_padding=medidas["inset"],
-        content_padding=medidas["padding"],
         actions_alignment=ft.MainAxisAlignment.END,
         actions=[
             ft.TextButton("Cancelar", on_click=cerrar),
