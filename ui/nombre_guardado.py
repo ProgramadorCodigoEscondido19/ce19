@@ -1,6 +1,35 @@
 import flet as ft
 
+from services.notificacion_service import NotificacionService
 from ui.teclado import ocultar_teclado
+
+
+def _ancho_pagina(page):
+    ancho = getattr(page, "width", None)
+    if ancho is None and hasattr(page, "window"):
+        ancho = getattr(page.window, "width", None)
+    return ancho or 420
+
+
+def _alto_pagina(page):
+    alto = getattr(page, "height", None)
+    if alto is None and hasattr(page, "window"):
+        alto = getattr(page.window, "height", None)
+    return alto or 720
+
+
+def _medidas_dialogo(page):
+    ancho = _ancho_pagina(page)
+    alto = _alto_pagina(page)
+    es_movil = ancho < 560
+    return {
+        "es_movil": es_movil,
+        "ancho": min(430, max(280, ancho - 32)),
+        "alto_lista": 150 if es_movil else 240,
+        "alto_contenido": min(430, max(290, alto - 230)) if es_movil else None,
+        "padding": ft.Padding(16, 14, 16, 10) if es_movil else None,
+        "inset": ft.Padding(14, 18, 14, 18) if es_movil else None,
+    }
 
 
 def pedir_nombre_guardado(
@@ -26,6 +55,7 @@ def pedir_nombre_guardado(
         nombre = (campo.value or valor_sugerido or "Guardado").strip()
         cerrar()
         on_guardar(nombre)
+        NotificacionService.exito(page, "Guardado correctamente.")
 
     campo.on_submit = confirmar
 
@@ -36,13 +66,23 @@ def pedir_nombre_guardado(
 
     controles.append(campo)
 
+    medidas = _medidas_dialogo(page)
     dialog = ft.AlertDialog(
+        modal=True,
         title=ft.Text(titulo),
-        content=ft.Column(
-            tight=True,
-            spacing=10,
-            controls=controles,
+        content=ft.Container(
+            width=medidas["ancho"],
+            height=medidas["alto_contenido"],
+            content=ft.Column(
+                tight=not medidas["es_movil"],
+                scroll=ft.ScrollMode.AUTO if medidas["es_movil"] else None,
+                spacing=10,
+                controls=controles,
+            ),
         ),
+        inset_padding=medidas["inset"],
+        content_padding=medidas["padding"],
+        actions_alignment=ft.MainAxisAlignment.END,
         actions=[
             ft.TextButton("Cancelar", on_click=cerrar),
             ft.ElevatedButton("Guardar", on_click=confirmar),
@@ -78,8 +118,9 @@ def pedir_nombre_y_carpeta_guardado(
         size=12,
         color=ft.Colors.GREY_700,
     )
+    medidas = _medidas_dialogo(page)
     lista = ft.ListView(
-        height=240,
+        height=medidas["alto_lista"],
         spacing=2,
         auto_scroll=False,
     )
@@ -193,6 +234,7 @@ def pedir_nombre_y_carpeta_guardado(
         carpeta = carpeta_seleccionada["valor"] or raiz
         cerrar()
         on_guardar(nombre, carpeta)
+        NotificacionService.exito(page, "Guardado correctamente.")
 
     campo.on_submit = confirmar
     controles = []
@@ -214,15 +256,21 @@ def pedir_nombre_y_carpeta_guardado(
     )
 
     dialog = ft.AlertDialog(
+        modal=True,
         title=ft.Text(titulo),
         content=ft.Container(
-            width=420,
+            width=medidas["ancho"],
+            height=medidas["alto_contenido"],
             content=ft.Column(
-                tight=True,
+                tight=not medidas["es_movil"],
+                scroll=ft.ScrollMode.AUTO if medidas["es_movil"] else None,
                 spacing=10,
                 controls=controles,
             ),
         ),
+        inset_padding=medidas["inset"],
+        content_padding=medidas["padding"],
+        actions_alignment=ft.MainAxisAlignment.END,
         actions=[
             ft.TextButton("Cancelar", on_click=cerrar),
             ft.ElevatedButton("Guardar", on_click=confirmar),

@@ -7,10 +7,19 @@ class NotificacionService:
     @staticmethod
     def mostrar(page, mensaje, color=None, duracion_ms=2500):
         try:
+            margen_inferior = 92
+            ancho = getattr(page, "width", None)
+            if ancho is None and hasattr(page, "window"):
+                ancho = getattr(page.window, "width", None)
+
             page.snack_bar = ft.SnackBar(
                 content=ft.Text(str(mensaje)),
                 bgcolor=color,
                 duration=duracion_ms,
+                behavior=ft.SnackBarBehavior.FLOATING,
+                margin=ft.Margin(12, 0, 12, margen_inferior),
+                width=min(420, max(280, int((ancho or 420) - 24))),
+                show_close_icon=True,
             )
             page.snack_bar.open = True
             page.update()

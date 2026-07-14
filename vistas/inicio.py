@@ -1,8 +1,8 @@
 from ui.responsive import Responsive
 from ui.responsive_layout import ResponsiveLayout
-import threading
 import flet as ft
 from services.codificador_service import CodificadorService
+from services.notificacion_service import NotificacionService
 from vistas.componentes import tarjeta_resultado
 from ui.sidebar import AppSidebar
 from ui.compartir import compartir_texto
@@ -514,6 +514,7 @@ class InicioView:
     # CONFIRMAR GUARDADO
     # =====================================================
     def confirmar_guardado(self, registro):
+        es_movil = self.responsive.is_mobile()
         destino = self.carpetas.obtener_por_nombre("TARJETAS")
         self.carpeta_selector_id = destino["id"] if destino else 1
         self.carpeta_selector_nombre = "TARJETAS"
@@ -546,6 +547,7 @@ class InicioView:
             self.page.update()
 
         def cerrar(e):
+            ocultar_teclado(self.page, nombre)
             dialog.open = False
             self.page.update()
 
@@ -564,6 +566,7 @@ class InicioView:
                 nuevo_registro["carpeta_id"] = 1
 
             self.guardados.guardar(nuevo_registro)
+            NotificacionService.exito(self.page, "Guardado correctamente.")
             self.carpeta_selector_id = destino["id"] if destino else 1
             self.carpeta_selector_nombre = "TARJETAS"
             self.carpeta_selector_ruta = "TARJETAS"
@@ -573,14 +576,6 @@ class InicioView:
 
             dialog.open = False
             self.page.update()
-
-            def mostrar_mensaje():
-                self.mensaje_exito.value = "El archivo se ha enviado correctamente."
-                self.mensaje_exito.visible = True
-                self.page.update()
-
-            threading.Timer(3.0, self.ocultar_mensaje_exito).start()
-            threading.Timer(0.1, mostrar_mensaje).start()
 
             self.resultado_actual.controls.clear()
             self.page.update()
@@ -606,26 +601,34 @@ class InicioView:
         )
 
         dialog = ft.AlertDialog(
+            modal=True,
             title=ft.Text("Guardar resultado"),
-            content=ft.Column(
-                tight=True,
-                controls=[
-                    ft.Text(registro["palabra"]),
-                    nombre,
-                    ft.Row(
-                        spacing=8,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            self.selector_carpeta,
-                            ft.IconButton(
-                                icon=ft.Icons.FOLDER_OPEN,
-                                tooltip="Elegir carpeta",
-                                on_click=lambda e: abrir_selector(),
-                            ),
-                        ],
-                    ),
-                ],
+            content=ft.Container(
+                width=320 if es_movil else 420,
+                content=ft.Column(
+                    tight=True,
+                    spacing=10,
+                    scroll=ft.ScrollMode.AUTO if es_movil else None,
+                    controls=[
+                        ft.Text(registro["palabra"], no_wrap=False),
+                        nombre,
+                        ft.Row(
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                self.selector_carpeta,
+                                ft.IconButton(
+                                    icon=ft.Icons.FOLDER_OPEN,
+                                    tooltip="Elegir carpeta",
+                                    on_click=lambda e: abrir_selector(),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
             ),
+            inset_padding=ft.Padding(14, 18, 14, 18) if es_movil else None,
+            actions_alignment=ft.MainAxisAlignment.END,
             actions=[
                 ft.TextButton("Cancelar", on_click=cerrar),
                 ft.ElevatedButton("Guardar", on_click=guardar),
