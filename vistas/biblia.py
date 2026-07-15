@@ -18,6 +18,10 @@ from logica.biblia import (
     guardar_resaltados,
     verso_id,
 )
+from logica.diccionario_hebreo import (
+    entradas_diccionario,
+    fragmentos_con_diccionario,
+)
 from services.biblia_service import BibliaService
 from services.codificador_service import CodificadorService
 from ui.clipboard import copiar_al_portapapeles
@@ -1426,6 +1430,7 @@ class BibliaView:
             ft.IconButton(icon=ft.Icons.FORMAT_COLOR_RESET, tooltip="Quitar color seleccionado", icon_color=TEXTO_SECUNDARIO, on_click=lambda e: self.quitar_color_objetivo()),
             ft.IconButton(icon=ft.Icons.SAVE_ALT, tooltip="Guardar fragmento", icon_color=NARANJA_ACCENTO, on_click=lambda e: self.guardar_fragmento()),
             ft.IconButton(icon=ft.Icons.CONTENT_COPY, tooltip="Copiar capitulo", icon_color=AZUL_ACCENTO, on_click=lambda e: self.copiar_capitulo()),
+            ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Diccionario hebreo", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_diccionario_hebreo()),
             ft.IconButton(icon=ft.Icons.RECORD_VOICE_OVER, tooltip="Ver palabras del Cordero", icon_color=COLOR_PALABRAS_CORDERO, on_click=lambda e: self.dialog_palabras_cordero()),
             ft.IconButton(icon=ft.Icons.SELECT_ALL, tooltip="Seleccion multiple de versiculos", icon_color=NARANJA_ACCENTO if self.modo_compartir_multiple else TEXTO_SECUNDARIO, on_click=lambda e: self.toggle_modo_compartir_multiple()),
             ft.IconButton(icon=ft.Icons.CLEAR_ALL, tooltip="Limpiar seleccion multiple", icon_color=TEXTO_SECUNDARIO, on_click=lambda e: self.limpiar_seleccion_multiple()),
@@ -1953,8 +1958,41 @@ class BibliaView:
     def _texto_versiculo_visual(self, libro, texto, color_base, expand=True):
         texto = str(texto or "")
         inicio_rojo = self._inicio_palabras_cordero(libro, texto)
+        spans = []
+        tiene_palabras_diccionario = False
 
-        if inicio_rojo is None:
+        for fragmento, entrada, inicio, _fin in fragmentos_con_diccionario(texto):
+            es_palabra_cordero = inicio_rojo is not None and inicio >= inicio_rojo
+            color_fragmento = COLOR_PALABRAS_CORDERO if es_palabra_cordero else color_base
+
+            if entrada:
+                tiene_palabras_diccionario = True
+                spans.append(
+                    ft.TextSpan(
+                        fragmento,
+                        style=ft.TextStyle(
+                            color=color_fragmento,
+                            weight=ft.FontWeight.BOLD,
+                            decoration=ft.TextDecoration.UNDERLINE,
+                            decoration_color=NARANJA_ACCENTO,
+                            decoration_thickness=1.6,
+                        ),
+                        on_click=lambda e, ent=entrada: self.dialog_palabra_hebreo(ent),
+                    )
+                )
+                continue
+
+            spans.append(
+                ft.TextSpan(
+                    fragmento,
+                    style=ft.TextStyle(
+                        color=color_fragmento,
+                        weight=ft.FontWeight.W_600 if es_palabra_cordero else None,
+                    ),
+                )
+            )
+
+        if inicio_rojo is None and not tiene_palabras_diccionario:
             return ft.Text(
                 texto,
                 color=color_base,
@@ -1962,21 +2000,149 @@ class BibliaView:
             )
 
         return ft.Text(
-            spans=[
-                ft.TextSpan(
-                    texto[:inicio_rojo],
-                    style=ft.TextStyle(color=color_base),
-                ),
-                ft.TextSpan(
-                    texto[inicio_rojo:],
-                    style=ft.TextStyle(
-                        color=COLOR_PALABRAS_CORDERO,
-                        weight=ft.FontWeight.W_600,
-                    ),
-                ),
-            ],
+            spans=spans,
             expand=expand,
         )
+
+    def _texto_detalle_diccionario(self, entrada):
+        return ft.Column(
+            tight=True,
+            spacing=8,
+            controls=[
+                ft.Text(
+                    entrada.get("palabra", ""),
+                    size=22,
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
+                ),
+                ft.Text(
+                    entrada.get("hebreo", ""),
+                    size=28,
+                    weight=ft.FontWeight.BOLD,
+                    color=VIOLETA_ACCENTO,
+                    text_align=ft.TextAlign.RIGHT,
+                ),
+                ft.Text(
+                    f"Transliteracion: {entrada.get('transliteracion', '')}",
+                    size=13,
+                    color=TEXTO_SECUNDARIO,
+                ),
+                ft.Container(
+                    padding=10,
+                    border_radius=12,
+                    bgcolor=ft.Colors.with_opacity(0.08, NARANJA_ACCENTO),
+                    content=ft.Text(
+                        entrada.get("significado", ""),
+                        size=14,
+                        weight=ft.FontWeight.BOLD,
+                        color=TEXTO_PRINCIPAL,
+                    ),
+                ),
+                ft.Text(
+                    entrada.get("descripcion", ""),
+                    size=13,
+                    color=TEXTO_PRINCIPAL,
+                    selectable=True,
+                ),
+            ],
+        )
+
+    def dialog_palabra_hebreo(self, entrada):
+        def cerrar(e=None):
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Diccionario hebreo"),
+            content=ft.Container(
+                width=330 if self.responsive.is_mobile() else 420,
+                content=self._texto_detalle_diccionario(entrada),
+            ),
+            actions=[
+                ft.ElevatedButton("Cerrar", on_click=cerrar),
+            ],
+        )
+
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+
+    def _item_diccionario_hebreo(self, entrada):
+        return ft.Container(
+            padding=10,
+            border_radius=12,
+            bgcolor=ft.Colors.WHITE,
+            border=ft.Border.all(1, BORDE_SUAVE),
+            on_click=lambda e, ent=entrada: self.dialog_palabra_hebreo(ent),
+            content=ft.Column(
+                tight=True,
+                spacing=4,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(
+                                entrada.get("palabra", ""),
+                                weight=ft.FontWeight.BOLD,
+                                color=TEXTO_PRINCIPAL,
+                            ),
+                            ft.Text(
+                                entrada.get("hebreo", ""),
+                                size=18,
+                                weight=ft.FontWeight.BOLD,
+                                color=VIOLETA_ACCENTO,
+                            ),
+                        ],
+                    ),
+                    ft.Text(
+                        entrada.get("significado", ""),
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                ],
+            ),
+        )
+
+    def dialog_diccionario_hebreo(self, e=None):
+        def cerrar(ev=None):
+            dialog.open = False
+            self.page.update()
+
+        lista = ft.ListView(
+            height=360 if self.responsive.is_mobile() else 460,
+            spacing=8,
+            controls=[
+                self._item_diccionario_hebreo(entrada)
+                for entrada in entradas_diccionario()
+            ],
+        )
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Diccionario hebreo"),
+            content=ft.Container(
+                width=340 if self.responsive.is_mobile() else 520,
+                content=ft.Column(
+                    tight=True,
+                    spacing=10,
+                    controls=[
+                        ft.Text(
+                            "Las palabras marcadas en negrita dentro de los versiculos se pueden tocar para ver su significado.",
+                            size=12,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                        lista,
+                    ],
+                ),
+            ),
+            actions=[
+                ft.ElevatedButton("Cerrar", on_click=cerrar),
+            ],
+        )
+
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
 
     def _inicio_palabras_cordero(self, libro, texto):
         libro_normalizado = str(libro or "").strip().lower()
