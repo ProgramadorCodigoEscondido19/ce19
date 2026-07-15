@@ -1,4 +1,4 @@
-import threading
+from ui.tareas import ejecutar_demorado
 
 
 def ocultar_teclado(page, *controles):
@@ -21,7 +21,7 @@ def ocultar_teclado(page, *controles):
             except Exception:
                 pass
 
-        threading.Timer(0.12, restaurar).start()
+        ejecutar_demorado(page, 0.12, restaurar)
 
     try:
         page.window.focused = True

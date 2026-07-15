@@ -1,9 +1,7 @@
-import threading
-import time
-
 import flet as ft
 
 from ui.clipboard import copiar_al_portapapeles
+from ui.tareas import ejecutar_demorado
 
 try:
     from ui.tema import (
@@ -91,7 +89,6 @@ def mostrar_detalle(
         page.update()
 
         def restaurar():
-            time.sleep(1.4)
             boton_copiar.icon = ft.Icons.CONTENT_COPY
             boton_copiar.tooltip = "Copiar todo"
             try:
@@ -99,14 +96,13 @@ def mostrar_detalle(
             except Exception:
                 pass
 
-        threading.Thread(target=restaurar, daemon=True).start()
+        ejecutar_demorado(page, 1.4, restaurar)
 
     def cerrar(e=None):
         dialog.open = False
         page.update()
 
         def eliminar():
-            time.sleep(0.1)
             try:
                 if dialog in page.overlay:
                     page.overlay.remove(dialog)
@@ -114,7 +110,7 @@ def mostrar_detalle(
             except Exception:
                 pass
 
-        threading.Thread(target=eliminar, daemon=True).start()
+        ejecutar_demorado(page, 0.1, eliminar)
 
     boton_copiar = ft.IconButton(
         icon=ft.Icons.CONTENT_COPY,

@@ -1,7 +1,6 @@
-import threading
-import time
 import flet as ft
 from ui.clipboard import copiar_al_portapapeles
+from ui.tareas import ejecutar_demorado
 from vistas.detalle import mostrar_detalle
 
 def tarjeta_resultado(
@@ -50,18 +49,12 @@ def tarjeta_resultado(
         page.update()
 
         def restaurar():
-
-            time.sleep(1.5)
-
             boton_copiar.icon = ft.Icons.CONTENT_COPY
             boton_copiar.tooltip = "Copiar"
 
             page.update()
 
-        threading.Thread(
-            target=restaurar,
-            daemon=True,
-        ).start()
+        ejecutar_demorado(page, 1.5, restaurar)
 
     # ----------------------------------------------------
 

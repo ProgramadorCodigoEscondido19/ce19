@@ -1,8 +1,6 @@
 import flet as ft
 import base64
 import json
-import time
-import threading
 import math
 from pathlib import Path
 from vistas.detalle import mostrar_detalle
@@ -13,6 +11,7 @@ from logica.exportar_excel import exportar_guardados_xlsx
 from logica.pizarra_imagen import renderizar_lienzo_exportable_base64
 from ui.clipboard import copiar_al_portapapeles
 from ui.compartir import compartir_archivo, compartir_texto
+from ui.tareas import ejecutar_demorado
 from ui.tema import (
     PERLA_BORDE,
     PERLA_PANEL,
@@ -2878,10 +2877,9 @@ class GuardadosView:
             dialog.open = False
             self.page.update()
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-            threading.Thread(target=eliminar_dialogo, daemon=True).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         dialog = ft.AlertDialog(
             title=ft.Text(f"Carpeta: {nombre}"),
@@ -2902,10 +2900,9 @@ class GuardadosView:
             dialog.open = False
             self.page.update()
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-            threading.Thread(target=eliminar_dialogo, daemon=True).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         dialog = ft.AlertDialog(
             title=ft.Text("Lienzo de carpetas"),
@@ -2942,10 +2939,9 @@ class GuardadosView:
             self.page.update()
             
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-            threading.Thread(target=eliminar_dialogo, daemon=True).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         def aceptar(e):
             ocultar_teclado(self.page, campo)
@@ -2989,10 +2985,9 @@ class GuardadosView:
             dialog.open = False
             self.page.update()
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-            threading.Thread(target=eliminar_dialogo, daemon=True).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         def aceptar(e):
             ocultar_teclado(self.page, campo)
@@ -3034,10 +3029,9 @@ class GuardadosView:
             dialog.open = False
             self.page.update()
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-            threading.Thread(target=eliminar_dialogo, daemon=True).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         def aceptar(e):
             self.carpetas.eliminar(carpeta["id"])
@@ -3561,15 +3555,10 @@ class GuardadosView:
             self.page.update()
 
             def eliminar_dialogo():
-                time.sleep(0.1)
-
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
 
-            threading.Thread(
-                target=eliminar_dialogo,
-                daemon=True
-            ).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         def aceptar(e):
             for id_registro in ids_registros:
@@ -3627,14 +3616,10 @@ class GuardadosView:
             dialog.open = False
             self.page.update()
             def eliminar_dialogo():
-                time.sleep(0.1)
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
 
-            threading.Thread(
-                target=eliminar_dialogo,
-                daemon=True,
-            ).start()
+            ejecutar_demorado(self.page, 0.1, eliminar_dialogo)
 
         def aceptar(ev):
             self.guardados.lista = [
@@ -3812,15 +3797,10 @@ class GuardadosView:
         )
         self.page.snack_bar.open = True
         def restaurar():
-            time.sleep(1.5)
-
             self.boton_copiar.icon = ft.Icons.CONTENT_COPY
             self.boton_copiar.tooltip = "Copiar"
             self.page.update()
-        threading.Thread(
-            target=restaurar,
-            daemon=True
-        ).start()
+        ejecutar_demorado(self.page, 1.5, restaurar)
 
         self.page.update()
 
