@@ -7,6 +7,9 @@ from core.rutas import RAIZ_PROYECTO, ruta_exportacion
 
 
 BASE_TARJETA = RAIZ_PROYECTO / "assets" / "tarjeta_versiculo_base.png"
+FUENTE_TARJETA_NEGRITA = (
+    RAIZ_PROYECTO / "assets" / "fonts" / "DejaVuSerif-Bold.ttf"
+)
 ANCHO_TARJETA = 1536
 ALTO_TARJETA = 1024
 MIME_TARJETA = "image/jpeg"
@@ -67,12 +70,15 @@ def _fuente(ImageFont, tamano, negrita=False):
         "DejaVuSans-Bold.ttf" if negrita else "DejaVuSans.ttf",
     ]
 
+    rutas_empaquetadas = [FUENTE_TARJETA_NEGRITA]
     rutas_windows = [
         Path("C:/Windows/Fonts") / nombre
         for nombre in nombres
     ]
 
-    for ruta in rutas_windows:
+    # Esta fuente viaja dentro de la app. Es necesaria en Android, donde las
+    # fuentes de Windows no existen y Pillow usaría una letra diminuta.
+    for ruta in [*rutas_empaquetadas, *rutas_windows]:
         try:
             return ImageFont.truetype(str(ruta), tamano)
         except Exception:
