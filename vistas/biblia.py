@@ -25,7 +25,6 @@ from logica.diccionario_hebreo import (
 )
 from logica.tarjeta_biblica import (
     datos_tarjeta_versiculo,
-    guardar_captura_tarjeta_base64,
 )
 from services.biblia_service import BibliaService
 from services.codificador_service import CodificadorService
@@ -3847,22 +3846,9 @@ class BibliaView:
             ),
         )
 
-    def _capturar_tarjeta_ref(self, screenshot_ref, datos, incluir_base64=False):
-        screenshot = screenshot_ref.current
-
-        if screenshot is not None:
-            try:
-                captura = screenshot.capture(pixel_ratio=2, delay=100)
-
-                if captura:
-                    return guardar_captura_tarjeta_base64(
-                        datos["referencia"],
-                        captura,
-                        incluir_base64=incluir_base64,
-                    )
-            except Exception:
-                pass
-
+    def _generar_archivo_tarjeta(self, datos, incluir_base64=False):
+        # La captura de controles se ve diminuta en Android. El JPG se compone
+        # directamente para conservar la proporción y el tamaño del texto.
         return datos_tarjeta_versiculo(
             datos["referencia"],
             datos["texto"],
@@ -3905,7 +3891,6 @@ class BibliaView:
         alto_page = getattr(self.page, "height", None) or 720
         ancho_tarjeta = min(560, max(300, ancho_page - 96))
         alto_contenido = min(620, max(420, alto_page - 150))
-        screenshot_ref = ft.Ref[ft.Screenshot]()
         raiz_fragmentos = (
             state.carpetas.obtener_por_nombre("FRAGMENTOS BIBLICOS")
             if state.carpetas
@@ -4116,8 +4101,7 @@ class BibliaView:
 
         def capturar(incluir_base64=False):
             try:
-                return self._capturar_tarjeta_ref(
-                    screenshot_ref,
+                return self._generar_archivo_tarjeta(
                     datos,
                     incluir_base64=incluir_base64,
                 )
@@ -4142,10 +4126,7 @@ class BibliaView:
                 imagen["mime"],
             )
 
-        tarjeta = ft.Screenshot(
-            ref=screenshot_ref,
-            content=self._control_tarjeta_versiculo(datos, ancho_tarjeta),
-        )
+        tarjeta = self._control_tarjeta_versiculo(datos, ancho_tarjeta)
         controles = [tarjeta]
 
         acciones = [ft.TextButton("Cerrar", on_click=cerrar)]
