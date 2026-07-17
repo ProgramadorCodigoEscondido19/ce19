@@ -197,8 +197,32 @@ class Router:
         # La intro no pasa por este marco, por eso no se modifica.
         self._actualizar_barra_inferior()
 
-        padding = 4 if self._es_movil() else 8
-        bottom_padding = 6 if self._es_movil() else 8
+        es_movil = self._es_movil()
+        padding = 4 if es_movil else 10
+        bottom_padding = 6 if es_movil else 10
+        contenido_responsivo = contenido
+
+        if not es_movil:
+            contenido_responsivo = ft.Row(
+                expand=True,
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[
+                    self._menu_lateral(),
+                    ft.Container(
+                        expand=True,
+                        padding=ft.Padding(left=10, top=10, right=12, bottom=10),
+                        content=ft.Column(
+                            expand=True,
+                            spacing=10,
+                            controls=[
+                                self._barra_superior_contextual(),
+                                ft.Container(expand=True, content=contenido),
+                            ],
+                        ),
+                    ),
+                ],
+            )
 
         return ft.Container(
             expand=True,
@@ -233,7 +257,7 @@ class Router:
                                 right=padding,
                                 bottom=bottom_padding,
                             ),
-                            content=contenido,
+                            content=contenido_responsivo,
                         ),
                     ),
                 ],
@@ -268,23 +292,23 @@ class Router:
     def _menu_lateral(self):
         compacto = self._ancho() < 1100
         return ft.Container(
-            width=96 if compacto else 250,
-            padding=ft.Padding(left=16, top=18, right=0, bottom=18),
+            width=86 if compacto else 236,
+            padding=ft.Padding(left=10, top=10, right=0, bottom=10),
             content=ft.Container(
                 expand=True,
-                padding=ft.Padding(left=12, top=18, right=12, bottom=14),
-                bgcolor=opacidad(0.90, BLANCO),
-                border=ft.Border.all(1, opacidad(0.80, PERLA_BORDE)),
-                border_radius=32,
-                shadow=sombra_suave(0.11, 34, 1, 12),
+                padding=ft.Padding(left=10, top=12, right=10, bottom=10),
+                bgcolor=opacidad(0.96, BLANCO),
+                border=ft.Border.all(1, opacidad(0.72, PERLA_BORDE)),
+                border_radius=12,
+                shadow=sombra_suave(0.055, 18, 0, 4),
                 content=ft.Column(
                     expand=True,
-                    spacing=12,
+                    spacing=8,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
                         self._encabezado_menu(compacto),
-                        ft.Container(height=8),
-                        ft.Column(spacing=7, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_rutas]),
+                        ft.Divider(height=12, color=opacidad(0.65, PERLA_BORDE)),
+                        ft.Column(spacing=4, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_rutas]),
                         ft.Container(expand=True),
                         self._firma_menu(compacto),
                     ],
@@ -294,14 +318,14 @@ class Router:
 
     def _encabezado_menu(self, compacto):
         if compacto:
-            return ft.Column(tight=True, spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[icono_estrella(46), swatches_colores(8, suave=True)])
+            return ft.Column(tight=True, spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[icono_estrella(42), swatches_colores(7, suave=True)])
 
         return ft.Column(
             tight=True,
-            spacing=10,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=8,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
             controls=[
-                icono_estrella(62),
+                icono_estrella(42),
                 ft.Text("Código Escondido", size=16, weight=ft.FontWeight.BOLD, color=TEXTO, text_align=ft.TextAlign.CENTER),
                 ft.Container(
                     padding=ft.Padding(left=12, top=4, right=12, bottom=4),
@@ -309,16 +333,17 @@ class Router:
                     border_radius=99,
                     content=ft.Text("19", size=15, weight=ft.FontWeight.BOLD, color=NARANJA),
                 ),
-                swatches_colores(11, suave=True),
+                swatches_colores(9, suave=True),
             ],
         )
 
     def _firma_menu(self, compacto):
         return ft.Container(
-            padding=ft.Padding(left=10, top=9, right=10, bottom=9),
-            bgcolor=GRIS_SUAVE,
-            border_radius=18,
-            content=ft.Text("CE19" if compacto else "Sistema de estudio", size=11, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
+            padding=ft.Padding(left=8, top=7, right=8, bottom=7),
+            bgcolor=opacidad(0.72, GRIS_SUAVE),
+            border=ft.Border.all(1, opacidad(0.65, PERLA_BORDE)),
+            border_radius=8,
+            content=ft.Text("CE19" if compacto else "Listo", size=11, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
         )
 
     def _item_menu(self, ruta, compacto=False):
@@ -328,20 +353,20 @@ class Router:
         borde = opacidad(0.95, PERLA_BORDE) if seleccionado else ft.Colors.TRANSPARENT
 
         return ft.Container(
-            height=46,
-            padding=ft.Padding(left=12, top=0, right=12, bottom=0),
+            height=42,
+            padding=ft.Padding(left=10, top=0, right=10, bottom=0),
             bgcolor=fondo,
             border=ft.Border.all(1, borde),
-            border_radius=19,
-            shadow=sombra_color(VIOLETA, 0.12, 18, 5) if seleccionado else None,
+            border_radius=8,
+            shadow=sombra_color(VIOLETA, 0.08, 12, 3) if seleccionado else None,
             on_click=lambda e, r=ruta: self.navegar(r),
             content=ft.Row(
-                spacing=12,
+                spacing=10,
                 alignment=ft.MainAxisAlignment.CENTER if compacto else ft.MainAxisAlignment.START,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Icon(icono, size=22, color=VIOLETA_IOS if seleccionado else TEXTO_MUTED),
-                    ft.Text(label, visible=not compacto, size=14, weight=ft.FontWeight.BOLD if seleccionado else ft.FontWeight.NORMAL, color=VIOLETA_IOS if seleccionado else TEXTO),
+                    ft.Icon(icono, size=20, color=VIOLETA_IOS if seleccionado else TEXTO_MUTED),
+                    ft.Text(label, visible=not compacto, size=13, weight=ft.FontWeight.BOLD if seleccionado else ft.FontWeight.NORMAL, color=VIOLETA_IOS if seleccionado else TEXTO),
                 ],
             ),
         )
@@ -352,11 +377,12 @@ class Router:
             self.navegar(self.orden_rutas[indice])
 
     def _actualizar_barra_inferior(self):
-        # La barra inferior queda activa en todos los tamaños de pantalla.
+        # En escritorio/web se usa menu lateral; en celular queda la barra inferior.
         if not self.page.navigation_bar:
             return
-        if self.page.navigation_bar.visible is not True:
-            self.page.navigation_bar.visible = True
+        visible = self._es_movil()
+        if self.page.navigation_bar.visible != visible:
+            self.page.navigation_bar.visible = visible
             try:
                 self.page.update()
             except (RuntimeError, AssertionError):

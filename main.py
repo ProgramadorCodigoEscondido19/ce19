@@ -33,6 +33,18 @@ def main(page: ft.Page):
             AppStartupService.crear_navigation_bar(page, router)
             router.iniciar("inicio")
 
+            ultimo_modo = {"movil": router._es_movil()}
+
+            def adaptar_al_tamano(e=None):
+                modo_movil = router._es_movil()
+                if modo_movil != ultimo_modo["movil"]:
+                    ultimo_modo["movil"] = modo_movil
+                    router.refrescar()
+                else:
+                    router._actualizar_barra_inferior()
+
+            page.on_resize = adaptar_al_tamano
+
         except Exception as error:
             AppStartupService.pantalla_error(
                 root,
