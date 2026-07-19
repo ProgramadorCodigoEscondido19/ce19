@@ -10,7 +10,7 @@ APP_NOMBRE = "CODIGO ESCONDIDO 19"
 PROJECT_NAME = "codigo_escondido_19"
 BUNDLE_ID = "com.flet.app_ce_19"
 ORG = "com.flet"
-VERSION = "1.0.0"
+VERSION = "1.0.4"
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUSIONES_PAQUETE = [
     ".git",

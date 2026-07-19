@@ -74,6 +74,11 @@ def mostrar_detalle(
         resultado,
 ):
     """Muestra el detalle de una tarjeta sin cambiar la lógica original."""
+    ancho_page = getattr(page, "width", None)
+    if ancho_page is None and hasattr(page, "window"):
+        ancho_page = getattr(page.window, "width", None)
+    es_movil = (ancho_page or 1200) < 700
+    ancho_detalle = min(760, max(280, (ancho_page or 760) - 44))
 
     def copiar(e=None):
         texto = (
@@ -99,18 +104,23 @@ def mostrar_detalle(
         ejecutar_demorado(page, 1.4, restaurar)
 
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        # Flet 0.85 administra los diálogos en una pila propia. Usar la API
+        # nativa evita que Android conserve la capa modal tras tocar Cerrar.
+        try:
+            page.pop_dialog()
+            return
+        except Exception:
+            pass
 
-        def eliminar():
-            try:
-                if dialog in page.overlay:
-                    page.overlay.remove(dialog)
-                    page.update()
-            except Exception:
-                pass
+        try:
+            dialog.open = False
+        except Exception:
+            pass
 
-        ejecutar_demorado(page, 0.1, eliminar)
+        try:
+            page.update()
+        except Exception:
+            pass
 
     boton_copiar = ft.IconButton(
         icon=ft.Icons.CONTENT_COPY,
@@ -154,11 +164,17 @@ def mostrar_detalle(
                         color=VIOLETA_IOS,
                     ),
                 ),
+                ft.IconButton(
+                    icon=ft.Icons.CLOSE,
+                    tooltip="Cerrar",
+                    icon_color=VIOLETA_IOS,
+                    on_click=cerrar,
+                ),
             ],
         ),
         content=ft.Container(
-            width=760,
-            height=500,
+            width=ancho_detalle,
+            height=360 if es_movil else 500,
             padding=ft.Padding(left=4, top=4, right=4, bottom=4),
             content=ft.Column(
                 scroll=ft.ScrollMode.AUTO,
@@ -209,6 +225,10 @@ def mostrar_detalle(
         ],
     )
 
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    try:
+        page.show_dialog(dialog)
+    except Exception:
+        # Compatibilidad con instalaciones de Flet anteriores.
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
