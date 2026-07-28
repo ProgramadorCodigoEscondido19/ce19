@@ -28,8 +28,9 @@ from logica.tarjeta_biblica import (
 )
 from services.biblia_service import BibliaService
 from services.codificador_service import CodificadorService
+from services.exportador_biblia_codificada import ExportadorBibliaCodificada
 from ui.clipboard import copiar_al_portapapeles
-from ui.compartir import compartir_archivo, compartir_texto
+from ui.compartir import compartir_archivo, compartir_texto, descargar_archivo
 from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.tema import (
@@ -231,6 +232,7 @@ class BibliaView:
         self.objetivo_color_control = None
         self._cache_primer_resaltado = {}
         self.codificador_service = CodificadorService()
+        self.exportador_biblia_codificada = ExportadorBibliaCodificada()
         self.resultados_busqueda = ft.Column(
             expand=True,
             scroll=ft.ScrollMode.AUTO,
@@ -1433,6 +1435,7 @@ class BibliaView:
         acciones = [
             ft.IconButton(icon=ft.Icons.FORMAT_COLOR_RESET, tooltip="Quitar color seleccionado", icon_color=TEXTO_SECUNDARIO, on_click=lambda e: self.quitar_color_objetivo()),
             ft.IconButton(icon=ft.Icons.SAVE_ALT, tooltip="Guardar", icon_color=NARANJA_ACCENTO, on_click=lambda e: self.dialog_guardar_biblia()),
+            ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="Descargar Biblia codificada (PDF/TXT)", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
             ft.IconButton(icon=ft.Icons.CONTENT_COPY, tooltip="Copiar capitulo", icon_color=AZUL_ACCENTO, on_click=lambda e: self.copiar_capitulo()),
             ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Diccionario hebreo", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_diccionario_hebreo()),
             ft.IconButton(icon=ft.Icons.RECORD_VOICE_OVER, tooltip="Ver palabras del Cordero", icon_color=COLOR_PALABRAS_CORDERO, on_click=lambda e: self.dialog_palabras_cordero()),
@@ -3556,6 +3559,162 @@ class BibliaView:
             "referencia": referencia,
             "texto": texto,
         }
+
+    def _versos_capitulo_actual_para_exportar(self):
+        return [
+            {
+                "libro": self.libro_actual,
+                "capitulo": self.capitulo_actual,
+                "versiculo": numero,
+                "texto": texto,
+            }
+            for numero, texto in enumerate(self._capitulo_actual(), start=1)
+        ]
+
+    def _versos_libro_actual_para_exportar(self):
+        libro = self._libro_actual()
+
+        if not libro:
+            return []
+
+        resultados = []
+
+        for numero_capitulo, capitulo in enumerate(libro.get("capitulos", []), start=1):
+            resultados.extend(
+                {
+                    "libro": self.libro_actual,
+                    "capitulo": numero_capitulo,
+                    "versiculo": numero_versiculo,
+                    "texto": texto,
+                }
+                for numero_versiculo, texto in enumerate(capitulo, start=1)
+            )
+
+        return resultados
+
+    def _opciones_exportacion_codificada(self):
+        opciones = []
+        seleccion = self._versos_ordenados_para_compartir()
+
+        if seleccion:
+            etiqueta = (
+                "Versiculo seleccionado"
+                if len(seleccion) == 1
+                else f"{len(seleccion)} versiculos seleccionados"
+            )
+            opciones.append(("seleccion", etiqueta))
+
+        if self._datos_versiculo_activo():
+            opciones.append(("versiculo", "Versiculo actual"))
+
+        if self._capitulo_actual():
+            opciones.append(("capitulo", f"Capitulo actual: {self.libro_actual} {self.capitulo_actual}"))
+
+        if self._libro_actual():
+            opciones.append(("libro", f"Libro actual: {self.libro_actual}"))
+
+        return opciones
+
+    def _versos_para_exportacion_codificada(self, alcance):
+        if alcance == "seleccion":
+            return self._versos_ordenados_para_compartir()
+
+        if alcance == "versiculo":
+            datos = self._datos_versiculo_activo()
+            return [datos] if datos else []
+
+        if alcance == "capitulo":
+            return self._versos_capitulo_actual_para_exportar()
+
+        if alcance == "libro":
+            return self._versos_libro_actual_para_exportar()
+
+        return []
+
+    def dialog_exportar_biblia_codificada(self, e=None):
+        opciones_alcance = self._opciones_exportacion_codificada()
+
+        if not opciones_alcance:
+            self._snack("Seleccione un versiculo, capitulo o libro para exportar.")
+            return
+
+        self._limpiar_flotantes_biblia()
+        dialog_ref = {"control": None}
+        selector_alcance = ft.Dropdown(
+            label="Seccion a exportar",
+            options=[ft.dropdown.Option(clave, texto=etiqueta) for clave, etiqueta in opciones_alcance],
+            value=opciones_alcance[0][0],
+            expand=True,
+        )
+        selector_formato = ft.Dropdown(
+            label="Formato",
+            options=[
+                ft.dropdown.Option("txt", text="TXT"),
+                ft.dropdown.Option("pdf", text="PDF"),
+            ],
+            value="txt",
+            width=150,
+        )
+        incluir_suma = ft.Checkbox(label="Incluir suma de cada versiculo", value=False)
+        incluir_texto = ft.Checkbox(label="Incluir texto original entre parentesis", value=False)
+
+        def cerrar(ev=None):
+            self._cerrar_flotante_biblia(dialog_ref["control"])
+
+        def descargar(ev=None):
+            versos = self._versos_para_exportacion_codificada(selector_alcance.value)
+
+            if not versos:
+                self._snack("No hay versiculos validos para exportar.")
+                return
+
+            try:
+                ruta = self.exportador_biblia_codificada.exportar(
+                    versos,
+                    formato=selector_formato.value,
+                    incluir_suma=bool(incluir_suma.value),
+                    incluir_texto=bool(incluir_texto.value),
+                )
+            except Exception as error:
+                self._snack(f"No se pudo preparar la exportacion: {error}")
+                return
+
+            cerrar()
+            descargar_archivo(
+                self.page,
+                ruta,
+                f"Guardar Biblia codificada ({str(selector_formato.value).upper()})",
+            )
+
+        contenido = ft.Column(
+            tight=True,
+            spacing=12,
+            controls=[
+                ft.Text(
+                    "Libro, capitulo y versiculos se codifican con valores separados por guion bajo. "
+                    "El titulo del libro se muestra sin suma.",
+                    size=12,
+                    color=TEXTO_SECUNDARIO,
+                ),
+                selector_alcance,
+                selector_formato,
+                incluir_suma,
+                incluir_texto,
+            ],
+        )
+        dialog = self._crear_flotante_biblia(
+            "Descargar Biblia codificada",
+            contenido,
+            [
+                ft.ElevatedButton("Descargar", icon=ft.Icons.DOWNLOAD, on_click=descargar),
+                ft.TextButton("Cancelar", on_click=cerrar),
+            ],
+            ancho=560,
+            alto=430,
+        )
+        dialog_ref["control"] = dialog
+        self.page.overlay.append(dialog)
+        self.page.update()
 
     def guardar_fragmento(self):
         datos = self._datos_texto_biblia_actual()

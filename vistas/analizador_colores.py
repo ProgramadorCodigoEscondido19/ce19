@@ -5,6 +5,7 @@ from logica.analizador_colores import (
     DIGITO_COLORES,
     analizar_codigo_visual,
     guardar_historial,
+    tokenizar,
 )
 from services.biblia_service import BibliaService
 from ui.clipboard import copiar_al_portapapeles
@@ -523,17 +524,17 @@ class AnalizadorColoresView:
     def _bloques_caracteres(self):
         detalle = self.resultado.get("detalle_visual", [])
         limite = 90 if self.responsive.is_mobile() else 180
-        visibles = detalle[:limite]
-        controles = [self._bloque_caracter(item) for item in visibles]
+        grupos, cantidad_visible = self._grupos_palabras_visibles(detalle, limite)
+        controles = [self._bloque_palabra(palabra, items) for palabra, items in grupos]
 
-        if len(detalle) > limite:
+        if cantidad_visible < len(detalle):
             controles.append(
                 ft.Container(
                     padding=12,
                     border_radius=12,
                     bgcolor=PERLA_VIOLETA,
                     content=ft.Text(
-                        f"Vista resumida: se muestran {limite} de {len(detalle)} caracteres. El total se calcula completo.",
+                        f"Vista resumida: se muestran {cantidad_visible} de {len(detalle)} caracteres. El total se calcula completo.",
                         size=12,
                         color=TEXTO_SECUNDARIO,
                     ),
@@ -551,6 +552,78 @@ class AnalizadorColoresView:
                 run_spacing=10,
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=controles,
+            ),
+        )
+
+    def _grupos_palabras_visibles(self, detalle, limite):
+        texto = self.resultado.get("texto_limpio", "")
+        grupos = []
+        indice = 0
+        cantidad_visible = 0
+
+        for palabra in texto.split():
+            cantidad = len(tokenizar(palabra))
+            if not cantidad:
+                continue
+
+            items = detalle[indice:indice + cantidad]
+            indice += cantidad
+            if not items:
+                continue
+
+            if grupos and cantidad_visible + len(items) > limite:
+                break
+
+            grupos.append((palabra, items))
+            cantidad_visible += len(items)
+
+            if cantidad_visible >= limite:
+                break
+
+        if not grupos and detalle:
+            grupos.append((texto or "Texto", detalle[:limite]))
+            cantidad_visible = len(grupos[0][1])
+
+        return grupos, cantidad_visible
+
+    def _bloque_palabra(self, palabra, items):
+        es_movil = self.responsive.is_mobile()
+        ancho_caracter = 74 if es_movil else 84
+        separacion = 8
+        ancho_maximo = 310 if es_movil else 500
+        ancho_contenido = len(items) * ancho_caracter + max(0, len(items) - 1) * separacion + 18
+        ancho_grupo = min(ancho_maximo, max(112, ancho_contenido))
+
+        return ft.Container(
+            width=ancho_grupo,
+            padding=8,
+            bgcolor="#FCFAFF",
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=12,
+            content=ft.Column(
+                tight=True,
+                spacing=7,
+                controls=[
+                    ft.Text(
+                        palabra,
+                        size=13,
+                        weight=ft.FontWeight.BOLD,
+                        color=VIOLETA_IOS,
+                        no_wrap=True,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        tooltip=palabra,
+                    ),
+                    ft.Container(
+                        height=142,
+                        content=ft.Row(
+                            tight=True,
+                            scroll=ft.ScrollMode.AUTO,
+                            spacing=separacion,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            controls=[self._bloque_caracter(item) for item in items],
+                        ),
+                    ),
+                ],
             ),
         )
 
