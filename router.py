@@ -2,6 +2,7 @@
 import flet as ft
 
 from core.error_logger import registrar_error, ruta_log
+from services.ayuda_guiada_service import AyudaGuiadaService
 from services.rutas_service import RutasService
 
 from ui.tema import (
@@ -37,6 +38,7 @@ class Router:
         self.menu_lateral_abierto = True
         self.orden_rutas = RutasService.orden()
         self.meta_rutas = {ruta: (RutasService.label(ruta), RutasService.icono(ruta)) for ruta in self.orden_rutas}
+        self.ayuda_guiada = AyudaGuiadaService()
 
     def registrar(self, nombre, vista):
         self.vistas[nombre] = vista
@@ -210,7 +212,6 @@ class Router:
                             expand=True,
                             spacing=10,
                             controls=[
-                                self._barra_superior_contextual(),
                                 ft.Container(expand=True, content=contenido),
                             ],
                         ),
@@ -254,9 +255,149 @@ class Router:
                             content=contenido_responsivo,
                         ),
                     ),
+                    self._burbuja_ayuda() or ft.Container(visible=False),
                 ],
             ),
         )
+
+    def _burbuja_ayuda(self):
+        if not self.ayuda_guiada.activa():
+            return None
+
+        tips = self.ayuda_guiada.tips(self.ruta_actual)
+        if not tips:
+            return None
+
+        es_movil = self._es_movil()
+        paso = self.ayuda_guiada.paso_actual(self.ruta_actual)
+        tip = self.ayuda_guiada.tip_actual(self.ruta_actual) or {}
+        ancho = self._ancho()
+        ancho_burbuja = max(280, min(360, ancho - 28)) if es_movil else 360
+
+        indicadores = ft.Row(
+            tight=True,
+            spacing=5,
+            controls=[
+                ft.Container(
+                    width=18 if i == paso else 7,
+                    height=7,
+                    border_radius=7,
+                    bgcolor=VIOLETA_IOS if i == paso else PERLA_BORDE,
+                )
+                for i in range(len(tips))
+            ],
+        )
+
+        return ft.Container(
+            right=14 if es_movil else 26,
+            bottom=92 if es_movil else 26,
+            width=ancho_burbuja,
+            padding=14,
+            bgcolor=opacidad(0.96, BLANCO),
+            border=ft.Border.all(1, opacidad(0.95, PERLA_BORDE)),
+            border_radius=18,
+            shadow=sombra_suave(0.14, 28, 0, 8),
+            animate_opacity=180,
+            content=ft.Column(
+                tight=True,
+                spacing=10,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Row(
+                                tight=True,
+                                spacing=8,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                controls=[
+                                    ft.Container(
+                                        width=32,
+                                        height=32,
+                                        border_radius=12,
+                                        bgcolor=VIOLETA_SUAVE,
+                                        alignment=ft.Alignment(0, 0),
+                                        content=ft.Icon(ft.Icons.TIPS_AND_UPDATES, size=18, color=VIOLETA_IOS),
+                                    ),
+                                    ft.Text("Guía rápida", size=14, weight=ft.FontWeight.BOLD, color=TEXTO),
+                                ],
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_size=18,
+                                tooltip="Ocultar ayuda",
+                                icon_color=TEXTO_MUTED,
+                                on_click=self._desactivar_ayuda,
+                            ),
+                        ],
+                    ),
+                    ft.Column(
+                        tight=True,
+                        spacing=4,
+                        controls=[
+                            ft.Text(
+                                tip.get("titulo", "Ayuda"),
+                                size=13,
+                                weight=ft.FontWeight.BOLD,
+                                color=VIOLETA_IOS,
+                                no_wrap=False,
+                            ),
+                            ft.Text(tip.get("texto", ""), size=13, color=TEXTO, no_wrap=False),
+                        ],
+                    ),
+                    ft.Container(
+                        visible=bool(tip.get("accion")),
+                        padding=ft.Padding(left=10, top=8, right=10, bottom=8),
+                        bgcolor=PERLA_VIOLETA,
+                        border=ft.Border.all(1, opacidad(0.9, PERLA_BORDE)),
+                        border_radius=12,
+                        content=ft.Row(
+                            tight=True,
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            controls=[
+                                ft.Icon(ft.Icons.TOUCH_APP, size=17, color=VIOLETA_IOS),
+                                ft.Container(
+                                    expand=True,
+                                    content=ft.Text(
+                                        tip.get("accion", ""),
+                                        size=12,
+                                        weight=ft.FontWeight.W_600,
+                                        color=TEXTO,
+                                        no_wrap=False,
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            indicadores,
+                            ft.TextButton(
+                                "Siguiente",
+                                icon=ft.Icons.ARROW_FORWARD,
+                                icon_color=VIOLETA_IOS,
+                                on_click=self._avanzar_ayuda,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+    def _avanzar_ayuda(self, e=None):
+        self.ayuda_guiada.avanzar(self.ruta_actual)
+        self.refrescar()
+
+    def _desactivar_ayuda(self, e=None):
+        self.ayuda_guiada.establecer_activa(False)
+        vista = self.vistas.get("inicio")
+        if vista is not None and hasattr(vista, "sincronizar_ayuda_guiada"):
+            vista.sincronizar_ayuda_guiada(False)
+        self.refrescar()
+
     def _barra_superior_contextual(self):
         label, icono = self.meta_rutas.get(self.ruta_actual, ("Inicio", ft.Icons.HOME))
         return ft.Container(

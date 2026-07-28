@@ -11,7 +11,12 @@ from flet.controls.services.url_launcher import LaunchMode
 
 def _snack(page, mensaje):
     try:
-        page.snack_bar = ft.SnackBar(ft.Text(mensaje))
+        page.snack_bar = ft.SnackBar(
+            ft.Text(mensaje),
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=ft.Margin(left=18, top=0, right=18, bottom=72),
+            show_close_icon=True,
+        )
         page.snack_bar.open = True
         page.update()
     except Exception:
@@ -118,7 +123,7 @@ def _abrir_url(page, url, modo=LaunchMode.EXTERNAL_APPLICATION):
     return _programar(page, _abrir_url_async, page, url, modo)
 
 
-async def _copiar_texto_async(page, texto, mensaje="Contenido copiado."):
+async def _copiar_texto_async(page, texto, mensaje="Copiado correctamente"):
     try:
         clipboard = getattr(page, "clipboard", None)
 
@@ -133,7 +138,7 @@ async def _copiar_texto_async(page, texto, mensaje="Contenido copiado."):
     return False
 
 
-def _copiar_texto(page, texto, mensaje="Contenido copiado."):
+def _copiar_texto(page, texto, mensaje="Copiado correctamente"):
     return _programar(page, _copiar_texto_async, page, texto, mensaje)
 
 
@@ -167,7 +172,7 @@ def _mostrar_dialogo_compartir_texto(page, texto, titulo, urls):
         _servicio_compartir_texto(page, texto, titulo)
 
     def copiar_enlace(e=None):
-        _copiar_texto(page, urls[-1], "Enlace copiado.")
+        _copiar_texto(page, urls[-1], "Copiado correctamente")
 
     def copiar_texto(e=None):
         _copiar_texto(page, texto)
@@ -315,9 +320,11 @@ def descargar_archivo_directo(page, archivo, titulo="Archivo descargado"):
     destino = _ruta_unica_descarga(ruta.name)
 
     try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ruta, destino)
     except Exception:
         try:
+            destino.parent.mkdir(parents=True, exist_ok=True)
             destino.write_bytes(ruta.read_bytes())
         except Exception:
             _snack(page, "No se pudo descargar el archivo.")

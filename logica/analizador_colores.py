@@ -1,11 +1,14 @@
 import csv
 import colorsys
+import base64
 import json
 import os
 import re
+import time
 import unicodedata
+from pathlib import Path
 
-from core.rutas import ruta_datos
+from core.rutas import ruta_datos, ruta_exportacion
 from collections import Counter
 
 
@@ -30,6 +33,11 @@ COLORES = {
     7: {"nombre": "VIOLETA", "hex": "#8E24AA"},
     8: {"nombre": "GRIS", "hex": "#757575"},
     9: {"nombre": "BLANCO", "hex": "#FFFFFF"},
+}
+
+DIGITO_COLORES = {
+    0: {"nombre": "NEGRO", "hex": "#000000"},
+    **COLORES,
 }
 
 
@@ -118,6 +126,17 @@ def reducir_numero(numero):
     return numero
 
 
+def proceso_reduccion(numero):
+    pasos = [int(numero or 0)]
+    actual = int(numero or 0)
+
+    while actual > 9:
+        actual = sum(int(digito) for digito in str(actual))
+        pasos.append(actual)
+
+    return pasos
+
+
 def analizar_colores(texto):
     letras = tokenizar(texto)
     detalle = []
@@ -174,6 +193,202 @@ def analizar_colores(texto):
         "secuencia": [item["color"] for item in detalle],
         "mezcla": calcular_mezcla(conteo_ordenado),
     }
+
+
+def analizar_codigo_visual(texto):
+    letras = tokenizar(texto)
+    detalle = []
+    total_codigo = 0
+
+    for letra in letras:
+        valor = VALORES[letra]
+        reducido = reducir_numero(valor)
+        digitos = [int(digito) for digito in str(valor)]
+        color = DIGITO_COLORES[reducido]
+        total_codigo += valor
+        detalle.append(
+            {
+                "letra": letra,
+                "valor": valor,
+                "digitos": digitos,
+                "reducido": reducido,
+                "color": color["nombre"],
+                "hex": color["hex"],
+                "digitos_colores": [
+                    {
+                        "digito": digito,
+                        "color": DIGITO_COLORES[digito]["nombre"],
+                        "hex": DIGITO_COLORES[digito]["hex"],
+                    }
+                    for digito in digitos
+                ],
+            }
+        )
+
+    pasos = proceso_reduccion(total_codigo)
+    resultado_final = pasos[-1] if pasos else 0
+    color_final = DIGITO_COLORES.get(resultado_final, DIGITO_COLORES[0])
+    base = analizar_colores(texto)
+
+    base.update(
+        {
+            "detalle_visual": detalle,
+            "total_codigo": total_codigo,
+            "pasos_reduccion": pasos,
+            "resultado_final": resultado_final,
+            "color_final": color_final["nombre"],
+            "hex_final": color_final["hex"],
+        }
+    )
+    return base
+
+
+def _pil_colores():
+    try:
+        from PIL import Image, ImageDraw, ImageFont, ImageOps
+    except Exception as exc:
+        raise RuntimeError("No se pudo cargar el generador de tarjetas.") from exc
+
+    return Image, ImageDraw, ImageFont, ImageOps
+
+
+def _fuente_colores(ImageFont, tamano, negrita=False):
+    nombres = [
+        "arialbd.ttf" if negrita else "arial.ttf",
+        "DejaVuSans-Bold.ttf" if negrita else "DejaVuSans.ttf",
+    ]
+    rutas = [Path("C:/Windows/Fonts") / nombre for nombre in nombres]
+
+    for ruta in rutas:
+        try:
+            return ImageFont.truetype(str(ruta), tamano)
+        except Exception:
+            pass
+
+    for nombre in nombres:
+        try:
+            return ImageFont.truetype(nombre, tamano)
+        except Exception:
+            pass
+
+    return ImageFont.load_default()
+
+
+def _color_texto_para(hex_color):
+    color = str(hex_color or "#FFFFFF").lstrip("#")
+    if len(color) != 6:
+        return "#111111"
+    r, g, b = (int(color[i:i + 2], 16) for i in (0, 2, 4))
+    return "#111111" if (r * 0.299 + g * 0.587 + b * 0.114) > 160 else "#FFFFFF"
+
+
+def _slug_colores(texto):
+    texto = re.sub(r"\s+", "_", str(texto or "").strip())
+    texto = re.sub(r"[^A-Za-z0-9_]+", "", texto)
+    return texto.strip("_") or "colores"
+
+
+def generar_tarjeta_colores(resultado, titulo=None, nombre_archivo=None):
+    Image, ImageDraw, ImageFont, ImageOps = _pil_colores()
+    ancho, alto = 1536, 1024
+    fondo_base = Path(__file__).resolve().parent / "recursos" / "tarjeta_versiculo_base.png"
+
+    if fondo_base.exists():
+        resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+        imagen = ImageOps.fit(Image.open(fondo_base).convert("RGB"), (ancho, alto), method=resampling)
+    else:
+        imagen = Image.new("RGB", (ancho, alto), "#25004A")
+
+    draw = ImageDraw.Draw(imagen)
+    fuente_titulo = _fuente_colores(ImageFont, 54, True)
+    fuente = _fuente_colores(ImageFont, 30, False)
+    fuente_negrita = _fuente_colores(ImageFont, 34, True)
+    fuente_chica = _fuente_colores(ImageFont, 23, True)
+
+    panel = (86, 76, ancho - 86, alto - 78)
+    draw.rounded_rectangle(panel, radius=34, fill=(255, 252, 247), outline=(222, 205, 226), width=3)
+
+    titulo = str(titulo or resultado.get("texto_limpio") or "Codigo de colores").strip()
+    if len(titulo) > 48:
+        titulo = titulo[:45] + "..."
+    draw.text((ancho / 2, 112), titulo, font=fuente_titulo, fill="#4A2A18", anchor="mm")
+
+    detalle = resultado.get("detalle_visual", [])[:24]
+    x, y = 130, 178
+    tile_w, tile_h = 118, 170
+    gap_x, gap_y = 14, 22
+    por_fila = 8
+
+    for indice, item in enumerate(detalle):
+        col = indice % por_fila
+        fila = indice // por_fila
+        tx = x + col * (tile_w + gap_x)
+        ty = y + fila * (tile_h + gap_y)
+        color = item.get("hex", "#FFFFFF")
+        borde = "#795548" if item.get("reducido") == 9 else "#FFFFFF"
+        draw.rounded_rectangle((tx, ty, tx + tile_w, ty + 42), radius=7, fill=color, outline=borde, width=3)
+        draw.text((tx + tile_w / 2, ty + 21), item.get("letra", ""), font=fuente_chica, fill=_color_texto_para(color), anchor="mm")
+        draw.text((tx + tile_w / 2, ty + 62), str(item.get("valor", "")), font=fuente_chica, fill="#17131D", anchor="mm")
+
+        digitos = item.get("digitos_colores", [])
+        dx = tx + (tile_w - len(digitos) * 35 - max(len(digitos) - 1, 0) * 4) / 2
+        for digito in digitos:
+            digito_hex = digito.get("hex", "#FFFFFF")
+            digito_valor = digito.get("digito", "")
+            draw.text((dx + 17, ty + 86), str(digito_valor), font=fuente_chica, fill="#17131D", anchor="mm")
+            draw.rectangle((dx, ty + 102, dx + 34, ty + 134), fill=digito_hex, outline="#795548" if digito_valor == 9 else "#777777", width=2)
+            dx += 39
+
+        if len(digitos) > 1:
+            reducido = item.get("reducido", "")
+            reducido_hex = item.get("hex", "#FFFFFF")
+            draw.rectangle(
+                (tx + tile_w / 2 - 20, ty + 142, tx + tile_w / 2 + 20, ty + 178),
+                fill=reducido_hex,
+                outline="#795548" if reducido == 9 else "#777777",
+                width=2,
+            )
+            draw.text(
+                (tx + tile_w / 2, ty + 160),
+                str(reducido),
+                font=fuente_chica,
+                fill=_color_texto_para(reducido_hex),
+                anchor="mm",
+            )
+
+    total = resultado.get("total_codigo", 0)
+    pasos = resultado.get("pasos_reduccion", [total])
+    final = resultado.get("resultado_final", 0)
+    final_hex = resultado.get("hex_final", "#FFFFFF")
+    resumen_y = 780
+    draw.rounded_rectangle((230, resumen_y, ancho - 230, resumen_y + 54), radius=8, fill="#F5EFE7")
+    draw.text((ancho / 2, resumen_y + 27), f"TOTAL DE CODIGOS: {total}", font=fuente_negrita, fill="#4A2A18", anchor="mm")
+
+    proceso = " -> ".join(str(p) for p in pasos)
+    draw.text((ancho / 2, resumen_y + 94), f"PROCESO DE REDUCCION: {proceso}", font=fuente, fill="#4A2A18", anchor="mm")
+    draw.rounded_rectangle((ancho / 2 - 75, resumen_y + 126, ancho / 2 + 75, resumen_y + 206), radius=8, fill=final_hex, outline="#795548", width=3)
+    draw.text((ancho / 2, resumen_y + 166), str(final), font=fuente_titulo, fill=_color_texto_para(final_hex), anchor="mm")
+
+    if len(resultado.get("detalle_visual", [])) > len(detalle):
+        draw.text((ancho / 2, alto - 112), f"Vista resumida: {len(detalle)} de {len(resultado.get('detalle_visual', []))} caracteres", font=fuente, fill="#6F6677", anchor="mm")
+
+    nombre = nombre_archivo or f"tarjeta_colores_{_slug_colores(titulo)}_{int(time.time() * 1000)}.jpg"
+    ruta = Path(ruta_exportacion(nombre))
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    imagen.save(ruta, format="JPEG", quality=94, optimize=True)
+    return str(ruta)
+
+
+def datos_tarjeta_colores(resultado, titulo=None, incluir_base64=False):
+    archivo = generar_tarjeta_colores(resultado, titulo=titulo)
+    datos = {
+        "archivo": archivo,
+        "mime": "image/jpeg",
+        "extension": "jpg",
+    }
+    if incluir_base64:
+        datos["base64"] = base64.b64encode(Path(archivo).read_bytes()).decode("ascii")
+    return datos
 
 
 def calcular_mezcla(conteo):

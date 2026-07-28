@@ -1,3 +1,5 @@
+import re
+
 import flet as ft
 
 from ui.clipboard import copiar_al_portapapeles
@@ -66,6 +68,51 @@ def _seccion(titulo, contenido, selectable=False, mono=False):
     )
 
 
+def _tokens_palabra(texto):
+    palabra = str(texto or "").upper()
+    tokens = []
+    i = 0
+    while i < len(palabra):
+        par = palabra[i:i + 2]
+        if par in ("CH", "LL"):
+            tokens.append(par)
+            i += 2
+            continue
+        if palabra[i].isalpha():
+            tokens.append(palabra[i])
+        i += 1
+    return tokens
+
+
+def _detalle_por_palabra(palabra, suma):
+    palabras = str(palabra or "").split()
+    valores = [int(numero) for numero in re.findall(r"\d+", str(suma or ""))]
+    if not palabras or not valores:
+        return str(suma or palabra or "")
+
+    partes = []
+    indice = 0
+    for texto_palabra in palabras:
+        cantidad = len(_tokens_palabra(texto_palabra))
+        valores_palabra = valores[indice:indice + cantidad]
+        indice += cantidad
+
+        if not valores_palabra:
+            partes.append(texto_palabra)
+            continue
+
+        calculo = "+".join(str(valor) for valor in valores_palabra)
+        subtotal = sum(valores_palabra)
+        partes.append(f"{texto_palabra} ({calculo} ={subtotal})")
+
+    if indice < len(valores):
+        resto = valores[indice:]
+        calculo = "+".join(str(valor) for valor in resto)
+        partes.append(f"({calculo} ={sum(resto)})")
+
+    return " ".join(partes)
+
+
 def mostrar_detalle(
         page: ft.Page,
         palabra: str,
@@ -79,12 +126,12 @@ def mostrar_detalle(
         ancho_page = getattr(page.window, "width", None)
     es_movil = (ancho_page or 1200) < 700
     ancho_detalle = min(760, max(280, (ancho_page or 760) - 44))
+    detalle_palabras = _detalle_por_palabra(palabra, suma)
 
     def copiar(e=None):
         texto = (
-            f"Texto:\n{palabra}\n\n"
+            f"Detalle:\n{detalle_palabras}\n\n"
             f"Alfabeto: {alfabeto}\n\n"
-            f"Cálculo:\n{suma}\n\n"
             f"Resultado: {resultado}"
         )
 
@@ -130,39 +177,17 @@ def mostrar_detalle(
     )
 
     dialog = ft.AlertDialog(
-        modal=True,
+        modal=False,
         bgcolor=FONDO_APP,
         title=ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
-                ft.Column(
-                    tight=True,
-                    spacing=2,
-                    controls=[
-                        ft.Text(
-                            "Detalle",
-                            size=22,
-                            weight=ft.FontWeight.BOLD,
-                            color=TEXTO_PRINCIPAL,
-                        ),
-                        ft.Text(
-                            "Vista completa de la tarjeta seleccionada",
-                            size=12,
-                            color=TEXTO_SECUNDARIO,
-                        ),
-                    ],
-                ),
-                ft.Container(
-                    padding=ft.Padding(left=10, top=5, right=10, bottom=5),
-                    bgcolor=ft.Colors.with_opacity(0.12, DORADO_IOS),
-                    border_radius=999,
-                    content=ft.Text(
-                        str(resultado),
-                        size=18,
-                        weight=ft.FontWeight.BOLD,
-                        color=VIOLETA_IOS,
-                    ),
+                ft.Text(
+                    "Detalle",
+                    size=22,
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
                 ),
                 ft.IconButton(
                     icon=ft.Icons.CLOSE,
@@ -180,9 +205,8 @@ def mostrar_detalle(
                 scroll=ft.ScrollMode.AUTO,
                 spacing=12,
                 controls=[
-                    _seccion("Texto", palabra, selectable=True),
+                    _seccion("Detalle", detalle_palabras, selectable=True),
                     _seccion("Alfabeto", alfabeto, selectable=True),
-                    _seccion("Cálculo", suma, selectable=True, mono=True),
                     ft.Container(
                         padding=18,
                         bgcolor=SUPERFICIE_PERLADA,

@@ -911,7 +911,7 @@ class BibliaView:
             return
 
         copiar_al_portapapeles(self.page, f"{referencia} {texto}")
-        self._snack("Versiculo random copiado.")
+        self._snack("Copiado correctamente")
 
     def ir_a_versiculo_random(self, e=None):
         referencia = str(getattr(self, "versiculo_random_referencia", "") or "").strip()
@@ -4207,7 +4207,7 @@ class BibliaView:
 
         if versos:
             copiar_al_portapapeles(self.page, self._texto_versos_compartir(versos))
-            self._snack("Versiculos seleccionados copiados.")
+            self._snack("Copiado correctamente")
             return
 
         verso = self._verso_activo()
@@ -4220,7 +4220,7 @@ class BibliaView:
         libro, capitulo, versiculo = partes[0], int(partes[1]), int(partes[2])
         texto = self._texto_versiculo(libro, capitulo, versiculo)
         copiar_al_portapapeles(self.page, f"{libro} {capitulo}:{versiculo} {texto}")
-        self._snack("Versiculo copiado.")
+        self._snack("Copiado correctamente")
 
     def compartir_seleccion(self):
         versos = self._versos_ordenados_para_compartir()
@@ -4264,7 +4264,7 @@ class BibliaView:
             for indice, texto in enumerate(capitulo, start=1)
         )
         copiar_al_portapapeles(self.page, "\n".join(lineas))
-        self._snack("Capitulo copiado.")
+        self._snack("Copiado correctamente")
 
     def buscar(self, e=None):
         if e is not None:

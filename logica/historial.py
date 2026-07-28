@@ -82,7 +82,7 @@ class Historial:
         else:
             self.guardar_archivo()
     # ---------------------------------------------
-    def agregar(self, registro):
+    def agregar(self, registro, notificar=True):
 
         self.lista.insert(
             0,
@@ -90,7 +90,8 @@ class Historial:
         )
 
         self.guardar_archivo()
-        state.notify('update')
+        if notificar:
+            state.notify('update')
 
 
 

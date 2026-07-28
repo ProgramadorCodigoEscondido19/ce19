@@ -15,9 +15,12 @@ if str(RAIZ_PROYECTO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROYECTO))
 
 from ui.tema import DORADO, PURPURA_INICIAL
+from services.app_config_service import AppConfigService
+from services.app_paths import AppPaths
 
 FONDO_INTRO_PC = "intro_pc.webp"
 INTRO_AUDIO = "santo_santo_intro_loop.mp3"
+CLAVE_INTRO_MUTED = "intro_audio_muted"
 APOCALIPSIS_13_18 = (
     "Aqu\u00ed hay sabidur\u00eda. El que tiene entendimiento, cuente el n\u00famero de la bestia, "
     "pues es n\u00famero de hombre. Y su n\u00famero es seiscientos sesenta y seis."
@@ -43,6 +46,8 @@ def construir_intro(page, on_ingresar):
 
     apocalipsis = APOCALIPSIS_13_18
     romanos = ROMANOS_10_9
+    config_intro = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
+    audio_muted = {"valor": bool(config_intro.get(CLAVE_INTRO_MUTED, False))}
 
     estado = {
         "listo_para_entrar": False,
@@ -56,8 +61,8 @@ def construir_intro(page, on_ingresar):
         try:
             audio_intro = fa.Audio(
                 src=INTRO_AUDIO,
-                autoplay=True,
-                volume=0.68,
+                autoplay=not audio_muted["valor"],
+                volume=0 if audio_muted["valor"] else 0.68,
                 release_mode=fa.ReleaseMode.LOOP,
             )
             if hasattr(page, "services"):
@@ -82,7 +87,7 @@ def construir_intro(page, on_ingresar):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 ft.Text(
-                    "CÓDIGO ESCONDIDO 19",
+                    "CODIGO ESCONDIDO 19",
                     size=titulo_size,
                     weight=ft.FontWeight.BOLD,
                     color=ft.Colors.WHITE,
@@ -156,6 +161,50 @@ def construir_intro(page, on_ingresar):
             text_align=ft.TextAlign.CENTER,
         ),
     )
+
+    mute_boton = ft.IconButton(
+        icon=ft.Icons.VOLUME_OFF if audio_muted["valor"] else ft.Icons.VOLUME_UP,
+        icon_color=ft.Colors.WHITE,
+        bgcolor=ft.Colors.with_opacity(0.22, ft.Colors.BLACK),
+        tooltip="Activar sonido" if audio_muted["valor"] else "Silenciar intro",
+    )
+    mute_control = ft.Container(right=16, top=16, content=mute_boton)
+
+    def guardar_mute():
+        datos = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
+        datos[CLAVE_INTRO_MUTED] = audio_muted["valor"]
+        AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
+
+    async def aplicar_mute_audio():
+        if audio_intro is None:
+            return
+
+        try:
+            if audio_muted["valor"]:
+                audio_intro.volume = 0
+                audio_intro.update()
+                await audio_intro.pause()
+            else:
+                audio_intro.volume = 0.68
+                audio_intro.update()
+                await audio_intro.play()
+                estado["audio_iniciado"] = True
+        except Exception:
+            pass
+
+    def alternar_mute(e=None):
+        audio_muted["valor"] = not audio_muted["valor"]
+        guardar_mute()
+        mute_boton.icon = ft.Icons.VOLUME_OFF if audio_muted["valor"] else ft.Icons.VOLUME_UP
+        mute_boton.tooltip = "Activar sonido" if audio_muted["valor"] else "Silenciar intro"
+        _seguro_update(mute_boton)
+
+        if hasattr(page, "run_task"):
+            page.run_task(aplicar_mute_audio)
+        else:
+            asyncio.create_task(aplicar_mute_audio())
+
+    mute_boton.on_click = alternar_mute
 
     def crear_capa_estrellas(cantidad, escala, opacidad, offset, duracion):
         puntos = []
@@ -231,6 +280,9 @@ def construir_intro(page, on_ingresar):
         if audio_intro is None:
             return
 
+        if audio_muted["valor"]:
+            return
+
         if estado["audio_iniciado"] or estado["audio_intentando"]:
             return
 
@@ -254,6 +306,9 @@ def construir_intro(page, on_ingresar):
 
     def iniciar_audio_cuando_cargue(e=None):
         if audio_intro is None or estado["audio_iniciado"]:
+            return
+
+        if audio_muted["valor"]:
             return
 
         if hasattr(page, "run_task"):
@@ -361,7 +416,7 @@ def construir_intro(page, on_ingresar):
 
         # Apenas la intro queda montada en pantalla, disparamos el audio y la animación
         # en paralelo. Así no ocurre imagen primero y audio después.
-        if audio_intro is not None:
+        if audio_intro is not None and not audio_muted["valor"]:
             if hasattr(page, "run_task"):
                 page.run_task(iniciar_audio_intro)
             else:
@@ -409,6 +464,7 @@ def construir_intro(page, on_ingresar):
                 titulo,
                 versos,
                 indicacion,
+                mute_control,
             ],
         ),
     )

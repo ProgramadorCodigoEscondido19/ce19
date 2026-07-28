@@ -140,6 +140,7 @@ class CalculadoraView:
             )
             if es_movil
             else ft.Row(
+                expand=True,
                 spacing=18,
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=[
@@ -155,7 +156,7 @@ class CalculadoraView:
             padding=4 if es_movil else 8,
             alignment=ft.Alignment(0, 0),
             content=ft.Container(
-                width=980,
+                width=1120,
                 content=panel_moderno(cuerpo, padding=18 if es_movil else 20),
             ),
         )
@@ -194,18 +195,31 @@ class CalculadoraView:
                     size=12,
                     color=TEXTO_SECUNDARIO,
                 ),
-                ft.Row(
-                    wrap=True,
+                ft.Column(
+                    tight=True,
                     spacing=10,
-                    run_spacing=10,
                     controls=[
-                        ft.Container(width=190, content=self.modo_suma_biblia),
-                        ft.Container(width=210, content=self.libro_suma_biblia),
-                        ft.Container(width=210, content=self.libro_fin_suma_biblia),
-                        ft.Container(width=130, content=self.capitulo_inicio_suma_biblia),
-                        ft.Container(width=150, content=self.capitulo_fin_suma_biblia),
-                        ft.Container(width=130, content=self.versiculo_inicio_suma_biblia),
-                        ft.Container(width=150, content=self.versiculo_fin_suma_biblia),
+                        ft.Row(
+                            wrap=True,
+                            spacing=10,
+                            run_spacing=10,
+                            controls=[
+                                ft.Container(width=190, content=self.modo_suma_biblia),
+                                ft.Container(width=230, content=self.libro_suma_biblia),
+                                ft.Container(width=230, content=self.libro_fin_suma_biblia),
+                            ],
+                        ),
+                        ft.Row(
+                            wrap=True,
+                            spacing=10,
+                            run_spacing=10,
+                            controls=[
+                                ft.Container(width=140, content=self.capitulo_inicio_suma_biblia),
+                                ft.Container(width=160, content=self.capitulo_fin_suma_biblia),
+                                ft.Container(width=140, content=self.versiculo_inicio_suma_biblia),
+                                ft.Container(width=160, content=self.versiculo_fin_suma_biblia),
+                            ],
+                        ),
                     ],
                 ),
                 ft.Row(
@@ -465,6 +479,7 @@ class CalculadoraView:
     def _boton(self, valor):
         es_operador = valor in {"+", "-", "*", "/", "="}
         es_control = valor in {"C", "⌫", "±"}
+        es_control = es_control or valor in {"⌫", "±"}
         if es_operador:
             bgcolor = VIOLETA_IOS
             color = BLANCO
@@ -478,13 +493,45 @@ class CalculadoraView:
         return ft.ElevatedButton(
             valor,
             expand=True,
-            height=58,
+            height=50,
             bgcolor=bgcolor,
             color=color,
             on_click=lambda e, v=valor: self._presionar(v),
         )
 
+    def _teclado(self):
+        filas = [
+            ["C", "⌫", "/", "*"],
+            ["7", "8", "9", "-"],
+            ["4", "5", "6", "+"],
+            ["1", "2", "3", "="],
+            ["0", ".", "±"],
+        ]
+
+        return ft.Container(
+            height=310,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            content=ft.Column(
+                spacing=8,
+                scroll=ft.ScrollMode.AUTO,
+                controls=[
+                    ft.Row(spacing=8, controls=[self._boton(valor) for valor in fila])
+                    for fila in filas
+                ],
+            ),
+        )
+
     def _presionar(self, valor):
+        if valor == "⌫":
+            self.expresion = self.expresion[:-1]
+            self._actualizar_display()
+            return
+
+        if valor == "±":
+            self._cambiar_signo()
+            self._actualizar_display()
+            return
+
         if valor == "C":
             self.expresion = ""
         elif valor == "⌫":

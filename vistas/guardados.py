@@ -17,6 +17,9 @@ from ui.clipboard import copiar_al_portapapeles
 from ui.compartir import compartir_archivo, compartir_texto
 from ui.tareas import ejecutar_demorado
 from ui.tema import (
+    BLANCO,
+    MARRON,
+    NEGRO,
     PERLA_BORDE,
     PERLA_PANEL,
     PERLA_VIOLETA,
@@ -31,6 +34,35 @@ from services.guardados_service import GuardadosService
 from services.estadisticas_service import EstadisticasService
 from services.exportacion_service import ExportacionService
 from services.busqueda_global_service import BusquedaGlobalService
+
+
+COLOR_ICONOS = {
+    "NEGRO": "⬛",
+    "MARRON": "🟫",
+    "ROJO": "🟥",
+    "NARANJA": "🟧",
+    "AMARILLO": "🟨",
+    "VERDE": "🟩",
+    "AZUL": "🟦",
+    "VIOLETA": "🟪",
+    "GRIS": "🔲",
+    "BLANCO": "⬜",
+}
+
+
+COLOR_ICONOS = {
+    "NEGRO": "\u2B1B",
+    "MARRON": "\U0001F7EB",
+    "ROJO": "\U0001F7E5",
+    "NARANJA": "\U0001F7E7",
+    "AMARILLO": "\U0001F7E8",
+    "VERDE": "\U0001F7E9",
+    "AZUL": "\U0001F7E6",
+    "VIOLETA": "\U0001F7EA",
+    "GRIS": "\U0001F532",
+    "BLANCO": "\u2B1C",
+}
+
 
 class GuardadosView:
     # ======================================
@@ -1476,7 +1508,7 @@ class GuardadosView:
         if tipo == "calculo_biblico":
             return registro.get("nombre") or "Suma biblica"
 
-        return registro.get("palabra") or registro.get("nombre") or "Tarjeta"
+        return registro.get("nombre") or registro.get("palabra") or "Tarjeta"
 
     def subtitulo_registro(self, registro):
         tipo = registro.get("tipo", "tarjeta")
@@ -1557,7 +1589,13 @@ class GuardadosView:
     def _vista_previa_cuadricula(self, registro):
         tipo = registro.get("tipo", "tarjeta")
 
-        if tipo == "pizarra" or registro.get("subtipo") == "tarjeta_versiculo":
+        if (
+            tipo == "pizarra"
+            or registro.get("subtipo") == "tarjeta_versiculo"
+            or registro.get("subtipo") == "tarjeta_colores"
+            or registro.get("imagen_base64")
+            or registro.get("imagen_archivo")
+        ):
             return self.preview_registro(registro)
 
         return ft.Container(
@@ -1899,6 +1937,203 @@ class GuardadosView:
         self.page.snack_bar.open = True
         self.page.update()
 
+    def _texto_contraste_color(self, hex_color):
+        if str(hex_color).upper() == "#FFFFFF":
+            return NEGRO
+        if str(hex_color).upper() == "#000000":
+            return BLANCO
+        return ft.Colors.BLACK if str(hex_color).upper() in ("#FDD835", "#FFF300") else ft.Colors.WHITE
+
+    def _bloque_color_guardado(self, item, compacto=False):
+        color_hex = item.get("hex", "#FFFFFF")
+        reducido = item.get("reducido", "")
+        digitos = item.get("digitos_colores", [])
+        tiene_reduccion = len(digitos) > 1
+        ancho = 58 if compacto else 82
+
+        return ft.Container(
+            width=ancho,
+            padding=4 if compacto else 5,
+            bgcolor="#FCFAFF",
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=10,
+            content=ft.Column(
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=2 if compacto else 3,
+                controls=[
+                    ft.Container(
+                        width=42 if compacto else 50,
+                        height=28 if compacto else 34,
+                        alignment=ft.Alignment(0, 0),
+                        bgcolor=color_hex,
+                        border=ft.Border.all(1.5, MARRON) if reducido == 9 else ft.Border.all(1, ft.Colors.WHITE),
+                        border_radius=6,
+                        content=ft.Text(
+                            item.get("letra", ""),
+                            size=12 if compacto else 15,
+                            weight=ft.FontWeight.BOLD,
+                            color=self._texto_contraste_color(color_hex),
+                        ),
+                    ),
+                    ft.Text(str(item.get("valor", "")), size=10 if compacto else 12, weight=ft.FontWeight.BOLD),
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=2,
+                        controls=[
+                            ft.Text(str(d.get("digito", "")), size=9 if compacto else 11, weight=ft.FontWeight.BOLD)
+                            for d in digitos
+                        ],
+                    ),
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=2,
+                        controls=[
+                            ft.Container(
+                                width=15 if compacto else 19,
+                                height=15 if compacto else 19,
+                                bgcolor=d.get("hex", "#FFFFFF"),
+                                border=ft.Border.all(1.4, MARRON) if d.get("digito") == 9 else ft.Border.all(1, ft.Colors.GREY_400),
+                            )
+                            for d in digitos
+                        ],
+                    ),
+                    ft.Container(
+                        width=24 if compacto else 28,
+                        height=20 if compacto else 24,
+                        visible=tiene_reduccion,
+                        alignment=ft.Alignment(0, 0),
+                        bgcolor=color_hex,
+                        border=ft.Border.all(1.4, MARRON) if reducido == 9 else ft.Border.all(1, ft.Colors.GREY_400),
+                        content=ft.Text(
+                            str(reducido),
+                            size=10 if compacto else 12,
+                            weight=ft.FontWeight.BOLD,
+                            color=self._texto_contraste_color(color_hex),
+                        ),
+                    ),
+                ],
+            ),
+        )
+
+    def _cuadro_numero_color_guardado(self, valor, color):
+        return ft.Container(
+            width=max(48, len(str(valor)) * 16 + 20),
+            height=40,
+            alignment=ft.Alignment(0, 0),
+            bgcolor=color,
+            border=ft.Border.all(1.5, MARRON) if str(color).upper() == "#FFFFFF" else ft.Border.all(1, PERLA_BORDE),
+            border_radius=6,
+            content=ft.Text(
+                str(valor),
+                size=16,
+                weight=ft.FontWeight.BOLD,
+                color=self._texto_contraste_color(color),
+            ),
+        )
+
+    def _control_tarjeta_colores_guardada(self, registro, compacto=False):
+        contenido = registro.get("contenido") or {}
+        if not isinstance(contenido, dict):
+            return ft.Text(self.texto_registro(registro), selectable=True)
+
+        detalle = contenido.get("detalle_visual") or []
+        limite = 24 if compacto else 120
+        visibles = detalle[:limite]
+        texto = contenido.get("texto_limpio") or registro.get("referencia") or self.titulo_registro(registro)
+        vista_texto = texto if len(texto) <= 70 else texto[:67] + "..."
+        pasos = contenido.get("pasos_reduccion") or []
+        final = contenido.get("resultado_final") or registro.get("resultado") or ""
+        final_hex = contenido.get("hex_final") or "#FFFFFF"
+
+        bloques = [self._bloque_color_guardado(item, compacto=compacto) for item in visibles]
+        if len(detalle) > limite:
+            bloques.append(
+                ft.Container(
+                    padding=10,
+                    border_radius=10,
+                    bgcolor=PERLA_VIOLETA,
+                    content=ft.Text(f"+ {len(detalle) - limite} caracteres", size=11, color=TEXTO_SECUNDARIO),
+                )
+            )
+
+        pasos_controles = []
+        if pasos:
+            pasos_controles.append(self._cuadro_numero_color_guardado(pasos[0], "#F7F0E8"))
+            for paso in pasos[1:]:
+                pasos_controles.append(ft.Text("=", size=18, weight=ft.FontWeight.BOLD))
+                color_paso = final_hex if paso == final else "#FFFFFF"
+                pasos_controles.append(self._cuadro_numero_color_guardado(paso, color_paso))
+
+        return ft.Container(
+            padding=12 if not compacto else 8,
+            bgcolor=PERLA_PANEL,
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=18,
+            content=ft.Column(
+                tight=True,
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
+                controls=[
+                    ft.Container(
+                        padding=10,
+                        border=ft.Border.all(1, PERLA_BORDE),
+                        border_radius=12,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=4,
+                            controls=[
+                                ft.Text("Texto", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                                ft.Text(vista_texto, size=16 if not compacto else 12, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                            ],
+                        ),
+                    ),
+                    ft.Container(
+                        padding=10,
+                        border=ft.Border.all(1, PERLA_BORDE),
+                        border_radius=14,
+                        content=ft.Row(
+                            wrap=True,
+                            spacing=8 if not compacto else 5,
+                            run_spacing=10 if not compacto else 6,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            controls=bloques,
+                        ),
+                    ),
+                    ft.Container(
+                        padding=12,
+                        border=ft.Border.all(1, PERLA_BORDE),
+                        border_radius=14,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=8,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Text(f"TOTAL DE CODIGOS: {contenido.get('total_codigo', '')}", size=16, weight=ft.FontWeight.BOLD),
+                                ft.Text("PROCESO DE REDUCCION", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                                ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, spacing=8, controls=pasos_controles),
+                                ft.Text("RESULTADO FINAL", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                                ft.Container(
+                                    width=88,
+                                    height=58,
+                                    alignment=ft.Alignment(0, 0),
+                                    bgcolor=final_hex,
+                                    border=ft.Border.all(2, MARRON),
+                                    border_radius=8,
+                                    content=ft.Text(
+                                        str(final),
+                                        size=28,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=self._texto_contraste_color(final_hex),
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        )
+
     def preview_registro(self, registro):
         contenido = registro.get("contenido") or {}
 
@@ -1918,6 +2153,14 @@ class GuardadosView:
                     ancho=180,
                     compacto=True,
                 ),
+            )
+
+        if registro.get("subtipo") == "tarjeta_colores":
+            return ft.Container(
+                height=150,
+                alignment=ft.Alignment(0, 0),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                content=self._control_tarjeta_colores_guardada(registro, compacto=True),
             )
 
         objetos = contenido.get("objetos", []) if isinstance(contenido, dict) else []
@@ -2142,12 +2385,7 @@ class GuardadosView:
             )
 
         if tipo == "analisis_colores":
-            contenido = registro.get("contenido") or registro.get("suma") or {}
-
-            if isinstance(contenido, str):
-                return contenido
-
-            return json.dumps(contenido, ensure_ascii=False, indent=2)
+            return self.texto_analisis_colores(registro)
 
         if tipo == "tiempo":
             return (
@@ -2185,6 +2423,88 @@ class GuardadosView:
             f"Calculo: {registro.get('suma', '')}\n"
             f"Resultado: {registro.get('resultado', '')}\n"
             f"Referencia: {registro.get('referencia', '')}"
+        )
+
+    def texto_analisis_colores(self, registro):
+        contenido = registro.get("contenido") or {}
+
+        if not isinstance(contenido, dict):
+            return str(registro.get("suma") or contenido or "")
+
+        pasos = " -> ".join(str(p) for p in contenido.get("pasos_reduccion", []))
+        detalle = contenido.get("detalle_visual") or []
+        partes = []
+
+        for item in detalle[:80]:
+            digitos = item.get("digitos_colores", [])
+            iconos_digitos = "".join(COLOR_ICONOS.get(d.get("color", ""), "▫") for d in digitos)
+            icono_final = COLOR_ICONOS.get(item.get("color", ""), "▫")
+            if len(digitos) > 1:
+                partes.append(f"{item.get('letra', '')} {iconos_digitos} = {icono_final} {item.get('reducido', '')}")
+            else:
+                partes.append(f"{item.get('letra', '')} {icono_final} {item.get('reducido', '')}")
+
+        total_detalle = contenido.get("detalle_visual_total") or len(detalle)
+        if total_detalle > len(detalle):
+            partes.append(f"... {total_detalle - len(detalle)} caracteres mas")
+
+        caracteres = " | ".join(partes)
+        color_final = contenido.get("color_final", "")
+        return (
+            "CODIGO ESCONDIDO 19 - COLORES\n\n"
+            f"Texto: {registro.get('referencia') or self.titulo_registro(registro)}\n"
+            f"Caracteres: {caracteres}\n"
+            f"Total de codigos: {contenido.get('total_codigo', registro.get('resultado', ''))}\n"
+            f"Proceso de reduccion: {pasos}\n"
+            f"Resultado final: {contenido.get('resultado_final', registro.get('resultado', ''))} "
+            f"{COLOR_ICONOS.get(color_final, '')} ({color_final})"
+        )
+
+    def _linea_color_compartir(self, item):
+        letra = item.get("letra", "")
+        valor = item.get("valor", "")
+        reducido = item.get("reducido", "")
+        digitos = item.get("digitos_colores", [])
+        icono_final = COLOR_ICONOS.get(item.get("color", ""), "[]")
+
+        if len(digitos) > 1:
+            partes = [
+                f"{d.get('digito')} {COLOR_ICONOS.get(d.get('color', ''), '[]')} {d.get('color', '')}"
+                for d in digitos
+            ]
+            return f"{letra}: {valor} = {' + '.join(partes)} -> {reducido} {icono_final} {item.get('color', '')}"
+
+        return f"{letra}: {valor} {icono_final} {item.get('color', '')}"
+
+    def texto_analisis_colores(self, registro):
+        contenido = registro.get("contenido") or {}
+
+        if isinstance(contenido, dict) and contenido.get("texto_compartir"):
+            return str(contenido.get("texto_compartir"))
+
+        if not isinstance(contenido, dict):
+            return str(registro.get("suma") or contenido or "")
+
+        pasos = " -> ".join(str(p) for p in contenido.get("pasos_reduccion", []))
+        detalle = contenido.get("detalle_visual") or []
+        partes = [self._linea_color_compartir(item) for item in detalle[:80]]
+
+        total_detalle = contenido.get("detalle_visual_total") or len(detalle)
+        if total_detalle > len(detalle):
+            partes.append(f"... {total_detalle - len(detalle)} caracteres mas")
+
+        referencia = registro.get("referencia") or self.titulo_registro(registro)
+        texto_limpio = contenido.get("texto_limpio", "")
+        texto = texto_limpio if referencia == "Analisis de colores" else f"{referencia}\n{texto_limpio}"
+        color_final = contenido.get("color_final", "")
+        return (
+            "CODIGO ESCONDIDO 19 - COLORES\n\n"
+            f"Texto analizado:\n{texto}\n\n"
+            f"Detalle:\n" + "\n".join(partes) + "\n\n"
+            f"Total de codigo: {contenido.get('total_codigo', registro.get('resultado', ''))}\n"
+            f"Reduccion final: {pasos}\n"
+            f"Resultado final: {contenido.get('resultado_final', registro.get('resultado', ''))} "
+            f"{COLOR_ICONOS.get(color_final, '')} {color_final}"
         )
 
     def esta_seleccionado(self, registro):
@@ -4027,11 +4347,11 @@ class GuardadosView:
         self.boton_copiar.tooltip = "Copiado"
 
         self.page.snack_bar = ft.SnackBar(
-            content=ft.Text(
-                "Copiado al portapapeles"
-                if len(seleccionados) == 1
-                else "Elementos copiados al portapapeles"
-            )
+            content=ft.Text("Copiado correctamente"),
+            duration=1500,
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=ft.Margin(left=18, top=0, right=18, bottom=72),
+            show_close_icon=True,
         )
         self.page.snack_bar.open = True
         def restaurar():
@@ -4047,6 +4367,14 @@ class GuardadosView:
 
         if not seleccionados:
             self._aviso_guardados("Seleccione un archivo para compartir.")
+            return
+
+        if len(seleccionados) == 1 and seleccionados[0].get("subtipo") == "tarjeta_colores":
+            compartir_texto(
+                self.page,
+                self.texto_registro(seleccionados[0]),
+                self.titulo_registro(seleccionados[0]),
+            )
             return
 
         if len(seleccionados) == 1 and seleccionados[0].get("subtipo") == "tarjeta_versiculo":
@@ -4230,6 +4558,28 @@ class GuardadosView:
             return
 
         # En web y móvil el sistema entrega la descarga al navegador.
+        if hasattr(self.page, "run_task"):
+            self.page.run_task(self._descargar_tarjeta_versiculo_async, registro, str(archivo))
+        else:
+            self._aviso_guardados("No se pudo iniciar la descarga.")
+
+    def descargar_imagen_registro(self, registro):
+        imagen = self.archivo_imagen_registro(registro)
+
+        if not imagen or not imagen.get("archivo"):
+            self._aviso_guardados("No se pudo preparar la imagen.")
+            return
+
+        archivo = Path(imagen["archivo"])
+
+        if not archivo.exists():
+            self._aviso_guardados("No se encontro la imagen para descargar.")
+            return
+
+        if self._es_descarga_tarjeta_escritorio():
+            self._mostrar_selector_carpeta_descarga_tarjeta(archivo)
+            return
+
         if hasattr(self.page, "run_task"):
             self.page.run_task(self._descargar_tarjeta_versiculo_async, registro, str(archivo))
         else:
@@ -4641,6 +4991,7 @@ class GuardadosView:
 
         contenido_dialogo = []
         es_tarjeta_versiculo = registro.get("subtipo") == "tarjeta_versiculo"
+        es_tarjeta_colores = registro.get("subtipo") == "tarjeta_colores"
 
         if es_tarjeta_versiculo:
             contenido_dialogo.append(
@@ -4651,6 +5002,9 @@ class GuardadosView:
                 )
             )
             src_imagen = True
+        elif es_tarjeta_colores:
+            contenido_dialogo.append(self._control_tarjeta_colores_guardada(registro, compacto=False))
+            src_imagen = False
         else:
             imagen = self.datos_imagen_registro(registro)
             src_imagen = self.src_imagen_registro(imagen)
@@ -4665,7 +5019,7 @@ class GuardadosView:
                 )
             )
 
-        if not es_tarjeta_versiculo:
+        if not es_tarjeta_versiculo and not es_tarjeta_colores:
             contenido_dialogo.append(
                 ft.Text(
                     self.texto_registro(registro),
@@ -4682,6 +5036,21 @@ class GuardadosView:
                     icon=ft.Icons.DOWNLOAD,
                     on_click=lambda e: self.descargar_tarjeta_versiculo(registro),
                 )
+            )
+        elif es_tarjeta_colores:
+            acciones.extend(
+                [
+                    ft.OutlinedButton(
+                        "Copiar",
+                        icon=ft.Icons.CONTENT_COPY,
+                        on_click=lambda e: copiar_al_portapapeles(self.page, self.texto_registro(registro)),
+                    ),
+                    ft.OutlinedButton(
+                        "Compartir",
+                        icon=ft.Icons.SHARE,
+                        on_click=lambda e: self.compartir_registro_directo(registro),
+                    ),
+                ]
             )
         else:
             acciones.append(
@@ -4805,6 +5174,14 @@ class GuardadosView:
         self.page.update()
 
     def compartir_registro_directo(self, registro):
+        if registro.get("subtipo") == "tarjeta_colores":
+            compartir_texto(
+                self.page,
+                self.texto_registro(registro),
+                self.titulo_registro(registro),
+            )
+            return
+
         if registro.get("subtipo") == "tarjeta_versiculo":
             self.descargar_tarjeta_versiculo(registro)
             return

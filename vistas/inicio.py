@@ -2,6 +2,7 @@ from ui.responsive import Responsive
 from ui.responsive_layout import ResponsiveLayout
 import flet as ft
 from services.codificador_service import CodificadorService
+from services.ayuda_guiada_service import AyudaGuiadaService
 from services.notificacion_service import NotificacionService
 from vistas.componentes import tarjeta_resultado
 from ui.sidebar import AppSidebar
@@ -17,6 +18,7 @@ from ui.tema import (
     sombra_suave,
 )
 from ui.teclado import ocultar_teclado
+from ui.tareas import ejecutar_demorado
 from core.app_state import state
 from core.event_bus import bus
 
@@ -45,6 +47,7 @@ class InicioView:
         self.dialog_selector = None
 
         self.codificador_service = CodificadorService()
+        self.ayuda_guiada = AyudaGuiadaService()
         self.motor = self.codificador_service.motor
         self.crear_controles()
         state.bind(self._on_state_change)
@@ -263,6 +266,14 @@ class InicioView:
             on_click=self.limpiar_codificador,
         )
 
+        self.ayuda_switch = ft.Switch(
+            label="Viñetas de ayuda",
+            value=self.ayuda_guiada.activa(),
+            active_color=VIOLETA_IOS,
+            tooltip="Mostrar pequeñas ayudas mientras usás la app",
+            on_change=self._cambiar_ayuda_guiada,
+        )
+
         self.mensaje_exito = ft.Text(
             "",
             visible=False,
@@ -374,6 +385,21 @@ class InicioView:
                             weight=ft.FontWeight.BOLD,
                         ),
                     ),
+                    ft.Container(
+                        padding=ft.Padding(left=10, top=4, right=10, bottom=4),
+                        bgcolor="#FCFAFF",
+                        border=ft.Border.all(1, PERLA_BORDE),
+                        border_radius=16,
+                        content=ft.Row(
+                            wrap=True,
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Icon(ft.Icons.TIPS_AND_UPDATES, size=18, color=VIOLETA_IOS),
+                                self.ayuda_switch,
+                            ],
+                        ),
+                    ),
                     acciones,
                     self.mensaje_exito,
                     self.mensaje_error,
@@ -445,7 +471,8 @@ class InicioView:
     # CODIFICAR
     # =====================================================
     def codificar(self, e):
-        ocultar_teclado(self.page)
+        if self.responsive.is_mobile():
+            ocultar_teclado(self.page)
         texto = self.palabra_input.value.strip()
 
         if not texto:
@@ -465,9 +492,12 @@ class InicioView:
             usar_ñ=True,
         )
 
-        self.historial.agregar(datos)
         self.mostrar_resultado(datos)
-        self.page.update()
+
+        def guardar_historial():
+            self.historial.agregar(datos, notificar=False)
+
+        ejecutar_demorado(self.page, 0.01, guardar_historial)
 
     def _activar_campo_texto(self, campo):
         campo.can_request_focus = True
@@ -475,6 +505,21 @@ class InicioView:
             campo.update()
         except (RuntimeError, AssertionError):
             pass
+
+    def _cambiar_ayuda_guiada(self, e):
+        activa = bool(e.control.value)
+        self.ayuda_guiada.establecer_activa(activa)
+        if hasattr(self.router, "ayuda_guiada"):
+            self.router.ayuda_guiada.establecer_activa(activa)
+        self.router.refrescar()
+
+    def sincronizar_ayuda_guiada(self, activa):
+        if hasattr(self, "ayuda_switch"):
+            self.ayuda_switch.value = bool(activa)
+            try:
+                self.ayuda_switch.update()
+            except (RuntimeError, AssertionError):
+                pass
 
     # =====================================================
     # MOSTRAR RESULTADO

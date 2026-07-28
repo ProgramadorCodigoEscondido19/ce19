@@ -11,6 +11,9 @@ class NotificacionService:
                 content=ft.Text(str(mensaje)),
                 bgcolor=color,
                 duration=duracion_ms,
+                behavior=ft.SnackBarBehavior.FLOATING,
+                margin=ft.Margin(left=18, top=0, right=18, bottom=72),
+                show_close_icon=True,
             )
             page.snack_bar.open = True
             page.update()
