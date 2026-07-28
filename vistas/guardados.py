@@ -2479,19 +2479,12 @@ class GuardadosView:
     def texto_analisis_colores(self, registro):
         contenido = registro.get("contenido") or {}
 
-        if isinstance(contenido, dict) and contenido.get("texto_compartir"):
-            return str(contenido.get("texto_compartir"))
-
         if not isinstance(contenido, dict):
             return str(registro.get("suma") or contenido or "")
 
         pasos = " -> ".join(str(p) for p in contenido.get("pasos_reduccion", []))
         detalle = contenido.get("detalle_visual") or []
-        partes = [self._linea_color_compartir(item) for item in detalle[:80]]
-
-        total_detalle = contenido.get("detalle_visual_total") or len(detalle)
-        if total_detalle > len(detalle):
-            partes.append(f"... {total_detalle - len(detalle)} caracteres mas")
+        partes = [self._linea_color_compartir(item) for item in detalle]
 
         referencia = registro.get("referencia") or self.titulo_registro(registro)
         texto_limpio = contenido.get("texto_limpio", "")

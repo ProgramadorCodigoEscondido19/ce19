@@ -701,7 +701,7 @@ class AnalizadorColoresView:
         detalle = self.resultado.get("detalle_visual", [])
         partes = []
 
-        for item in detalle[:80]:
+        for item in detalle:
             digitos = item.get("digitos_colores", [])
             iconos_digitos = "".join(COLOR_ICONOS.get(d.get("color", ""), "▫") for d in digitos)
             icono_final = COLOR_ICONOS.get(item.get("color", ""), "▫")
@@ -709,9 +709,6 @@ class AnalizadorColoresView:
                 partes.append(f"{item.get('letra', '')} {iconos_digitos} = {icono_final} {item.get('reducido', '')}")
             else:
                 partes.append(f"{item.get('letra', '')} {icono_final} {item.get('reducido', '')}")
-
-        if len(detalle) > 80:
-            partes.append(f"... {len(detalle) - 80} caracteres mas")
 
         caracteres = " | ".join(partes)
         return (
@@ -783,10 +780,7 @@ class AnalizadorColoresView:
 
         pasos = " -> ".join(str(p) for p in self.resultado.get("pasos_reduccion", []))
         detalle = self.resultado.get("detalle_visual", [])
-        partes = [self._linea_color_compartir(item) for item in detalle[:80]]
-
-        if len(detalle) > 80:
-            partes.append(f"... {len(detalle) - 80} caracteres mas")
+        partes = [self._linea_color_compartir(item) for item in detalle]
 
         referencia = self._titulo_resultado()
         texto_limpio = self.resultado.get("texto_limpio", "")
