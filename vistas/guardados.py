@@ -1938,11 +1938,15 @@ class GuardadosView:
         self.page.update()
 
     def _texto_contraste_color(self, hex_color):
-        if str(hex_color).upper() == "#FFFFFF":
-            return NEGRO
-        if str(hex_color).upper() == "#000000":
-            return BLANCO
-        return ft.Colors.BLACK if str(hex_color).upper() in ("#FDD835", "#FFF300") else ft.Colors.WHITE
+        color = str(hex_color or "").strip().lstrip("#")
+        if len(color) == 6:
+            try:
+                rojo, verde, azul = (int(color[indice:indice + 2], 16) for indice in (0, 2, 4))
+                luminancia = (rojo * 299 + verde * 587 + azul * 114) / 1000
+                return NEGRO if luminancia >= 155 else BLANCO
+            except ValueError:
+                pass
+        return NEGRO
 
     def _bloque_color_guardado(self, item, compacto=False):
         color_hex = item.get("hex", "#FFFFFF")

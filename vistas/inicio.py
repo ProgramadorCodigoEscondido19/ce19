@@ -2,7 +2,6 @@ from ui.responsive import Responsive
 from ui.responsive_layout import ResponsiveLayout
 import flet as ft
 from services.codificador_service import CodificadorService
-from services.ayuda_guiada_service import AyudaGuiadaService
 from services.notificacion_service import NotificacionService
 from vistas.componentes import tarjeta_resultado
 from ui.sidebar import AppSidebar
@@ -47,7 +46,6 @@ class InicioView:
         self.dialog_selector = None
 
         self.codificador_service = CodificadorService()
-        self.ayuda_guiada = AyudaGuiadaService()
         self.motor = self.codificador_service.motor
         self.crear_controles()
         state.bind(self._on_state_change)
@@ -266,14 +264,6 @@ class InicioView:
             on_click=self.limpiar_codificador,
         )
 
-        self.ayuda_switch = ft.Switch(
-            label="Viñetas de ayuda",
-            value=self.ayuda_guiada.activa(),
-            active_color=VIOLETA_IOS,
-            tooltip="Mostrar pequeñas ayudas mientras usás la app",
-            on_change=self._cambiar_ayuda_guiada,
-        )
-
         self.mensaje_exito = ft.Text(
             "",
             visible=False,
@@ -385,21 +375,6 @@ class InicioView:
                             weight=ft.FontWeight.BOLD,
                         ),
                     ),
-                    ft.Container(
-                        padding=ft.Padding(left=10, top=4, right=10, bottom=4),
-                        bgcolor="#FCFAFF",
-                        border=ft.Border.all(1, PERLA_BORDE),
-                        border_radius=16,
-                        content=ft.Row(
-                            wrap=True,
-                            spacing=8,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                ft.Icon(ft.Icons.TIPS_AND_UPDATES, size=18, color=VIOLETA_IOS),
-                                self.ayuda_switch,
-                            ],
-                        ),
-                    ),
                     acciones,
                     self.mensaje_exito,
                     self.mensaje_error,
@@ -505,21 +480,6 @@ class InicioView:
             campo.update()
         except (RuntimeError, AssertionError):
             pass
-
-    def _cambiar_ayuda_guiada(self, e):
-        activa = bool(e.control.value)
-        self.ayuda_guiada.establecer_activa(activa)
-        if hasattr(self.router, "ayuda_guiada"):
-            self.router.ayuda_guiada.establecer_activa(activa)
-        self.router.refrescar()
-
-    def sincronizar_ayuda_guiada(self, activa):
-        if hasattr(self, "ayuda_switch"):
-            self.ayuda_switch.value = bool(activa)
-            try:
-                self.ayuda_switch.update()
-            except (RuntimeError, AssertionError):
-                pass
 
     # =====================================================
     # MOSTRAR RESULTADO
