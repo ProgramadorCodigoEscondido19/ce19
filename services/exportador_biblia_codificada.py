@@ -80,8 +80,9 @@ class ExportadorBibliaCodificada:
     def _codigo_versiculo(self, numero, texto, incluir_suma, incluir_texto):
         valores = self._valores(texto)
         codigo = self._codigo(texto)
-        prefijo = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}:"
-        linea = codigo
+        # El rotulo se mantiene separado para poder resaltarlo sin tapar numeros.
+        prefijo = "VERSICULO"
+        linea = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}: {codigo}"
 
         if incluir_suma:
             linea += f" | Suma: {sum(valores)}"
@@ -122,6 +123,8 @@ class ExportadorBibliaCodificada:
                         "resaltado": "marron",
                         "resaltado_texto": self._codigo_libro(libro),
                         "destino": f"libro:{libro}",
+                        "indice_tipo": "libro",
+                        "indice_etiqueta": libro,
                     }
                 )
                 libro_actual = libro
@@ -131,10 +134,13 @@ class ExportadorBibliaCodificada:
                 lineas.append(
                     {
                         "texto": self._codigo_capitulo(capitulo),
+                        "prefijo": "CAPITULO",
                         "negrita": True,
                         "resaltado": "naranja",
-                        # El numero real del capitulo queda fuera del resaltado.
-                        "resaltado_texto": self._codigo(self.PREFIJO_CAPITULO),
+                        "resaltado_texto": "CAPITULO",
+                        "destino": f"capitulo:{libro}:{capitulo}",
+                        "indice_tipo": "capitulo",
+                        "indice_etiqueta": f"Capitulo {capitulo}",
                     }
                 )
                 capitulo_actual = capitulo
@@ -151,8 +157,7 @@ class ExportadorBibliaCodificada:
                     "prefijo": prefijo,
                     "negrita": False,
                     "resaltado": "violeta",
-                    # El 25 corresponde a la V; _n: queda legible sin resaltado.
-                    "resaltado_texto": self._codigo(self.PREFIJO_VERSICULO),
+                    "resaltado_texto": "VERSICULO",
                 }
             )
 
@@ -209,65 +214,66 @@ class ExportadorBibliaCodificada:
     def _ancho_aproximado(texto, tamanio):
         return min(510, max(28, len(str(texto)) * tamanio * 0.56 + 10))
 
-    def _crear_paginas_indice(self, entradas, destinos):
-        """Crea un indice compacto, con enlaces internos a cada libro del PDF."""
+    def _crear_paginas_indice(self, entradas, destinos, cantidad_paginas_indice):
+        """Crea un indice compacto y navegable por libros y capitulos."""
         paginas = []
-        comandos = []
-        enlaces = []
-        y = 800
+        por_pagina = 48
 
-        def cerrar_pagina():
-            nonlocal comandos, enlaces, y
-            if comandos:
-                paginas.append({"contenido": "\n".join(comandos).encode("ascii"), "enlaces": enlaces})
+        for inicio in range(0, len(entradas), por_pagina):
             comandos = []
             enlaces = []
             y = 800
-
-        titulo = self._codigo("INDICE")
-        comandos.extend(
-            [
-                "BT",
-                "/F2 16 Tf",
-                f"{self._pdf_rgb(self.RESALTADOS['marron']['hex'])} rg",
-                f"1 0 0 1 42 {y} Tm",
-                f"<{self._pdf_hex(titulo)}> Tj",
-                "ET",
-            ]
-        )
-        y -= 28
-
-        for entrada in entradas:
-            destino = entrada["destino"]
-            if destino not in destinos:
-                continue
-            if y < 48:
-                cerrar_pagina()
-            etiqueta = entrada["etiqueta"]
-            texto = f"{etiqueta}  ................................"
+            titulo = f"INDICE / {self._codigo('INDICE')}"
             comandos.extend(
                 [
                     "BT",
-                    "/F1 9 Tf",
-                    "0.090 0.075 0.114 rg",
+                    "/F2 15 Tf",
+                    f"{self._pdf_rgb(self.RESALTADOS['marron']['hex'])} rg",
                     f"1 0 0 1 42 {y} Tm",
-                    f"<{self._pdf_hex(texto)}> Tj",
+                    f"<{self._pdf_hex(titulo)}> Tj",
                     "ET",
                 ]
             )
-            enlaces.append(
-                {
-                    "x1": 40,
-                    "y1": y - 4,
-                    "x2": 550,
-                    "y2": y + 11,
-                    "destino": destino,
-                }
-            )
-            y -= 14
+            y -= 28
 
-        cerrar_pagina()
-        return paginas
+            for entrada in entradas[inicio:inicio + por_pagina]:
+                destino = entrada["destino"]
+                destino_pdf = destinos.get(destino)
+                if not destino_pdf:
+                    continue
+
+                tipo = entrada.get("tipo")
+                sangria = 42 if tipo == "libro" else 62
+                fuente = "F2" if tipo == "libro" else "F1"
+                tamanio = 10 if tipo == "libro" else 9
+                pagina_destino = cantidad_paginas_indice + destino_pdf["pagina"] + 1
+                codigo = entrada.get("codigo", "")
+                etiqueta = entrada["etiqueta"]
+                texto = f"{etiqueta}  |  {codigo}  ........  {pagina_destino}"
+                comandos.extend(
+                    [
+                        "BT",
+                        f"/{fuente} {tamanio} Tf",
+                        "0.090 0.075 0.114 rg",
+                        f"1 0 0 1 {sangria} {y} Tm",
+                        f"<{self._pdf_hex(texto)}> Tj",
+                        "ET",
+                    ]
+                )
+                enlaces.append(
+                    {
+                        "x1": sangria - 2,
+                        "y1": y - 4,
+                        "x2": 550,
+                        "y2": y + 11,
+                        "destino": destino,
+                    }
+                )
+                y -= 15
+
+            paginas.append({"contenido": "\n".join(comandos).encode("ascii"), "enlaces": enlaces})
+
+        return paginas or [{"contenido": b"", "enlaces": []}]
 
     def _crear_pdf(self, lineas, destino):
         """Genera un PDF con indice inicial y enlaces a cada libro."""
@@ -292,10 +298,21 @@ class ExportadorBibliaCodificada:
                 y -= 8
                 continue
 
+            # Evita que un destino del indice apunte a una pagina anterior.
+            if y < 46:
+                cerrar_pagina()
+
             destino_item = item.get("destino")
             if destino_item and destino_item not in destinos:
                 destinos[destino_item] = {"pagina": len(paginas_cuerpo), "y": y}
-                entradas_indice.append({"destino": destino_item, "etiqueta": texto})
+                entradas_indice.append(
+                    {
+                        "destino": destino_item,
+                        "etiqueta": item.get("indice_etiqueta", texto),
+                        "codigo": texto,
+                        "tipo": item.get("indice_tipo", "capitulo"),
+                    }
+                )
 
             negrita = bool(item.get("negrita"))
             resaltado = self.RESALTADOS.get(item.get("resaltado"))
@@ -351,7 +368,12 @@ class ExportadorBibliaCodificada:
         if not paginas_cuerpo:
             paginas_cuerpo = [{"contenido": b"", "enlaces": []}]
 
-        paginas_indice = self._crear_paginas_indice(entradas_indice, destinos)
+        cantidad_paginas_indice = max(1, (len(entradas_indice) + 47) // 48)
+        paginas_indice = self._crear_paginas_indice(
+            entradas_indice,
+            destinos,
+            cantidad_paginas_indice,
+        )
         paginas = paginas_indice + paginas_cuerpo
         desplazamiento_indice = len(paginas_indice)
 
