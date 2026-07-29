@@ -5,6 +5,7 @@ from logica.analizador_colores import (
     DIGITO_COLORES,
     analizar_codigo_visual,
     guardar_historial,
+    reducir_numero,
     tokenizar,
 )
 from services.biblia_service import BibliaService
@@ -696,10 +697,10 @@ class AnalizadorColoresView:
         partes = []
 
         if pasos:
-            partes.append(self._cuadro_numero(pasos[0], "#F7F0E8"))
+            partes.append(self._cuadro_numero(pasos[0], self._color_reduccion(pasos[0])))
             for paso in pasos[1:]:
                 partes.append(ft.Text("=", size=20, weight=ft.FontWeight.BOLD))
-                partes.append(self._cuadro_numero(paso, DIGITO_COLORES.get(paso, DIGITO_COLORES[0])["hex"]))
+                partes.append(self._cuadro_numero(paso, self._color_reduccion(paso)))
 
         return ft.Container(
             padding=12,
@@ -727,6 +728,15 @@ class AnalizadorColoresView:
                 ],
             ),
         )
+
+    @staticmethod
+    def _color_reduccion(valor):
+        """Colorea cada paso por el resultado de sumar sus digitos."""
+        try:
+            reducido = reducir_numero(int(valor))
+        except (TypeError, ValueError):
+            reducido = 0
+        return DIGITO_COLORES.get(reducido, DIGITO_COLORES[0])["hex"]
 
     def _cuadro_numero(self, valor, color):
         return ft.Container(

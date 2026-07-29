@@ -20,6 +20,11 @@ class ExportadorBibliaCodificada:
     )
     PREFIJO_VERSICULO = "V"
     PREFIJO_CAPITULO = "CAPITULO"
+    RESALTADOS = {
+        "marron": {"hex": "#795548", "texto": "#FFFFFF", "marca": "🟫"},
+        "naranja": {"hex": "#FB8C00", "texto": "#17131D", "marca": "🟧"},
+        "violeta": {"hex": "#8E24AA", "texto": "#FFFFFF", "marca": "🟪"},
+    }
 
     def __init__(self):
         self.valores_alfabeto = {
@@ -27,14 +32,18 @@ class ExportadorBibliaCodificada:
             for numero, letra in enumerate(self.ALFABETO_29, start=1)
         }
 
-    def _valores(self, texto):
+    @staticmethod
+    def _normalizar(texto):
         normalizado = str(texto or "").upper().replace("Ñ", "{ENIE}")
         normalizado = unicodedata.normalize("NFD", normalizado)
-        normalizado = "".join(
+        return "".join(
             caracter
             for caracter in normalizado
             if unicodedata.category(caracter) != "Mn"
         ).replace("{ENIE}", "Ñ")
+
+    def _valores(self, texto):
+        normalizado = self._normalizar(texto)
 
         valores = []
         indice = 0
@@ -55,7 +64,12 @@ class ExportadorBibliaCodificada:
         return valores
 
     def _codigo(self, texto):
-        return "_".join(str(valor) for valor in self._valores(texto))
+        palabras = re.findall(r"[A-ZÑ]+", self._normalizar(texto))
+        codigos = [
+            "_".join(str(valor) for valor in self._valores(palabra))
+            for palabra in palabras
+        ]
+        return "__".join(codigo for codigo in codigos if codigo)
 
     def _codigo_libro(self, nombre):
         return self._codigo(nombre)
@@ -65,8 +79,9 @@ class ExportadorBibliaCodificada:
 
     def _codigo_versiculo(self, numero, texto, incluir_suma, incluir_texto):
         valores = self._valores(texto)
-        codigo = "_".join(str(valor) for valor in valores)
-        linea = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}: {codigo}"
+        codigo = self._codigo(texto)
+        prefijo = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}:"
+        linea = codigo
 
         if incluir_suma:
             linea += f" | Suma: {sum(valores)}"
@@ -74,7 +89,7 @@ class ExportadorBibliaCodificada:
         if incluir_texto:
             linea += f" ({str(texto or '').strip()})"
 
-        return linea
+        return prefijo, linea
 
     @staticmethod
     def _ordenar_versos(versos):
@@ -100,23 +115,44 @@ class ExportadorBibliaCodificada:
             if libro != libro_actual:
                 if lineas:
                     lineas.append({"texto": "", "negrita": False})
-                lineas.append({"texto": self._codigo_libro(libro), "negrita": True})
+                lineas.append(
+                    {
+                        "texto": self._codigo_libro(libro),
+                        "negrita": True,
+                        "resaltado": "marron",
+                        "resaltado_texto": self._codigo_libro(libro),
+                        "destino": f"libro:{libro}",
+                    }
+                )
                 libro_actual = libro
                 capitulo_actual = None
 
             if capitulo != capitulo_actual:
-                lineas.append({"texto": self._codigo_capitulo(capitulo), "negrita": False})
+                lineas.append(
+                    {
+                        "texto": self._codigo_capitulo(capitulo),
+                        "negrita": True,
+                        "resaltado": "naranja",
+                        # El numero real del capitulo queda fuera del resaltado.
+                        "resaltado_texto": self._codigo(self.PREFIJO_CAPITULO),
+                    }
+                )
                 capitulo_actual = capitulo
 
+            prefijo, codigo_versiculo = self._codigo_versiculo(
+                numero,
+                texto,
+                incluir_suma=incluir_suma,
+                incluir_texto=incluir_texto,
+            )
             lineas.append(
                 {
-                    "texto": self._codigo_versiculo(
-                        numero,
-                        texto,
-                        incluir_suma=incluir_suma,
-                        incluir_texto=incluir_texto,
-                    ),
+                    "texto": codigo_versiculo,
+                    "prefijo": prefijo,
                     "negrita": False,
+                    "resaltado": "violeta",
+                    # El 25 corresponde a la V; _n: queda legible sin resaltado.
+                    "resaltado_texto": self._codigo(self.PREFIJO_VERSICULO),
                 }
             )
 
@@ -128,7 +164,13 @@ class ExportadorBibliaCodificada:
 
         for linea in lineas:
             texto = str(linea.get("texto", ""))
-            resultado.append(f"**{texto}**" if linea.get("negrita") and texto else texto)
+            prefijo = str(linea.get("prefijo", "")).strip()
+            contenido = " ".join(parte for parte in (prefijo, texto) if parte)
+            resaltado = linea.get("resaltado")
+            marca = ExportadorBibliaCodificada.RESALTADOS.get(resaltado, {}).get("marca", "")
+            if linea.get("negrita") and contenido:
+                contenido = f"**{contenido}**"
+            resultado.append(f"{marca} {contenido}".strip() if marca else contenido)
 
         return "\n".join(resultado).strip() + "\n"
 
@@ -153,40 +195,151 @@ class ExportadorBibliaCodificada:
         # WinAnsi soporta los acentos habituales del texto biblico en espanol.
         return str(texto).encode("cp1252", errors="replace").hex().upper()
 
-    def _crear_pdf(self, lineas, destino):
-        """Genera un PDF de texto puro, apto incluso para libros completos."""
+    @staticmethod
+    def _pdf_rgb(hexadecimal):
+        color = str(hexadecimal or "#000000").lstrip("#")
+        if len(color) != 6:
+            return "0 0 0"
+        try:
+            return " ".join(f"{int(color[indice:indice + 2], 16) / 255:.3f}" for indice in (0, 2, 4))
+        except ValueError:
+            return "0 0 0"
+
+    @staticmethod
+    def _ancho_aproximado(texto, tamanio):
+        return min(510, max(28, len(str(texto)) * tamanio * 0.56 + 10))
+
+    def _crear_paginas_indice(self, entradas, destinos):
+        """Crea un indice compacto, con enlaces internos a cada libro del PDF."""
         paginas = []
+        comandos = []
+        enlaces = []
+        y = 800
+
+        def cerrar_pagina():
+            nonlocal comandos, enlaces, y
+            if comandos:
+                paginas.append({"contenido": "\n".join(comandos).encode("ascii"), "enlaces": enlaces})
+            comandos = []
+            enlaces = []
+            y = 800
+
+        titulo = self._codigo("INDICE")
+        comandos.extend(
+            [
+                "BT",
+                "/F2 16 Tf",
+                f"{self._pdf_rgb(self.RESALTADOS['marron']['hex'])} rg",
+                f"1 0 0 1 42 {y} Tm",
+                f"<{self._pdf_hex(titulo)}> Tj",
+                "ET",
+            ]
+        )
+        y -= 28
+
+        for entrada in entradas:
+            destino = entrada["destino"]
+            if destino not in destinos:
+                continue
+            if y < 48:
+                cerrar_pagina()
+            etiqueta = entrada["etiqueta"]
+            texto = f"{etiqueta}  ................................"
+            comandos.extend(
+                [
+                    "BT",
+                    "/F1 9 Tf",
+                    "0.090 0.075 0.114 rg",
+                    f"1 0 0 1 42 {y} Tm",
+                    f"<{self._pdf_hex(texto)}> Tj",
+                    "ET",
+                ]
+            )
+            enlaces.append(
+                {
+                    "x1": 40,
+                    "y1": y - 4,
+                    "x2": 550,
+                    "y2": y + 11,
+                    "destino": destino,
+                }
+            )
+            y -= 14
+
+        cerrar_pagina()
+        return paginas
+
+    def _crear_pdf(self, lineas, destino):
+        """Genera un PDF con indice inicial y enlaces a cada libro."""
+        paginas_cuerpo = []
+        destinos = {}
+        entradas_indice = []
         comandos = []
         y = 800
 
         def cerrar_pagina():
             nonlocal comandos, y
             if comandos:
-                paginas.append("\n".join(comandos).encode("ascii"))
+                paginas_cuerpo.append({"contenido": "\n".join(comandos).encode("ascii"), "enlaces": []})
             comandos = []
             y = 800
 
         for item in lineas:
             texto = str(item.get("texto", ""))
-            if not texto:
+            prefijo = str(item.get("prefijo", "")).strip()
+            texto_completo = " ".join(parte for parte in (prefijo, texto) if parte)
+            if not texto_completo:
                 y -= 8
                 continue
 
+            destino_item = item.get("destino")
+            if destino_item and destino_item not in destinos:
+                destinos[destino_item] = {"pagina": len(paginas_cuerpo), "y": y}
+                entradas_indice.append({"destino": destino_item, "etiqueta": texto})
+
             negrita = bool(item.get("negrita"))
+            resaltado = self.RESALTADOS.get(item.get("resaltado"))
+            texto_resaltado = str(item.get("resaltado_texto", "")).strip()
             fuente = "F2" if negrita else "F1"
             tamanio = 13 if negrita else 9
             alto_linea = 19 if negrita else 14
             ancho = 64 if negrita else 92
 
-            for fragmento in self._envolver_pdf(texto, ancho=ancho):
+            for indice_fragmento, fragmento in enumerate(self._envolver_pdf(texto_completo, ancho=ancho)):
                 if y < 46:
                     cerrar_pagina()
+
+                x_texto = 42
+                texto_a_dibujar = fragmento
+                comandos_resaltado = []
+
+                # Solo se pinta el rotulo codificado. Los numeros reales quedan sin fondo.
+                if resaltado and texto_resaltado and indice_fragmento == 0 and fragmento.startswith(texto_resaltado):
+                    ancho_fondo = self._ancho_aproximado(texto_resaltado, tamanio)
+                    comandos_resaltado.extend(
+                        [
+                            "q",
+                            f"{self._pdf_rgb(resaltado['hex'])} rg",
+                            f"42 {y - 4} {ancho_fondo:.1f} {alto_linea + 4} re f",
+                            "Q",
+                            "BT",
+                            f"/{fuente} {tamanio} Tf",
+                            f"{self._pdf_rgb(resaltado['texto'])} rg",
+                            f"1 0 0 1 42 {y} Tm",
+                            f"<{self._pdf_hex(texto_resaltado)}> Tj",
+                            "ET",
+                        ]
+                    )
+                    texto_a_dibujar = fragmento[len(texto_resaltado):].lstrip()
+                    x_texto += ancho_fondo + 4
+
                 comandos.extend(
-                    [
+                    comandos_resaltado + [
                         "BT",
                         f"/{fuente} {tamanio} Tf",
-                        f"1 0 0 1 42 {y} Tm",
-                        f"<{self._pdf_hex(fragmento)}> Tj",
+                        "0.090 0.075 0.114 rg",
+                        f"1 0 0 1 {x_texto:.1f} {y} Tm",
+                        f"<{self._pdf_hex(texto_a_dibujar)}> Tj",
                         "ET",
                     ]
                 )
@@ -195,8 +348,12 @@ class ExportadorBibliaCodificada:
             y -= 5 if negrita else 2
 
         cerrar_pagina()
-        if not paginas:
-            paginas = [b""]
+        if not paginas_cuerpo:
+            paginas_cuerpo = [{"contenido": b"", "enlaces": []}]
+
+        paginas_indice = self._crear_paginas_indice(entradas_indice, destinos)
+        paginas = paginas_indice + paginas_cuerpo
+        desplazamiento_indice = len(paginas_indice)
 
         objetos = [
             b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -204,20 +361,40 @@ class ExportadorBibliaCodificada:
             b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
             b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
         ]
-        referencias_paginas = []
+        referencias_paginas = [5 + indice * 2 for indice in range(len(paginas))]
+        referencias_anotaciones = [[] for _ in paginas]
+        siguiente_anotacion = 5 + len(paginas) * 2
 
-        for contenido in paginas:
-            referencia_pagina = len(objetos) + 1
+        for indice, pagina in enumerate(paginas):
+            for enlace in pagina["enlaces"]:
+                destino_enlace = destinos.get(enlace["destino"])
+                if not destino_enlace:
+                    continue
+                enlace["referencia"] = siguiente_anotacion
+                enlace["pagina_destino"] = referencias_paginas[
+                    desplazamiento_indice + destino_enlace["pagina"]
+                ]
+                enlace["y_destino"] = destino_enlace["y"]
+                referencias_anotaciones[indice].append(siguiente_anotacion)
+                siguiente_anotacion += 1
+
+        for indice, pagina in enumerate(paginas):
+            referencia_pagina = referencias_paginas[indice]
             referencia_contenido = referencia_pagina + 1
-            referencias_paginas.append(referencia_pagina)
+            anotaciones = referencias_anotaciones[indice]
+            bloque_anotaciones = (
+                f" /Annots [{' '.join(f'{referencia} 0 R' for referencia in anotaciones)}]"
+                if anotaciones
+                else ""
+            )
             objetos.append(
                 (
                     "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
                     f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
-                    f"/Contents {referencia_contenido} 0 R >>"
+                    f"/Contents {referencia_contenido} 0 R{bloque_anotaciones} >>"
                 ).encode("ascii")
             )
-            comprimido = zlib.compress(contenido)
+            comprimido = zlib.compress(pagina["contenido"])
             objetos.append(
                 (
                     f"<< /Length {len(comprimido)} /Filter /FlateDecode >>\nstream\n"
@@ -225,6 +402,19 @@ class ExportadorBibliaCodificada:
                 + comprimido
                 + b"\nendstream"
             )
+
+        for pagina in paginas:
+            for enlace in pagina["enlaces"]:
+                if "referencia" not in enlace:
+                    continue
+                objetos.append(
+                    (
+                        "<< /Type /Annot /Subtype /Link "
+                        f"/Rect [{enlace['x1']:.1f} {enlace['y1']:.1f} {enlace['x2']:.1f} {enlace['y2']:.1f}] "
+                        "/Border [0 0 0] "
+                        f"/A << /S /GoTo /D [{enlace['pagina_destino']} 0 R /XYZ null {enlace['y_destino']:.1f} null] >> >>"
+                    ).encode("ascii")
+                )
 
         hijos = " ".join(f"{referencia} 0 R" for referencia in referencias_paginas)
         objetos[1] = f"<< /Type /Pages /Kids [{hijos}] /Count {len(referencias_paginas)} >>".encode("ascii")
