@@ -3560,35 +3560,95 @@ class BibliaView:
             "texto": texto,
         }
 
-    def _versos_capitulo_actual_para_exportar(self):
-        return [
-            {
-                "libro": self.libro_actual,
-                "capitulo": self.capitulo_actual,
-                "versiculo": numero,
-                "texto": texto,
-            }
-            for numero, texto in enumerate(self._capitulo_actual(), start=1)
-        ]
-
-    def _versos_libro_actual_para_exportar(self):
-        libro = self._libro_actual()
+    def _versos_rango_capitulos_para_exportar(self, libro_nombre, desde, hasta=None):
+        libro = self._libro_por_nombre(libro_nombre)
 
         if not libro:
             return []
 
+        capitulos = libro.get("capitulos", [])
+        inicio = max(1, int(desde or 1))
+        final = min(len(capitulos), int(hasta or inicio))
+
+        if final < inicio:
+            inicio, final = final, inicio
+
         resultados = []
 
-        for numero_capitulo, capitulo in enumerate(libro.get("capitulos", []), start=1):
+        for numero_capitulo in range(inicio, final + 1):
+            capitulo = capitulos[numero_capitulo - 1]
             resultados.extend(
                 {
-                    "libro": self.libro_actual,
+                    "libro": libro_nombre,
                     "capitulo": numero_capitulo,
                     "versiculo": numero_versiculo,
                     "texto": texto,
                 }
                 for numero_versiculo, texto in enumerate(capitulo, start=1)
             )
+
+        return resultados
+
+    def _versos_rango_versiculos_para_exportar(self, libro_nombre, capitulo, desde, hasta=None):
+        libro = self._libro_por_nombre(libro_nombre)
+
+        if not libro:
+            return []
+
+        capitulos = libro.get("capitulos", [])
+        numero_capitulo = int(capitulo or 1)
+
+        if numero_capitulo < 1 or numero_capitulo > len(capitulos):
+            return []
+
+        versiculos = capitulos[numero_capitulo - 1]
+        inicio = max(1, int(desde or 1))
+        final = min(len(versiculos), int(hasta or inicio))
+
+        if final < inicio:
+            inicio, final = final, inicio
+
+        return [
+            {
+                "libro": libro_nombre,
+                "capitulo": numero_capitulo,
+                "versiculo": numero_versiculo,
+                "texto": versiculos[numero_versiculo - 1],
+            }
+            for numero_versiculo in range(inicio, final + 1)
+        ]
+
+    def _versos_libro_para_exportar(self, libro_nombre):
+        libro = self._libro_por_nombre(libro_nombre)
+        total_capitulos = len(libro.get("capitulos", [])) if libro else 0
+        return self._versos_rango_capitulos_para_exportar(libro_nombre, 1, total_capitulos)
+
+    def _versos_rango_libros_para_exportar(self, desde, hasta=None):
+        nombres = [libro.get("nombre", "") for libro in self.libros]
+
+        try:
+            inicio = nombres.index(desde)
+        except ValueError:
+            return []
+
+        try:
+            final = nombres.index(hasta or desde)
+        except ValueError:
+            final = inicio
+
+        if final < inicio:
+            inicio, final = final, inicio
+
+        resultados = []
+        for nombre in nombres[inicio : final + 1]:
+            resultados.extend(self._versos_libro_para_exportar(nombre))
+        return resultados
+
+    def _versos_biblia_completa_para_exportar(self):
+        resultados = []
+
+        for libro in self.libros:
+            resultados.extend(self._versos_libro_para_exportar(libro.get("nombre", "")))
 
         return resultados
 
@@ -3604,30 +3664,54 @@ class BibliaView:
             )
             opciones.append(("seleccion", etiqueta))
 
-        if self._datos_versiculo_activo():
-            opciones.append(("versiculo", "Versiculo actual"))
-
-        if self._capitulo_actual():
-            opciones.append(("capitulo", f"Capitulo actual: {self.libro_actual} {self.capitulo_actual}"))
-
-        if self._libro_actual():
-            opciones.append(("libro", f"Libro actual: {self.libro_actual}"))
+        opciones.extend(
+            [
+                ("versiculos", "Versiculos por rango"),
+                ("capitulos", "Capitulos por rango"),
+                ("libros", "Libros por rango"),
+                ("libro", "Libro completo"),
+                ("biblia_completa", "Biblia completa"),
+            ]
+        )
 
         return opciones
 
-    def _versos_para_exportacion_codificada(self, alcance):
+    def _versos_para_exportacion_codificada(
+        self,
+        alcance,
+        libro_nombre=None,
+        libro_hasta=None,
+        capitulo_desde=None,
+        capitulo_hasta=None,
+        versiculo_desde=None,
+        versiculo_hasta=None,
+    ):
         if alcance == "seleccion":
             return self._versos_ordenados_para_compartir()
 
-        if alcance == "versiculo":
-            datos = self._datos_versiculo_activo()
-            return [datos] if datos else []
+        if alcance == "versiculos":
+            return self._versos_rango_versiculos_para_exportar(
+                libro_nombre,
+                capitulo_desde,
+                versiculo_desde,
+                versiculo_hasta,
+            )
 
-        if alcance == "capitulo":
-            return self._versos_capitulo_actual_para_exportar()
+        if alcance == "capitulos":
+            return self._versos_rango_capitulos_para_exportar(
+                libro_nombre,
+                capitulo_desde,
+                capitulo_hasta,
+            )
 
         if alcance == "libro":
-            return self._versos_libro_actual_para_exportar()
+            return self._versos_libro_para_exportar(libro_nombre)
+
+        if alcance == "libros":
+            return self._versos_rango_libros_para_exportar(libro_nombre, libro_hasta)
+
+        if alcance == "biblia_completa":
+            return self._versos_biblia_completa_para_exportar()
 
         return []
 
@@ -3640,11 +3724,61 @@ class BibliaView:
 
         self._limpiar_flotantes_biblia()
         dialog_ref = {"control": None}
-        selector_alcance = ft.Dropdown(
-            label="Seccion a exportar",
-            options=[ft.dropdown.Option(clave, text=etiqueta) for clave, etiqueta in opciones_alcance],
-            value=opciones_alcance[0][0],
-            expand=True,
+        libro_inicial = self.libro_actual if self._libro_por_nombre(self.libro_actual) else self.libros[0]["nombre"]
+        ancho_page = getattr(self.page, "width", None) or 760
+        ancho_selector = int(min(480, max(260, ancho_page - 96)))
+        alcance_actual = {"valor": opciones_alcance[0][0]}
+        botones_alcance = {}
+        libro_hasta_personalizado = {"valor": False}
+        selector_libro = ft.Dropdown(
+            label="Libro",
+            options=[ft.dropdown.Option(libro["nombre"]) for libro in self.libros],
+            value=libro_inicial,
+            width=ancho_selector,
+            height=52,
+            dense=True,
+            menu_height=240,
+            menu_width=ancho_selector,
+            expand=False,
+        )
+        selector_libro_hasta = ft.Dropdown(
+            label="Hasta libro",
+            options=[ft.dropdown.Option(libro["nombre"]) for libro in self.libros],
+            value=libro_inicial,
+            width=ancho_selector,
+            height=52,
+            dense=True,
+            menu_height=240,
+            menu_width=ancho_selector,
+            expand=False,
+        )
+        selector_capitulo_desde = ft.TextField(
+            label="Desde capitulo",
+            value=str(self.capitulo_actual or 1),
+            width=ancho_selector,
+            height=52,
+            dense=True,
+        )
+        selector_capitulo_hasta = ft.TextField(
+            label="Hasta capitulo",
+            value=str(self.capitulo_actual or 1),
+            width=ancho_selector,
+            height=52,
+            dense=True,
+        )
+        selector_versiculo_desde = ft.TextField(
+            label="Desde versiculo",
+            value="1",
+            width=ancho_selector,
+            height=52,
+            dense=True,
+        )
+        selector_versiculo_hasta = ft.TextField(
+            label="Hasta versiculo",
+            value="1",
+            width=ancho_selector,
+            height=52,
+            dense=True,
         )
         selector_formato = ft.Dropdown(
             label="Formato",
@@ -3654,15 +3788,159 @@ class BibliaView:
             ],
             value="txt",
             width=150,
+            height=52,
+            dense=True,
+            menu_height=120,
+            expand=False,
         )
         incluir_suma = ft.Checkbox(label="Incluir suma de cada versiculo", value=False)
         incluir_texto = ft.Checkbox(label="Incluir texto original entre parentesis", value=False)
+        bloque_capitulos = ft.Column(
+            tight=True,
+            spacing=8,
+            controls=[selector_capitulo_desde, selector_capitulo_hasta],
+        )
+        bloque_versiculos = ft.Column(
+            tight=True,
+            spacing=8,
+            controls=[selector_versiculo_desde, selector_versiculo_hasta],
+        )
+        fila_libros = ft.Column(
+            tight=True,
+            spacing=10,
+            controls=[selector_libro, selector_libro_hasta],
+        )
+        contenido = ft.ListView(
+            expand=True,
+            spacing=12,
+            padding=0,
+        )
+        descripcion_alcance = ft.Text(size=12, color=TEXTO_SECUNDARIO)
+
+        def numero_valido(valor, maximo, predeterminado=1):
+            try:
+                numero = int(str(valor).strip())
+            except (TypeError, ValueError):
+                numero = predeterminado
+            return max(1, min(maximo, numero))
+
+        def actualizar_versiculos(reiniciar=False):
+            libro = self._libro_por_nombre(selector_libro.value)
+            capitulos = libro.get("capitulos", []) if libro else []
+            numero_capitulo = numero_valido(
+                selector_capitulo_desde.value,
+                max(1, len(capitulos)),
+            )
+            selector_capitulo_desde.value = str(numero_capitulo)
+            if reiniciar:
+                selector_capitulo_hasta.value = str(numero_capitulo)
+            versiculos = capitulos[numero_capitulo - 1] if 0 < numero_capitulo <= len(capitulos) else []
+            maximo = max(1, len(versiculos))
+            if reiniciar:
+                selector_versiculo_desde.value = "1"
+                selector_versiculo_hasta.value = str(maximo)
+            else:
+                selector_versiculo_desde.value = str(numero_valido(selector_versiculo_desde.value, maximo))
+                selector_versiculo_hasta.value = str(numero_valido(selector_versiculo_hasta.value, maximo))
+
+        def actualizar_capitulos(reiniciar=False):
+            libro = self._libro_por_nombre(selector_libro.value)
+            total = len(libro.get("capitulos", [])) if libro else 0
+            actual = self.capitulo_actual if selector_libro.value == self.libro_actual else 1
+            selector_capitulo_desde.value = str(numero_valido(selector_capitulo_desde.value, max(1, total), actual))
+            if reiniciar:
+                selector_capitulo_hasta.value = selector_capitulo_desde.value
+            else:
+                selector_capitulo_hasta.value = str(
+                    numero_valido(selector_capitulo_hasta.value, max(1, total), selector_capitulo_desde.value)
+                )
+            actualizar_versiculos(reiniciar=reiniciar)
+
+        def actualizar_visibilidad(ev=None):
+            alcance = alcance_actual["valor"]
+            usa_libro = alcance in {"versiculos", "capitulos", "libro", "libros"}
+            fila_libros.visible = usa_libro
+            selector_libro_hasta.visible = alcance == "libros"
+            bloque_capitulos.visible = alcance in {"versiculos", "capitulos"}
+            selector_capitulo_hasta.visible = alcance == "capitulos"
+            bloque_versiculos.visible = alcance == "versiculos"
+
+            descripciones = {
+                "seleccion": "Se exportaran los versiculos seleccionados en la lectura.",
+                "versiculos": "Elija un libro, un capitulo y el rango de versiculos.",
+                "capitulos": "Elija un libro y el rango de capitulos.",
+                "libros": "Elija desde que libro hasta que libro desea exportar.",
+                "libro": "Elija el libro completo que desea exportar.",
+                "biblia_completa": "Se exportara toda la Biblia; no hace falta elegir rangos.",
+            }
+            descripcion_alcance.value = descripciones.get(alcance, "")
+            for clave, boton in botones_alcance.items():
+                activo = clave == alcance
+                boton.style = ft.ButtonStyle(
+                    color=ft.Colors.WHITE if activo else VIOLETA_ACCENTO,
+                    bgcolor=VIOLETA_ACCENTO if activo else ft.Colors.with_opacity(0.5, ft.Colors.WHITE),
+                    side=ft.BorderSide(1, VIOLETA_ACCENTO),
+                    shape=ft.RoundedRectangleBorder(radius=12),
+                )
+            if hasattr(contenido, "update"):
+                try:
+                    contenido.update()
+                except Exception:
+                    pass
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def al_cambiar_libro(ev=None):
+            actualizar_capitulos(reiniciar=True)
+            if not libro_hasta_personalizado["valor"]:
+                selector_libro_hasta.value = selector_libro.value
+            actualizar_visibilidad()
+
+        def al_cambiar_libro_hasta(ev=None):
+            libro_hasta_personalizado["valor"] = True
+            actualizar_visibilidad()
+
+        def seleccionar_alcance(clave):
+            alcance_actual["valor"] = clave
+            actualizar_visibilidad()
+
+        for clave, etiqueta in opciones_alcance:
+            botones_alcance[clave] = ft.OutlinedButton(
+                etiqueta,
+                on_click=lambda ev, valor=clave: seleccionar_alcance(valor),
+            )
+
+        selector_libro.on_select = al_cambiar_libro
+        selector_libro_hasta.on_select = al_cambiar_libro_hasta
+        actualizar_capitulos(reiniciar=True)
+        actualizar_visibilidad()
 
         def cerrar(ev=None):
             self._cerrar_flotante_biblia(dialog_ref["control"])
 
         def descargar(ev=None):
-            versos = self._versos_para_exportacion_codificada(selector_alcance.value)
+            libro = self._libro_por_nombre(selector_libro.value)
+            capitulos = libro.get("capitulos", []) if libro else []
+            capitulo_desde = numero_valido(selector_capitulo_desde.value, max(1, len(capitulos)))
+            capitulo_hasta = numero_valido(selector_capitulo_hasta.value, max(1, len(capitulos)))
+            versiculos_capitulo = (
+                capitulos[capitulo_desde - 1]
+                if 0 < capitulo_desde <= len(capitulos)
+                else []
+            )
+            versiculo_desde = numero_valido(selector_versiculo_desde.value, max(1, len(versiculos_capitulo)))
+            versiculo_hasta = numero_valido(selector_versiculo_hasta.value, max(1, len(versiculos_capitulo)))
+            versos = self._versos_para_exportacion_codificada(
+                alcance_actual["valor"],
+                libro_nombre=selector_libro.value,
+                libro_hasta=selector_libro_hasta.value,
+                capitulo_desde=capitulo_desde,
+                capitulo_hasta=capitulo_hasta,
+                versiculo_desde=versiculo_desde,
+                versiculo_hasta=versiculo_hasta,
+            )
 
             if not versos:
                 self._snack("No hay versiculos validos para exportar.")
@@ -3686,22 +3964,28 @@ class BibliaView:
                 f"Guardar Biblia codificada ({str(selector_formato.value).upper()})",
             )
 
-        contenido = ft.Column(
-            tight=True,
-            spacing=12,
-            controls=[
-                ft.Text(
-                    "Libro, capitulo y versiculos se codifican con valores separados por guion bajo. "
-                    "El titulo del libro se muestra sin suma.",
-                    size=12,
-                    color=TEXTO_SECUNDARIO,
-                ),
-                selector_alcance,
-                selector_formato,
-                incluir_suma,
-                incluir_texto,
-            ],
-        )
+        contenido.controls = [
+            ft.Text(
+                "Elija cualquier libro, rango de capitulos o rango de versiculos sin cambiar la lectura actual. "
+                "Libro, capitulo y versiculos se codifican con valores separados por guion bajo.",
+                size=12,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Text("Seccion a exportar", size=13, weight=ft.FontWeight.BOLD),
+            ft.Row(
+                wrap=True,
+                spacing=8,
+                run_spacing=8,
+                controls=list(botones_alcance.values()),
+            ),
+            descripcion_alcance,
+            fila_libros,
+            bloque_capitulos,
+            bloque_versiculos,
+            selector_formato,
+            incluir_suma,
+            incluir_texto,
+        ]
         dialog = self._crear_flotante_biblia(
             "Descargar Biblia codificada",
             contenido,
@@ -3710,7 +3994,7 @@ class BibliaView:
                 ft.TextButton("Cancelar", on_click=cerrar),
             ],
             ancho=560,
-            alto=430,
+            alto=620,
         )
         dialog_ref["control"] = dialog
         self.page.overlay.append(dialog)
