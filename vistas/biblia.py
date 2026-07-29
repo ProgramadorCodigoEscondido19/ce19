@@ -3642,7 +3642,7 @@ class BibliaView:
         dialog_ref = {"control": None}
         selector_alcance = ft.Dropdown(
             label="Seccion a exportar",
-            options=[ft.dropdown.Option(clave, texto=etiqueta) for clave, etiqueta in opciones_alcance],
+            options=[ft.dropdown.Option(clave, text=etiqueta) for clave, etiqueta in opciones_alcance],
             value=opciones_alcance[0][0],
             expand=True,
         )
