@@ -80,9 +80,8 @@ class ExportadorBibliaCodificada:
     def _codigo_versiculo(self, numero, texto, incluir_suma, incluir_texto):
         valores = self._valores(texto)
         codigo = self._codigo(texto)
-        # El rotulo se mantiene separado para poder resaltarlo sin tapar numeros.
-        prefijo = "VERSICULO"
-        linea = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}: {codigo}"
+        prefijo = f"{self._codigo(self.PREFIJO_VERSICULO)}_{int(numero)}:"
+        linea = codigo
 
         if incluir_suma:
             linea += f" | Suma: {sum(valores)}"
@@ -124,7 +123,6 @@ class ExportadorBibliaCodificada:
                         "resaltado_texto": self._codigo_libro(libro),
                         "destino": f"libro:{libro}",
                         "indice_tipo": "libro",
-                        "indice_etiqueta": libro,
                     }
                 )
                 libro_actual = libro
@@ -134,13 +132,11 @@ class ExportadorBibliaCodificada:
                 lineas.append(
                     {
                         "texto": self._codigo_capitulo(capitulo),
-                        "prefijo": "CAPITULO",
                         "negrita": True,
                         "resaltado": "naranja",
-                        "resaltado_texto": "CAPITULO",
+                        "resaltado_texto": self._codigo_capitulo(capitulo),
                         "destino": f"capitulo:{libro}:{capitulo}",
                         "indice_tipo": "capitulo",
-                        "indice_etiqueta": f"Capitulo {capitulo}",
                     }
                 )
                 capitulo_actual = capitulo
@@ -157,7 +153,7 @@ class ExportadorBibliaCodificada:
                     "prefijo": prefijo,
                     "negrita": False,
                     "resaltado": "violeta",
-                    "resaltado_texto": "VERSICULO",
+                    "resaltado_texto": prefijo,
                 }
             )
 
@@ -223,7 +219,7 @@ class ExportadorBibliaCodificada:
             comandos = []
             enlaces = []
             y = 800
-            titulo = f"INDICE / {self._codigo('INDICE')}"
+            titulo = self._codigo("INDICE")
             comandos.extend(
                 [
                     "BT",
@@ -248,8 +244,7 @@ class ExportadorBibliaCodificada:
                 tamanio = 10 if tipo == "libro" else 9
                 pagina_destino = cantidad_paginas_indice + destino_pdf["pagina"] + 1
                 codigo = entrada.get("codigo", "")
-                etiqueta = entrada["etiqueta"]
-                texto = f"{etiqueta}  |  {codigo}  ........  {pagina_destino}"
+                texto = f"{codigo}  ................................  {pagina_destino}"
                 comandos.extend(
                     [
                         "BT",
@@ -308,7 +303,6 @@ class ExportadorBibliaCodificada:
                 entradas_indice.append(
                     {
                         "destino": destino_item,
-                        "etiqueta": item.get("indice_etiqueta", texto),
                         "codigo": texto,
                         "tipo": item.get("indice_tipo", "capitulo"),
                     }
@@ -330,14 +324,16 @@ class ExportadorBibliaCodificada:
                 texto_a_dibujar = fragmento
                 comandos_resaltado = []
 
-                # Solo se pinta el rotulo codificado. Los numeros reales quedan sin fondo.
+                # Resalta solo la altura real de cada subtitulo, sin alcanzar otros renglones.
                 if resaltado and texto_resaltado and indice_fragmento == 0 and fragmento.startswith(texto_resaltado):
                     ancho_fondo = self._ancho_aproximado(texto_resaltado, tamanio)
+                    base_fondo = y - (3 if negrita else 2)
+                    alto_fondo = 15 if negrita else 11
                     comandos_resaltado.extend(
                         [
                             "q",
                             f"{self._pdf_rgb(resaltado['hex'])} rg",
-                            f"42 {y - 4} {ancho_fondo:.1f} {alto_linea + 4} re f",
+                            f"42 {base_fondo} {ancho_fondo:.1f} {alto_fondo} re f",
                             "Q",
                             "BT",
                             f"/{fuente} {tamanio} Tf",
