@@ -25,6 +25,14 @@ class CodificadorService:
     def codificar_29(self, texto):
         return self.codificar(texto, usar_ch=True, usar_ll=True, usar_enie=True)
 
+    def decodificar_numeros_29(self, codigo):
+        self.motor.crear_diccionario(
+            usar_ch=True,
+            usar_ll=True,
+            usar_enie=True,
+        )
+        return self.motor.decodificar_numeros(codigo or "")
+
     def comparar_alfabetos(self, texto):
         return [
             {

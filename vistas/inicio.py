@@ -235,6 +235,7 @@ class InicioView:
 
         self.palabra_input = ft.TextField(
             label="Ingrese texto",
+            hint_text="Ej: Hola",
             multiline=True,
             min_lines=1,
             max_lines=2,
@@ -247,6 +248,27 @@ class InicioView:
             focused_border_color="#A44BA8",
             on_submit=self.codificar,
             on_click=lambda e: self._activar_campo_texto(e.control),
+        )
+
+        self.modo_codificacion = ft.Dropdown(
+            label="Tipo de codificación",
+            value="texto_a_numeros",
+            options=[
+                ft.dropdown.Option("texto_a_numeros", text="Texto a números"),
+                ft.dropdown.Option("numeros_a_texto", text="Números a texto"),
+            ],
+            border_radius=18,
+            filled=True,
+            bgcolor="#FCFAFF",
+            border_color="#E7DCEB",
+            focused_border_color="#A44BA8",
+            on_select=self._actualizar_modo_codificacion,
+        )
+
+        self.ayuda_modo = ft.Text(
+            "Texto normal: Hola → 9 + 18 + 13 + 1",
+            size=12,
+            color=TEXTO_SECUNDARIO,
         )
 
         self.boton = ft.ElevatedButton(
@@ -359,10 +381,12 @@ class InicioView:
                     ),
                     self.palabra_input,
                     ft.Text(
-                        "Modo fijo de codificación",
+                        "Modo de codificación",
                         size=13,
                         color=TEXTO_SECUNDARIO,
                     ),
+                    self.modo_codificacion,
+                    self.ayuda_modo,
                     ft.Container(
                         padding=ft.Padding(left=12, top=6, right=12, bottom=6),
                         bgcolor=PERLA_VIOLETA,
@@ -442,6 +466,23 @@ class InicioView:
         self.mensaje_exito.visible = False
         self.page.update()
 
+    def _actualizar_modo_codificacion(self, e=None):
+        if self.modo_codificacion.value == "numeros_a_texto":
+            self.palabra_input.label = "Ingrese números codificados"
+            self.palabra_input.hint_text = "Ej: 9_18_13_1__9_18_13_1"
+            self.ayuda_modo.value = (
+                "1-29. Use _ entre letras y __ entre palabras. "
+                "Ej: 29 = z, 9_18_13_1 = Hola."
+            )
+            self.boton.text = "DECODIFICAR"
+        else:
+            self.palabra_input.label = "Ingrese texto"
+            self.palabra_input.hint_text = "Ej: Hola"
+            self.ayuda_modo.value = "Texto normal: Hola → 9 + 18 + 13 + 1"
+            self.boton.text = "CODIFICAR"
+
+        self.page.update()
+
     # =====================================================
     # CODIFICAR
     # =====================================================
@@ -451,21 +492,31 @@ class InicioView:
         texto = self.palabra_input.value.strip()
 
         if not texto:
-            self.mensaje_error.value = "Debe ingresar una palabra o texto para codificar."
+            self.mensaje_error.value = "Debe ingresar texto o números para codificar."
             self.mensaje_error.visible = True
             self.page.update()
             return
 
         self.mensaje_error.visible = False
 
-        # Modo único visible en interfaz.
-        # Internamente queda fijo en una sola configuración.
-        datos = self.codificador_service.codificar(
-            self.palabra_input.value,
-            usar_ch=True,
-            usar_ll=True,
-            usar_ñ=True,
-        )
+        try:
+            if self.modo_codificacion.value == "numeros_a_texto":
+                datos = self.codificador_service.decodificar_numeros_29(
+                    self.palabra_input.value
+                )
+            else:
+                datos = self.codificador_service.codificar(
+                    self.palabra_input.value,
+                    usar_ch=True,
+                    usar_ll=True,
+                    usar_ñ=True,
+                )
+                datos["modo_codificacion"] = "Texto a números"
+        except ValueError as error:
+            self.mensaje_error.value = str(error)
+            self.mensaje_error.visible = True
+            self.page.update()
+            return
 
         self.mostrar_resultado(datos)
 
@@ -507,9 +558,10 @@ class InicioView:
             self.page,
             (
                 "CODIGO ESCONDIDO 19\n\n"
-                f"Texto: {registro.get('palabra', '')}\n"
+                f"Modo: {registro.get('modo_codificacion', 'Texto a números')}\n"
+                f"Entrada: {registro.get('palabra', '')}\n"
                 f"Abecedario: {registro.get('alfabeto', '')}\n"
-                f"Suma: {registro.get('suma', '')}\n"
+                f"Detalle: {registro.get('suma', '')}\n"
                 f"Resultado: {registro.get('resultado', '')}"
             ),
             "Tarjeta CODIGO ESCONDIDO 19",
@@ -565,6 +617,8 @@ class InicioView:
             nuevo_registro = registro.copy()
             nuevo_registro["nombre"] = nombre.value
             nuevo_registro["tipo"] = "tarjeta"
+            if registro.get("subtipo"):
+                nuevo_registro["subtipo"] = registro.get("subtipo")
             carpeta_destino = self.carpetas.obtener_por_id(self.carpeta_selector_id) or destino
 
             try:
