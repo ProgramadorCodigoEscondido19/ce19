@@ -5,7 +5,3 @@
 La aplicacion web se abre desde:
 
 https://programadorcodigoescondido19.github.io/ce19/
-
-Si GitHub Pages no esta habilitado, entrar al repositorio y activar:
-
-Settings > Pages > Build and deployment > Source: GitHub Actions
