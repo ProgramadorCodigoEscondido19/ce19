@@ -8,7 +8,7 @@ from core.app_state import state
 from logica.carpetas import Carpetas
 from logica.guardados import Guardados
 from logica.historial import Historial
-from ui.tema import APP_NAME, FONDO_APP, PERLA_PANEL, PERLA_VIOLETA, VIOLETA_IOS, icono_estrella
+from ui.tema import APP_NAME, APP_VERSION, FONDO_APP, PERLA_PANEL, PERLA_VIOLETA, VIOLETA_IOS, icono_estrella
 from services.rutas_service import RutasService
 from services.vistas_registry_service import VistasRegistryService
 
@@ -89,7 +89,7 @@ class AppStartupService:
 
     @staticmethod
     def configurar_page(page):
-        page.title = APP_NAME
+        page.title = f"{APP_NAME} v{APP_VERSION}"
         page.bgcolor = FONDO_APP
         page.theme_mode = ft.ThemeMode.LIGHT
         page.theme = ft.Theme(color_scheme_seed=VIOLETA_IOS)
@@ -100,7 +100,7 @@ class AppStartupService:
         if ventana is not None:
             ventana.min_width = 360
             ventana.min_height = 600
-            ventana.title = APP_NAME
+            ventana.title = f"{APP_NAME} v{APP_VERSION}"
             try:
                 ventana.icon = "assets/icon.ico"
             except Exception:

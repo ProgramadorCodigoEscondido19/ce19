@@ -217,12 +217,6 @@ class GuardadosView:
         self.barra_explorador = ft.Row(
             spacing=0,
             controls=[
-                self.boton_nueva,
-                ft.VerticalDivider(width=1),
-                self.boton_renombrar,
-                ft.VerticalDivider(width=1),
-                self.boton_eliminar,
-                ft.VerticalDivider(width=1),
                 self.boton_vista,
                 ft.VerticalDivider(width=1),
                 self.boton_seleccion_multiple,
@@ -793,30 +787,36 @@ class GuardadosView:
         self.page.update()
 
     def _crear_panel_derecho_content(self):
-        if self.es_movil():
-            herramientas = ft.Column(
-                spacing=8,
-                controls=[
-                    ft.Row(
-                        spacing=4,
-                        controls=[self.campo_busqueda, self.boton_limpiar_busqueda],
-                    ),
-                    self.barra_explorador,
-                ],
-            )
-        else:
-            herramientas = ft.Row(
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                wrap=True,
-                controls=[
-                    ft.Row(
-                        spacing=4,
-                        controls=[self.campo_busqueda, self.boton_limpiar_busqueda],
-                    ),
-                    self.barra_explorador,
-                ],
-            )
+        buscador = ft.Row(
+            spacing=4,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Container(expand=True, content=self.campo_busqueda),
+                self.boton_limpiar_busqueda,
+                ft.IconButton(
+                    icon=ft.Icons.FILTER_LIST,
+                    tooltip="Filtrar por tipo",
+                    icon_color=VIOLETA_IOS,
+                    on_click=lambda e: self.dialog_filtros_tipo(),
+                ),
+            ],
+        )
+
+        herramientas = ft.Row(
+            wrap=True,
+            spacing=8,
+            run_spacing=6,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Container(
+                    width=None if self.es_movil() else 360,
+                    expand=self.es_movil(),
+                    content=buscador,
+                ),
+                self._selector_orden_guardados(),
+                self.barra_explorador,
+            ],
+        )
 
         return ft.Column(
             expand=True,
@@ -824,8 +824,6 @@ class GuardadosView:
             controls=[
                 herramientas,
                 self.barra_ruta,
-                self.barra_filtros_tipo,
-                self.barra_orden_guardados,
                 self.barra_acciones,
                 ft.Divider(height=1),
                 self.panel_contenido
@@ -1622,6 +1620,53 @@ class GuardadosView:
             border_radius=10,
             content=self.icono_registro(registro, grande=True),
         )
+
+    def _selector_orden_guardados(self):
+        etiquetas = {
+            "Antiguos": "Ordenar por: Más reciente",
+            "A-Z": "Ordenar por: A-Z",
+            "Resultado": "Ordenar por: Resultado",
+        }
+        return ft.Dropdown(
+            width=210 if not self.es_movil() else 190,
+            dense=True,
+            value=self.orden_guardados,
+            options=[
+                ft.dropdown.Option(valor, text=texto)
+                for valor, texto in etiquetas.items()
+            ],
+            on_select=lambda e: self._cambiar_orden_guardados(e.control.value),
+        )
+
+    def dialog_filtros_tipo(self):
+        def seleccionar(nombre):
+            self._cambiar_filtro_tipo(nombre)
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Filtrar guardados"),
+            content=ft.Column(
+                tight=True,
+                spacing=8,
+                controls=[
+                    ft.OutlinedButton(
+                        nombre,
+                        icon=ft.Icons.CHECK if nombre == self.filtro_tipo else None,
+                        on_click=lambda e, n=nombre: seleccionar(n),
+                    )
+                    for nombre in ["Todos", "Codificador", "Biblia", "Pizarra", "Colores", "Tiempo", "Calculadora"]
+                ],
+            ),
+            actions=[ft.TextButton("Cancelar", on_click=lambda e: self._cerrar_dialogo(dialog))],
+        )
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+
+    def _cerrar_dialogo(self, dialogo):
+        dialogo.open = False
+        self.page.update()
 
     def texto_previsualizacion(self, registro, size=13, max_lines=2, color=None):
         return ft.Text(
@@ -2718,26 +2763,9 @@ class GuardadosView:
     # F() AREA CENTRAL
     # ======================================
     def crear_area_trabajo(self):
-        self._aplicar_responsive()
-
-        if self.es_movil():
-            return ft.Column(
-                expand=True,
-                spacing=8,
-                controls=[
-                    self.panel_izquierdo,
-                    self.panel_derecho,
-                ],
-            )
-
-        return ft.Row(
-            expand=True,
-            spacing=10,
-            controls=[
-                self.panel_izquierdo,
-                self.panel_derecho,
-            ],
-        )
+        # Las carpetas viven en el contenido principal; un segundo panel
+        # lateral hacía que la vista se sintiera apretada y repetida.
+        return self.panel_derecho
 
     def _aplicar_responsive(self):
         if self.es_movil():
@@ -2748,8 +2776,6 @@ class GuardadosView:
             self.panel_derecho.padding = 10
             self.campo_busqueda.width = None
             self.barra_explorador.spacing = 0
-            if hasattr(self, "panel_derecho"):
-                self.panel_derecho.content = self._crear_panel_derecho_content()
             return
 
         if self.es_tablet():
@@ -2759,8 +2785,6 @@ class GuardadosView:
             self.panel_izquierdo.content = self._contenido_panel_carpetas()
             self.panel_derecho.padding = 8
             self.campo_busqueda.width = 240
-            if hasattr(self, "panel_derecho"):
-                self.panel_derecho.content = self._crear_panel_derecho_content()
             return
 
         self.panel_izquierdo.width = 250
@@ -2769,8 +2793,6 @@ class GuardadosView:
         self.panel_izquierdo.content = self._contenido_panel_carpetas()
         self.panel_derecho.padding = 8
         self.campo_busqueda.width = 320
-        if hasattr(self, "panel_derecho"):
-            self.panel_derecho.content = self._crear_panel_derecho_content()
 
     def _contenido_panel_carpetas(self):
         return ft.Column(
@@ -2933,45 +2955,51 @@ class GuardadosView:
             on_double_tap=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
             on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
             content=ft.Container(
-                width=145 if self.es_movil() else 178,
-                height=122,
-                padding=12,
-                ink=True,
-                bgcolor=BLANCO,
+                height=78 if self.es_movil() else 82,
+                padding=ft.Padding(left=13, top=10, right=8, bottom=10),
+                bgcolor=PERLA_VIOLETA if seleccionada else BLANCO,
                 border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
                 border_radius=8,
-                shadow=sombra_suave(0.035, 10, 0, 3),
-                content=ft.Column(
-                    tight=True,
-                    spacing=8,
+                content=ft.Row(
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Container(
-                                    width=38,
-                                    height=38,
-                                    alignment=ft.Alignment(0, 0),
-                                    bgcolor=fondo,
-                                    border_radius=8,
-                                    content=ft.Icon(icono, color=color, size=22),
-                                ),
-                                ft.Icon(ft.Icons.CHEVRON_RIGHT, color=color, size=18),
-                            ],
+                        ft.Container(
+                            width=42,
+                            height=42,
+                            alignment=ft.Alignment(0, 0),
+                            bgcolor=fondo,
+                            border_radius=8,
+                            content=ft.Icon(icono, color=color, size=22),
                         ),
-                        ft.Text(
-                            carpeta.get("nombre", "Carpeta"),
-                            size=12,
-                            weight=ft.FontWeight.BOLD,
-                            color=TEXTO_PRINCIPAL,
-                            max_lines=1,
-                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ft.Container(
+                            expand=True,
+                            content=ft.Column(
+                                tight=True,
+                                spacing=3,
+                                controls=[
+                                    ft.Text(
+                                        carpeta.get("nombre", "Carpeta"),
+                                        size=13,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=TEXTO_PRINCIPAL,
+                                        max_lines=1,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
+                                    ),
+                                    ft.Text(
+                                        f"{cantidad} elemento{'s' if cantidad != 1 else ''}",
+                                        size=11,
+                                        color=TEXTO_SECUNDARIO,
+                                        max_lines=1,
+                                    ),
+                                ],
+                            ),
                         ),
-                        ft.Text(
-                            f"{cantidad} elemento{'s' if cantidad != 1 else ''}",
-                            size=10,
-                            color=color,
-                            max_lines=1,
+                        ft.IconButton(
+                            icon=ft.Icons.MORE_VERT,
+                            tooltip="Acciones de carpeta",
+                            icon_color=TEXTO_SECUNDARIO,
+                            on_click=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
                         ),
                     ],
                 ),
@@ -2987,37 +3015,24 @@ class GuardadosView:
             tight=True,
             spacing=8,
             controls=[
-                ft.Row(
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    controls=[
-                        ft.Text(
-                            "Carpetas principales",
-                            size=14,
-                            weight=ft.FontWeight.BOLD,
-                            color=TEXTO_PRINCIPAL,
-                        ),
-                        ft.Text(
-                            "Abrir carpeta",
-                            size=11,
-                            color=TEXTO_SECUNDARIO,
-                        ),
-                    ],
+                ft.Text(
+                    "Carpetas",
+                    size=14,
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
                 ),
-                ft.Row(
-                    wrap=True,
-                    spacing=10,
-                    run_spacing=10,
+                ft.Column(
+                    tight=True,
+                    spacing=8,
                     controls=[self._tarjeta_carpeta_resumen(carpeta) for carpeta in carpetas],
                 ),
             ],
         )
 
     def _hero_guardados_visual(self):
-        total = len(self.guardados.obtener()) if hasattr(self.guardados, "obtener") else 0
         return ft.Container(
-            padding=ft.Padding(left=18, top=13, right=14, bottom=13),
+            padding=ft.Padding(left=10, top=10, right=10, bottom=10),
             bgcolor=ft.Colors.with_opacity(0.94, BLANCO),
-            border=ft.Border.all(1, PERLA_BORDE),
             border_radius=8,
             content=ft.Row(
                 wrap=True,
@@ -3026,22 +3041,14 @@ class GuardadosView:
                 controls=[
                     ft.Row(
                         tight=True,
-                        spacing=10,
+                        spacing=0,
                         controls=[
-                            ft.Container(
-                                width=38,
-                                height=38,
-                                alignment=ft.Alignment(0, 0),
-                                border_radius=8,
-                                bgcolor=ft.Colors.with_opacity(0.12, VIOLETA_IOS),
-                                content=ft.Icon(ft.Icons.SAVE, color=VIOLETA_IOS, size=21),
-                            ),
                             ft.Column(
                                 tight=True,
                                 spacing=2,
                                 controls=[
                                     ft.Text("Guardados", size=22 if self.es_movil() else 24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                                    ft.Text(f"{total} elemento{'s' if total != 1 else ''} en tu biblioteca", size=11, color=TEXTO_SECUNDARIO),
+                                    ft.Text("Organiza y encuentra lo que necesitas.", size=11, color=TEXTO_SECUNDARIO),
                                 ],
                             ),
                         ],
@@ -3061,6 +3068,8 @@ class GuardadosView:
     # OBTENER VISTA
     # ======================================
     def on_enter(self):
+        if not self.es_movil():
+            self.router.menu_lateral_abierto = False
         self._aplicar_carpeta_preferida()
 
     def _aplicar_carpeta_preferida(self):
@@ -3089,9 +3098,12 @@ class GuardadosView:
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
 
+        self._aplicar_responsive()
         self._aplicar_carpeta_preferida()
-        self.cargar_vista_carpetas()
-        self.actualizar_barra_ruta()
+        # La navegación principal ya no muestra el árbol secundario. Evitar
+        # actualizar la página antes de que el panel sea incorporado al árbol
+        # visual previene que Flet renderice un contenedor vacío.
+        self.actualizar_barra_ruta(actualizar=False)
         self.actualizar_tabla()
 
         contenido_guardados = ft.Column(
@@ -3343,7 +3355,7 @@ class GuardadosView:
     # ======================================
     # ACTUALIZAR BARRA DE RUTA
     # ======================================
-    def actualizar_barra_ruta(self):
+    def actualizar_barra_ruta(self, actualizar=True):
         self.barra_ruta.controls.clear()
 
         # INICIO
@@ -5044,7 +5056,8 @@ class GuardadosView:
         dialog_ref["control"] = dialog
         self.page.overlay.append(dialog)
         renderizar()
-        self.page.update()
+        if actualizar:
+            self.page.update()
 
     def _guardar_tarjeta_jpg_en_destino(self, archivo, destino):
         archivo = Path(archivo)

@@ -19,6 +19,7 @@ from ui.tema import (
     VIOLETA,
     VIOLETA_IOS,
     VIOLETA_SUAVE,
+    APP_VERSION,
     icono_estrella,
     opacidad,
     sombra_color,
@@ -303,6 +304,7 @@ class Router:
                         ft.Divider(height=8, color=opacidad(0.65, PERLA_BORDE)),
                         ft.Column(spacing=4, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_rutas]),
                         ft.Container(expand=True),
+                        ft.Text(f"v{APP_VERSION}", size=10, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
                     ],
                 ),
             ),
@@ -335,6 +337,7 @@ class Router:
                 ft.Row(alignment=ft.MainAxisAlignment.END, controls=[boton_toggle]),
                 icono_estrella(42),
                 ft.Text("Código Escondido", size=16, weight=ft.FontWeight.BOLD, color=TEXTO, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"Version {APP_VERSION}", size=10, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
             ],
         )
 
