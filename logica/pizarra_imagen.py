@@ -367,16 +367,44 @@ def renderizar_lienzo_png_base64(lienzo, ancho=900, alto=520):
                     (x + ancho_figura - profundidad, y + alto_figura - profundidad),
                     (x, y + alto_figura - profundidad),
                 ]
-                if relleno:
-                    _rellenar_poligono(pixeles, ancho, alto, frente, _hex_rgb(relleno))
+                caras = {
+                    "frente": frente,
+                    "superior": [atras[0], atras[1], frente[1], frente[0]],
+                    "derecha": [atras[1], atras[2], frente[2], frente[1]],
+                    "inferior": [atras[2], atras[3], frente[3], frente[2]],
+                    "izquierda": [atras[3], atras[0], frente[0], frente[3]],
+                }
+                colores_caras = objeto.get("caras", {})
+                color_fondo = lienzo.get("fondo", "#FFFFFF")
+                for nombre in ("inferior", "izquierda", "derecha", "superior", "frente"):
+                    color_cara = colores_caras.get(
+                        nombre,
+                        relleno if nombre == "frente" and relleno else color_fondo,
+                    )
+                    _rellenar_poligono(pixeles, ancho, alto, caras[nombre], _hex_rgb(color_cara))
 
-                def dibujar(color_actual, grosor_actual):
-                    poligono(frente, color_actual, grosor_actual)
-                    poligono(atras, color_actual, grosor_actual)
-                    for indice in range(4):
-                        _linea(pixeles, ancho, alto, frente[indice][0], frente[indice][1], atras[indice][0], atras[indice][1], grosor_actual, color_actual)
-
-                aplicar_borde(dibujar)
+                aristas = objeto.get("aristas", {})
+                segmentos = [
+                    ("frente_superior", frente[0], frente[1]),
+                    ("frente_derecha", frente[1], frente[2]),
+                    ("frente_inferior", frente[2], frente[3]),
+                    ("frente_izquierda", frente[3], frente[0]),
+                    ("atras_superior", atras[0], atras[1]),
+                    ("atras_derecha", atras[1], atras[2]),
+                    ("atras_inferior", atras[2], atras[3]),
+                    ("atras_izquierda", atras[3], atras[0]),
+                    ("conexion_superior_izquierda", frente[0], atras[0]),
+                    ("conexion_superior_derecha", frente[1], atras[1]),
+                    ("conexion_inferior_derecha", frente[2], atras[2]),
+                    ("conexion_inferior_izquierda", frente[3], atras[3]),
+                ]
+                for nombre, desde, hasta in segmentos:
+                    color_arista_hex = aristas.get(nombre, color_hex)
+                    color_arista = _hex_rgb(color_arista_hex)
+                    borde_arista = _color_borde_para(color_arista_hex)
+                    if borde_arista:
+                        _linea(pixeles, ancho, alto, desde[0], desde[1], hasta[0], hasta[1], grosor_borde, borde_arista)
+                    _linea(pixeles, ancho, alto, desde[0], desde[1], hasta[0], hasta[1], grosor, color_arista)
 
             elif tipo == "piramide":
                 base = [

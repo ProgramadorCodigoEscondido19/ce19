@@ -43,7 +43,7 @@ COLORES_PIZARRA = [
 
 ANCHO_LIENZO = 900
 ALTO_LIENZO = 520
-FORMAS_3D = ("cubo", "piramide", "cilindro", "esfera")
+FORMAS_3D = ("cubo",)
 FORMAS_DIBUJO = ("linea", "rectangulo", "circulo", *FORMAS_3D)
 
 
@@ -85,7 +85,6 @@ class PizarraView:
         self.portapapeles = None
         self.objeto_seleccionado = None
         self.objetos_seleccionados = []
-        self.herramientas_abiertas = False
         self._moviendo_objeto = False
         self._cuadro_seleccion = None
         self._inicio = None
@@ -102,9 +101,17 @@ class PizarraView:
         self.overlay_stack = None
         self._superficie_lienzo = None
         self.screenshot_ref = ft.Ref[ft.Screenshot]()
+        self._historial_lienzos = {0: []}
+        self._movimiento_registrado = False
 
     def _on_resize(self, e):
         self.router.refrescar()
+
+    def _registrar_historial(self):
+        historial = self._historial_lienzos.setdefault(self.lienzo_actual, [])
+        historial.append(copy.deepcopy(self.lienzos[self.lienzo_actual]))
+        if len(historial) > 40:
+            del historial[0]
 
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
@@ -230,228 +237,8 @@ class PizarraView:
             )
 
     def _panel_herramientas(self):
-        if self.responsive.is_mobile() and not self.herramientas_abiertas:
-            return ft.Container(
-                padding=10,
-                bgcolor=CARD_BLANCO,
-                border=ft.Border.all(1, BORDE_SUAVE),
-                border_radius=18,
-                shadow=_sombra_card(),
-                content=ft.Row(
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    controls=[
-                        ft.ElevatedButton(
-                            "Herramientas",
-                            icon=ft.Icons.BUILD,
-                            on_click=lambda e: self.toggle_herramientas(),
-                        ),
-                        ft.Text(
-                            self.herramienta.upper(),
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
-                ),
-            )
-
-        if not self.responsive.is_mobile():
-            return self._cinta_herramientas_escritorio()
-
-        herramientas = [
-            ("lapiz", ft.Icons.EDIT, "Dibujar"),
-            ("seleccionar", ft.Icons.SELECT_ALL, "Seleccionar y mover"),
-            ("mano", ft.Icons.PAN_TOOL, "Desplazar lienzo"),
-            ("borrador", ft.Icons.AUTO_FIX_HIGH, "Borrador"),
-            ("texto", ft.Icons.TITLE, "Texto"),
-            ("linea", ft.Icons.HORIZONTAL_RULE, "Linea recta"),
-            ("rectangulo", ft.Icons.CROP_SQUARE, "Rectangulo"),
-            ("circulo", ft.Icons.CIRCLE_OUTLINED, "Circulo"),
-            ("cubo", ft.Icons.VIEW_IN_AR, "Cubo 3D"),
-            ("piramide", ft.Icons.CHANGE_HISTORY, "Piramide 3D"),
-            ("cilindro", ft.Icons.ARCHITECTURE, "Cilindro 3D"),
-            ("esfera", ft.Icons.PUBLIC, "Esfera 3D"),
-            ("pintar", ft.Icons.FORMAT_COLOR_FILL, "Rellenar figura"),
-        ]
-
-        botones = ft.Row(
-            wrap=True,
-            spacing=4,
-            controls=[
-                ft.IconButton(
-                    icon=icono,
-                    icon_size=16,
-                    width=30,
-                    height=30,
-                    tooltip=tooltip,
-                    bgcolor=(
-                        PERLA_VIOLETA
-                        if self.herramienta == valor
-                        else None
-                    ),
-                    on_click=lambda e, v=valor: self.cambiar_herramienta(v),
-                )
-                for valor, icono, tooltip in herramientas
-            ],
-        )
-
-        colores = ft.Row(
-            wrap=True,
-            spacing=6,
-            controls=[
-                ft.Container(
-                    width=18,
-                    height=18,
-                    bgcolor=color,
-                    border=ft.Border.all(
-                        3 if color == self.color else 2 if self._es_blanco_borde(color) else 1,
-                        COLOR_MARRON_PIZARRA if self._es_blanco_borde(color) else ft.Colors.BLACK,
-                    ),
-                    border_radius=4,
-                    tooltip="Blanco con borde marron" if self._es_blanco_borde(color) else color,
-                    on_click=lambda e, c=color: self.cambiar_color(c),
-                )
-                for color in COLORES_PIZARRA
-            ],
-        )
-
-        return ft.Container(
-            padding=8,
-            bgcolor=CARD_BLANCO,
-            border=ft.Border.all(1, BORDE_SUAVE),
-            border_radius=18,
-            shadow=_sombra_card(),
-            content=ft.Column(
-                spacing=6,
-                controls=[
-                    ft.Row(
-                        visible=self.responsive.is_mobile(),
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        controls=[
-                            ft.Text(
-                                "Herramientas",
-                                weight=ft.FontWeight.BOLD,
-                            ),
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.CLOSE,
-                                tooltip="Cerrar",
-                                on_click=lambda e: self.toggle_herramientas(),
-                            ),
-                        ],
-                    ),
-                    ft.Text("Herramientas", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    botones,
-                    ft.Text("Color", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    colores,
-                    ft.Text("Texto", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    ft.TextField(
-                        label="Texto",
-                        dense=True,
-                        value=self.texto,
-                        on_change=lambda e: self.actualizar_texto(e.control.value),
-                        on_submit=lambda e: ocultar_teclado(self.page, e.control),
-                        on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
-                    ),
-                    ft.Row(
-                        spacing=4,
-                        controls=[
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.ZOOM_OUT,
-                                tooltip="Contraer",
-                                on_click=lambda e: self.cambiar_zoom(-0.1),
-                            ),
-                            ft.Container(
-                                width=84,
-                                alignment=ft.Alignment(0, 0),
-                                content=ft.Text(f"{int(self.zoom * 100)}%"),
-                            ),
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.ZOOM_IN,
-                                tooltip="Expandir",
-                                on_click=lambda e: self.cambiar_zoom(0.1),
-                            ),
-                        ],
-                    ),
-                    ft.Row(
-                        tight=True,
-                        spacing=6,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Text("Tamano", size=12, weight=ft.FontWeight.BOLD),
-                            ft.IconButton(
-                                icon=ft.Icons.REMOVE,
-                                icon_size=18,
-                                width=36,
-                                height=36,
-                                tooltip="Reducir tamano",
-                                on_click=lambda e: self._ajustar_tamano_activo(-1),
-                            ),
-                            ft.Container(
-                                width=92,
-                                alignment=ft.Alignment(0, 0),
-                                content=ft.Text(
-                                    f"Goma {self.borrador}" if self.herramienta == "borrador" else f"Trazo {self.grosor}",
-                                    size=12,
-                                ),
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.ADD,
-                                icon_size=18,
-                                width=36,
-                                height=36,
-                                tooltip="Aumentar tamano",
-                                on_click=lambda e: self._ajustar_tamano_activo(1),
-                            ),
-                        ],
-                    ),
-                    ft.Row(
-                        wrap=True,
-                        spacing=4,
-                        controls=[
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.UNDO,
-                                tooltip="Deshacer",
-                                on_click=lambda e: self.deshacer(),
-                            ),
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.CONTENT_COPY,
-                                tooltip="Copiar ultimo",
-                                on_click=lambda e: self.copiar_ultimo(),
-                            ),
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.CONTENT_PASTE,
-                                tooltip="Pegar",
-                                on_click=lambda e: self.pegar(),
-                            ),
-                            ft.IconButton(
-                                icon_size=18,
-                                width=34,
-                                height=34,
-                                icon=ft.Icons.DELETE,
-                                tooltip="Limpiar lienzo",
-                                on_click=lambda e: self.limpiar_lienzo(),
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-        )
+        # La cinta es la misma en todos los equipos; al angostarse se organiza en filas.
+        return self._cinta_herramientas_escritorio()
 
     def _cinta_herramientas_escritorio(self):
         def opcion_herramienta(valor, icono, etiqueta):
@@ -502,6 +289,26 @@ class PizarraView:
                     alignment=ft.MainAxisAlignment.CENTER,
                     controls=[
                         ft.Icon(icono, size=20, color=VIOLETA_IOS if not activo else TEXTO_PRINCIPAL),
+                        ft.Text(titulo, size=10, color=TEXTO_PRINCIPAL),
+                    ],
+                ),
+            )
+
+        def boton_accion_directa(titulo, icono, accion):
+            return ft.Container(
+                width=58,
+                height=54,
+                tooltip=titulo,
+                border=ft.Border.all(1, PERLA_BORDE),
+                border_radius=8,
+                on_click=lambda e: accion(),
+                content=ft.Column(
+                    tight=True,
+                    spacing=1,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    controls=[
+                        ft.Icon(icono, size=20, color=VIOLETA_IOS),
                         ft.Text(titulo, size=10, color=TEXTO_PRINCIPAL),
                     ],
                 ),
@@ -615,19 +422,46 @@ class PizarraView:
 
             mitad = (len(COLORES_PIZARRA) + 1) // 2
             return ft.Container(
-                width=122,
+                width=174,
                 height=54,
                 padding=ft.Padding(left=5, top=5, right=5, bottom=4),
                 border=ft.Border.all(1, PERLA_BORDE),
                 border_radius=8,
                 tooltip="Colores",
-                content=ft.Column(
+                content=ft.Row(
                     tight=True,
-                    spacing=4,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
-                        ft.Row(tight=True, spacing=3, controls=[cuadro_color(color) for color in COLORES_PIZARRA[:mitad]]),
-                        ft.Row(tight=True, spacing=3, controls=[cuadro_color(color) for color in COLORES_PIZARRA[mitad:]]),
+                        ft.Column(
+                            tight=True,
+                            spacing=2,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Container(
+                                    width=30,
+                                    height=30,
+                                    bgcolor=self.color,
+                                    border=ft.Border.all(
+                                        3,
+                                        COLOR_MARRON_PIZARRA
+                                        if self._es_blanco_borde(self.color)
+                                        else "#6F6874" if self.color.upper() == COLOR_BLANCO_PURO else ft.Colors.BLACK,
+                                    ),
+                                    border_radius=4,
+                                    tooltip="Color seleccionado",
+                                ),
+                                ft.Text("Activo", size=8, color=TEXTO_SECUNDARIO),
+                            ],
+                        ),
+                        ft.Column(
+                            tight=True,
+                            spacing=4,
+                            controls=[
+                                ft.Row(tight=True, spacing=3, controls=[cuadro_color(color) for color in COLORES_PIZARRA[:mitad]]),
+                                ft.Row(tight=True, spacing=3, controls=[cuadro_color(color) for color in COLORES_PIZARRA[mitad:]]),
+                            ],
+                        ),
                     ],
                 ),
             )
@@ -644,12 +478,8 @@ class PizarraView:
             opcion_herramienta("rectangulo", ft.Icons.CROP_SQUARE, "Rectangulo"),
             opcion_herramienta("circulo", ft.Icons.CIRCLE_OUTLINED, "Circulo"),
             opcion_herramienta("cubo", ft.Icons.VIEW_IN_AR, "Cubo 3D"),
-            opcion_herramienta("piramide", ft.Icons.CHANGE_HISTORY, "Piramide 3D"),
-            opcion_herramienta("cilindro", ft.Icons.ARCHITECTURE, "Cilindro 3D"),
-            opcion_herramienta("esfera", ft.Icons.PUBLIC, "Esfera 3D"),
         ]
         acciones = [
-            ft.PopupMenuItem("Deshacer", icon=ft.Icons.UNDO, on_click=lambda e: self.deshacer()),
             ft.PopupMenuItem("Copiar ultimo", icon=ft.Icons.CONTENT_COPY, on_click=lambda e: self.copiar_ultimo()),
             ft.PopupMenuItem("Pegar", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self.pegar()),
             ft.PopupMenuItem("Limpiar lienzo", icon=ft.Icons.DELETE, on_click=lambda e: self.limpiar_lienzo()),
@@ -673,6 +503,7 @@ class PizarraView:
                     boton_tamano(),
                     paleta_visible(),
                     boton_vista(),
+                    boton_accion_directa("Deshacer", ft.Icons.UNDO, self.deshacer),
                     boton_grupo("Acciones", ft.Icons.MORE_VERT, acciones),
                 ],
             ),
@@ -900,6 +731,7 @@ class PizarraView:
             self._cursor_activo = True
             self._cursor_punto = punto
             self._borrado_actual = self._crear_trazo_borrador(punto)
+            self._registrar_historial()
             self.lienzos[self.lienzo_actual]["objetos"].append(self._borrado_actual)
             self._iniciar_borrado_canvas()
             self._redibujar_overlay()
@@ -913,6 +745,7 @@ class PizarraView:
                 "color": self.color,
                 "grosor": self.grosor,
             }
+            self._registrar_historial()
             self.lienzos[self.lienzo_actual]["objetos"].append(self._trazo_actual)
             self._redibujar_lienzo()
 
@@ -975,6 +808,7 @@ class PizarraView:
                 "color": self.color,
                 "grosor": self.grosor,
             }
+            self._registrar_historial()
             self.lienzos[self.lienzo_actual]["objetos"].append(self._trazo_actual)
 
         puntos = self._trazo_actual["puntos"]
@@ -1022,6 +856,17 @@ class PizarraView:
             "color": self.color,
             "grosor": self.grosor,
         }
+        fondo = self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+        if self.herramienta in ("rectangulo", "circulo"):
+            objeto["relleno"] = fondo
+        elif self.herramienta == "cubo":
+            objeto["caras"] = {
+                "frente": fondo,
+                "superior": fondo,
+                "derecha": fondo,
+                "izquierda": fondo,
+                "inferior": fondo,
+            }
         self._inicio = None
         self._ultimo = None
         self._agregar_objeto(objeto)
@@ -1049,6 +894,7 @@ class PizarraView:
             self._cursor_activo = True
             self._cursor_punto = punto
             self._borrado_actual = self._crear_trazo_borrador(punto)
+            self._registrar_historial()
             self.lienzos[self.lienzo_actual]["objetos"].append(self._borrado_actual)
             self._iniciar_borrado_canvas()
             self._borrado_actual = None
@@ -1104,6 +950,7 @@ class PizarraView:
     def _finalizar_movimiento_gesto(self, redibujar=True):
         self._modo_mover_gesto = False
         self._moviendo_objeto = False
+        self._movimiento_registrado = False
         self._ultimo_offset_largo = None
 
         if redibujar:
@@ -1386,6 +1233,51 @@ class PizarraView:
 
         return []
 
+    def _geometria_cubo(self, objeto):
+        x1, y1 = objeto["desde"]
+        x2, y2 = objeto["hasta"]
+        x = min(x1, x2)
+        y = min(y1, y2)
+        ancho = max(abs(x2 - x1), 12)
+        alto = max(abs(y2 - y1), 12)
+        profundidad = min(ancho, alto) * 0.22
+        frente = [
+            (x + profundidad, y + profundidad),
+            (x + ancho, y + profundidad),
+            (x + ancho, y + alto),
+            (x + profundidad, y + alto),
+        ]
+        atras = [
+            (x, y),
+            (x + ancho - profundidad, y),
+            (x + ancho - profundidad, y + alto - profundidad),
+            (x, y + alto - profundidad),
+        ]
+
+        return {
+            "caras": {
+                "frente": frente,
+                "superior": [atras[0], atras[1], frente[1], frente[0]],
+                "derecha": [atras[1], atras[2], frente[2], frente[1]],
+                "inferior": [atras[2], atras[3], frente[3], frente[2]],
+                "izquierda": [atras[3], atras[0], frente[0], frente[3]],
+            },
+            "aristas": [
+                ("frente_superior", frente[0], frente[1]),
+                ("frente_derecha", frente[1], frente[2]),
+                ("frente_inferior", frente[2], frente[3]),
+                ("frente_izquierda", frente[3], frente[0]),
+                ("atras_superior", atras[0], atras[1]),
+                ("atras_derecha", atras[1], atras[2]),
+                ("atras_inferior", atras[2], atras[3]),
+                ("atras_izquierda", atras[3], atras[0]),
+                ("conexion_superior_izquierda", frente[0], atras[0]),
+                ("conexion_superior_derecha", frente[1], atras[1]),
+                ("conexion_inferior_derecha", frente[2], atras[2]),
+                ("conexion_inferior_izquierda", frente[3], atras[3]),
+            ],
+        }
+
     def _formas_figura_3d(self, objeto, color, grosor):
         sx1, sy1 = self._pantalla(objeto["desde"])
         sx2, sy2 = self._pantalla(objeto["hasta"])
@@ -1429,34 +1321,33 @@ class PizarraView:
         formas = []
 
         if tipo == "cubo":
-            profundidad = min(ancho, alto) * 0.22
-            frente = [
-                (x + profundidad, y + profundidad),
-                (x + ancho, y + profundidad),
-                (x + ancho, y + alto),
-                (x + profundidad, y + alto),
-            ]
-            atras = [
-                (x, y),
-                (x + ancho - profundidad, y),
-                (x + ancho - profundidad, y + alto - profundidad),
-                (x, y + alto - profundidad),
-            ]
-            if relleno:
-                formas.append(camino(frente, relleno, grosor, rellenar=True))
+            geometria = self._geometria_cubo(objeto)
+            caras = {
+                nombre: [self._pantalla(punto) for punto in puntos]
+                for nombre, puntos in geometria["caras"].items()
+            }
+            fondo = self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+            colores_caras = objeto.get("caras", {})
+            relleno_anterior = objeto.get("relleno", fondo)
 
-            def contorno(color_actual, grosor_actual):
-                conexiones = [
-                    segmento(frente[indice], atras[indice], color_actual, grosor_actual)
-                    for indice in range(4)
-                ]
-                return [
-                    camino(frente, color_actual, grosor_actual),
-                    camino(atras, color_actual, grosor_actual),
-                    *conexiones,
-                ]
+            for nombre in ("inferior", "izquierda", "derecha", "superior", "frente"):
+                color_cara = colores_caras.get(
+                    nombre,
+                    relleno_anterior if nombre == "frente" else fondo,
+                )
+                formas.append(camino(caras[nombre], color_cara, grosor, rellenar=True))
 
-            return formas + con_borde(contorno)
+            aristas = objeto.get("aristas", {})
+            for nombre, desde, hasta in geometria["aristas"]:
+                sx1, sy1 = self._pantalla(desde)
+                sx2, sy2 = self._pantalla(hasta)
+                color_arista = aristas.get(nombre, color)
+                borde = self._color_borde_para(color_arista)
+                if borde:
+                    formas.append(segmento((sx1, sy1), (sx2, sy2), borde, grosor + 4))
+                formas.append(segmento((sx1, sy1), (sx2, sy2), color_arista, grosor))
+
+            return formas
 
         if tipo == "piramide":
             base = [
@@ -2159,11 +2050,25 @@ class PizarraView:
             objeto = objetos[indice]
             tipo = objeto.get("tipo")
 
+            if tipo == "cubo":
+                geometria = self._geometria_cubo(objeto)
+                margen = max(objeto.get("grosor", self.grosor) + 5, 8)
+
+                for nombre, desde, hasta in geometria["aristas"]:
+                    if self._distancia_segmento(punto, desde, hasta) <= margen:
+                        return indice, ("arista", nombre)
+
+                for nombre in ("superior", "derecha", "inferior", "izquierda", "frente"):
+                    if self._punto_en_poligono(punto, geometria["caras"][nombre]):
+                        return indice, ("cara", nombre)
+
+                continue
+
             if tipo == "rectangulo":
                 x1, y1 = objeto["desde"]
                 x2, y2 = objeto["hasta"]
                 if min(x1, x2) <= punto[0] <= max(x1, x2) and min(y1, y2) <= punto[1] <= max(y1, y2):
-                    return indice
+                    return indice, None
 
             if tipo == "circulo":
                 x1, y1 = objeto["desde"]
@@ -2176,15 +2081,30 @@ class PizarraView:
                 radio = lado / 2
 
                 if (punto[0] - centro_x) ** 2 + (punto[1] - centro_y) ** 2 <= radio ** 2:
-                    return indice
+                    return indice, None
 
-            if tipo in FORMAS_3D:
-                x1, y1 = objeto["desde"]
-                x2, y2 = objeto["hasta"]
-                if min(x1, x2) <= punto[0] <= max(x1, x2) and min(y1, y2) <= punto[1] <= max(y1, y2):
-                    return indice
+            if tipo in ("linea", "trazo") and self._punto_toca_objeto(punto, objeto):
+                return indice, ("trazo", None)
 
         return None
+
+    @staticmethod
+    def _punto_en_poligono(punto, poligono):
+        x, y = punto
+        dentro = False
+        anterior = len(poligono) - 1
+
+        for indice, (actual_x, actual_y) in enumerate(poligono):
+            previo_x, previo_y = poligono[anterior]
+            cruza = (actual_y > y) != (previo_y > y)
+            if cruza:
+                divisor = previo_y - actual_y
+                interseccion_x = (previo_x - actual_x) * (y - actual_y) / divisor + actual_x
+                if x < interseccion_x:
+                    dentro = not dentro
+            anterior = indice
+
+        return dentro
 
     def _punto_toca_objeto(self, punto, objeto):
         tipo = objeto["tipo"]
@@ -2252,6 +2172,10 @@ class PizarraView:
         return math.hypot(px - cx, py - cy)
 
     def mover_objetos(self, indices, dx, dy):
+        if not self._movimiento_registrado:
+            self._registrar_historial()
+            self._movimiento_registrado = True
+
         dx, dy = self._delta_limitado_objetos(indices, dx, dy)
 
         for indice in indices:
@@ -2315,6 +2239,7 @@ class PizarraView:
     def borrar_en_punto(self, punto, anterior=None):
         if self._borrado_actual is None:
             self._borrado_actual = self._crear_trazo_borrador(punto)
+            self._registrar_historial()
             self.lienzos[self.lienzo_actual]["objetos"].append(self._borrado_actual)
 
         puntos = self._borrado_actual.setdefault("puntos", [])
@@ -2398,6 +2323,7 @@ class PizarraView:
         return partes if hubo_borrado else [objeto]
 
     def _agregar_objeto(self, objeto):
+        self._registrar_historial()
         self.lienzos[self.lienzo_actual]["objetos"].append(objeto)
         self._redibujar_lienzo()
 
@@ -2414,6 +2340,7 @@ class PizarraView:
             self.lienzos.insert(self.lienzo_actual + 1, nuevo)
             self.lienzo_actual += 1
 
+        self._historial_lienzos = {indice: [] for indice in range(len(self.lienzos))}
         self.router.refrescar()
 
     def seleccionar_lienzo(self, indice):
@@ -2434,12 +2361,6 @@ class PizarraView:
             self._cursor_activo = True
             self._cursor_punto = self._punto_centro_visible()
 
-        if self.responsive.is_mobile():
-            self.herramientas_abiertas = False
-        self.router.refrescar()
-
-    def toggle_herramientas(self):
-        self.herramientas_abiertas = not self.herramientas_abiertas
         self.router.refrescar()
 
     def cambiar_color(self, color):
@@ -2447,27 +2368,59 @@ class PizarraView:
 
         if self.herramienta == "seleccionar":
             objetos = self.lienzos[self.lienzo_actual]["objetos"]
+            seleccion = sorted(self._indices_seleccionados(), reverse=True)
 
-            for indice in self._indices_seleccionados():
+            if seleccion:
+                self._registrar_historial()
+
+            fondo = self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+
+            for indice in seleccion:
                 if 0 <= indice < len(objetos):
-                    objetos[indice]["color"] = color
+                    if color.upper() == fondo.upper():
+                        del objetos[indice]
+                    else:
+                        objetos[indice]["color"] = color
+
+            if seleccion:
+                self.objeto_seleccionado = None
+                self.objetos_seleccionados = []
+                self._redibujar_lienzo()
+                return
 
         self.router.refrescar()
 
     def rellenar_figura(self, punto):
-        indice = self._figura_rellenable_en_punto(punto)
+        objetivo = self._figura_rellenable_en_punto(punto)
 
-        if indice is None:
+        if objetivo is None:
             self.pintar_fondo()
             return
 
+        indice, parte = objetivo
         objeto = self.lienzos[self.lienzo_actual]["objetos"][indice]
-        objeto["relleno"] = self.color
+        fondo = self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+        self._registrar_historial()
+
+        if objeto.get("tipo") == "cubo" and parte:
+            tipo_parte, nombre = parte
+            atributo = "caras" if tipo_parte == "cara" else "aristas"
+            objeto.setdefault(atributo, {})[nombre] = self.color
+        elif objeto.get("tipo") in ("linea", "trazo"):
+            if self.color.upper() == fondo.upper():
+                del self.lienzos[self.lienzo_actual]["objetos"][indice]
+                self._mostrar_mensaje("Trazo eliminado al coincidir con el fondo.")
+            else:
+                objeto["color"] = self.color
+        else:
+            objeto["relleno"] = self.color
+
         self.objeto_seleccionado = None
         self.objetos_seleccionados = []
         self._redibujar_lienzo()
 
     def pintar_fondo(self):
+        self._registrar_historial()
         self.lienzos[self.lienzo_actual]["fondo"] = self.color
         if self._superficie_lienzo is not None:
             self._superficie_lienzo.bgcolor = self.color
@@ -2551,13 +2504,19 @@ class PizarraView:
         self.router.refrescar()
 
     def deshacer(self):
-        objetos = self.lienzos[self.lienzo_actual]["objetos"]
+        historial = self._historial_lienzos.setdefault(self.lienzo_actual, [])
 
-        if objetos:
-            objetos.pop()
-            self.router.refrescar()
+        if not historial:
+            self._mostrar_mensaje("No hay acciones para deshacer.")
+            return
+
+        self.lienzos[self.lienzo_actual] = historial.pop()
+        self.objeto_seleccionado = None
+        self.objetos_seleccionados = []
+        self._redibujar_lienzo()
 
     def limpiar_lienzo(self):
+        self._registrar_historial()
         self.lienzos[self.lienzo_actual]["objetos"].clear()
         self.router.refrescar()
 
