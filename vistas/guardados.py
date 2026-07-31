@@ -228,10 +228,12 @@ class GuardadosView:
             spacing=5,
             scroll=ft.ScrollMode.AUTO
         ) 
-        self.panel_contenido = ft.Column(
+        # Un único contenedor desplazable evita que una GridView o ListView
+        # quede anidada dentro de otra zona con scroll.
+        self.panel_contenido = ft.ListView(
             expand=True,
             spacing=10,
-            scroll=ft.ScrollMode.AUTO 
+            padding=ft.Padding(left=0, top=0, right=4, bottom=4),
         )
         self.panel_izquierdo = ft.Container(
             width=250,
@@ -4038,13 +4040,16 @@ class GuardadosView:
     # CREAR CUADRICULA
     # ======================================
     def crear_cuadricula(self, registros):
-        return ft.GridView(
-            expand=True,
-            max_extent=172 if self.es_movil() else 248,
+        ancho_tarjeta = 172 if self.es_movil() else 248
+        return ft.Row(
+            wrap=True,
             spacing=10,
             run_spacing=10,
             controls=[
-                self.crear_tarjeta_cuadrada(registro)
+                ft.Container(
+                    width=ancho_tarjeta,
+                    content=self.crear_tarjeta_cuadrada(registro),
+                )
                 for registro in registros
             ]
         )
@@ -4053,8 +4058,8 @@ class GuardadosView:
     # f() CREAR LISTA
     # ======================================
     def crear_lista(self, registros):
-        return ft.ListView(
-            expand=True,
+        return ft.Column(
+            tight=True,
             spacing=8,
             controls=[
                 ft.Container(
