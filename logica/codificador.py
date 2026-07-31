@@ -99,11 +99,47 @@ class Codificador:
 
                 caracter = linea[i]
 
+                # El asterisco se admite como marca visual y no forma parte
+                # del codigo ni del texto resultante.
+                if caracter == "*":
+                    i += 1
+                    continue
+
                 if caracter == "_":
                     i += 1
                     continue
 
                 if caracter.isdigit():
+                    # Referencia de versiculo: 25 (V) + "_" + 1 o 2 digitos + ":".
+                    # El numero del versiculo es una referencia, no una letra.
+                    if linea.startswith("25_", i):
+                        inicio_versiculo = i + 3
+                        fin_versiculo = inicio_versiculo
+
+                        while (
+                            fin_versiculo < len(linea)
+                            and linea[fin_versiculo].isdigit()
+                            and fin_versiculo - inicio_versiculo < 2
+                        ):
+                            fin_versiculo += 1
+
+                        es_referencia_versiculo = (
+                            fin_versiculo > inicio_versiculo
+                            and fin_versiculo < len(linea)
+                            and linea[fin_versiculo] == ":"
+                        )
+                        if es_referencia_versiculo:
+                            volcar_palabra()
+                            letra_versiculo = inverso[25]
+                            valores.append(25)
+                            detalle.append(f"25={letra_versiculo}")
+                            partes.append(
+                                f"{normalizar_palabra([letra_versiculo])}"
+                                f"{linea[inicio_versiculo:fin_versiculo]}:"
+                            )
+                            i = fin_versiculo + 1
+                            continue
+
                     j = i
                     while j < len(linea) and linea[j].isdigit():
                         j += 1
@@ -112,6 +148,7 @@ class Codificador:
                         partes
                         and partes[-1] == ":"
                         and not letras_pendientes
+                        and 1 <= j - i <= 2
                         and (
                             j >= len(linea)
                             or linea.startswith("__", j)
@@ -175,8 +212,8 @@ class Codificador:
             raise ValueError("No se encontraron números válidos para decodificar.")
 
         return {
-            "palabra": texto_original,
-            "texto_original": texto_original,
+            "palabra": texto_original.replace("*", ""),
+            "texto_original": texto_original.replace("*", ""),
             "letras_calculadas": detalle,
             "alfabeto": self.obtener_tipo_alfabeto(),
             "valores": valores,
@@ -187,7 +224,8 @@ class Codificador:
         }
 
     def codificar(self, palabra):
-        palabra_limpia = normalizar_texto_codificador(palabra)
+        texto_original = str(palabra or "").replace("*", "")
+        palabra_limpia = normalizar_texto_codificador(texto_original)
         texto_limpio = "".join(
             caracter
             for caracter in palabra_limpia
@@ -230,7 +268,7 @@ class Codificador:
 
         return {
             "palabra": texto_limpio,
-            "texto_original": palabra,
+            "texto_original": texto_original,
             "letras_calculadas": letras,
             "alfabeto": self.obtener_tipo_alfabeto(),
             "valores": valores,

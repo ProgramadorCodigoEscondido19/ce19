@@ -113,12 +113,70 @@ def _detalle_por_palabra(palabra, suma):
     return " ".join(partes)
 
 
+def _es_decodificacion(modo_codificacion):
+    modo = str(modo_codificacion or "").lower()
+    return "numeros_a_texto" in modo or "números a texto" in modo or "numeros a texto" in modo
+
+
+def _seccion_resultado(resultado, es_movil):
+    texto_resultado = str(resultado or "")
+    es_largo = len(texto_resultado) > 70 or "\n" in texto_resultado
+
+    valor = ft.Text(
+        texto_resultado,
+        size=22 if es_largo else 34,
+        weight=ft.FontWeight.BOLD,
+        color=VIOLETA_IOS,
+        selectable=True,
+        text_align=ft.TextAlign.CENTER if not es_largo else ft.TextAlign.LEFT,
+    )
+
+    if es_largo:
+        valor_control = ft.Container(
+            height=116 if es_movil else 150,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            content=ft.Column(
+                scroll=ft.ScrollMode.AUTO,
+                tight=True,
+                controls=[valor],
+            ),
+        )
+    else:
+        valor_control = ft.Container(
+            alignment=ft.Alignment(0, 0),
+            content=valor,
+        )
+
+    return ft.Container(
+        padding=18,
+        bgcolor=SUPERFICIE_PERLADA,
+        border=ft.Border.all(1, PERLA_BORDE),
+        border_radius=18,
+        shadow=sombra_suave(0.055, 18, 0, 6),
+        content=ft.Column(
+            tight=True,
+            spacing=10,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Text(
+                    "Resultado final",
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
+                ),
+                valor_control,
+            ],
+        ),
+    )
+
+
 def mostrar_detalle(
         page: ft.Page,
         palabra: str,
         alfabeto: str,
         suma: str,
         resultado,
+        modo_codificacion=None,
 ):
     """Muestra el detalle de una tarjeta sin cambiar la lógica original."""
     ancho_page = getattr(page, "width", None)
@@ -126,7 +184,12 @@ def mostrar_detalle(
         ancho_page = getattr(page.window, "width", None)
     es_movil = (ancho_page or 1200) < 700
     ancho_detalle = min(760, max(280, (ancho_page or 760) - 44))
-    detalle_palabras = _detalle_por_palabra(palabra, suma)
+    es_decodificacion = _es_decodificacion(modo_codificacion)
+    # Al decodificar, el detalle se construye desde el texto obtenido y los
+    # valores originales. Asi conserva la misma lectura por palabras y sumas
+    # que se muestra en el modo Texto a numeros.
+    texto_para_detalle = resultado if es_decodificacion else palabra
+    detalle_palabras = _detalle_por_palabra(texto_para_detalle, suma)
 
     def copiar(e=None):
         texto = (
@@ -207,32 +270,7 @@ def mostrar_detalle(
                 controls=[
                     _seccion("Detalle", detalle_palabras, selectable=True),
                     _seccion("Alfabeto", alfabeto, selectable=True),
-                    ft.Container(
-                        padding=18,
-                        bgcolor=SUPERFICIE_PERLADA,
-                        border=ft.Border.all(1, PERLA_BORDE),
-                        border_radius=18,
-                        shadow=sombra_suave(0.055, 18, 0, 6),
-                        content=ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                ft.Text(
-                                    "Resultado final",
-                                    size=16,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=TEXTO_PRINCIPAL,
-                                ),
-                                ft.Text(
-                                    str(resultado),
-                                    size=34,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=VIOLETA_IOS,
-                                    selectable=True,
-                                ),
-                            ],
-                        ),
-                    ),
+                    _seccion_resultado(resultado, es_movil),
                 ],
             ),
         ),

@@ -14,6 +14,7 @@ def tarjeta_resultado(
     texto_boton,
     funcion,
     funcion_compartir=None,
+    modo_codificacion=None,
 ):
     """Muestra una sola tarjeta compacta con las acciones del codificador."""
 
@@ -24,6 +25,7 @@ def tarjeta_resultado(
             alfabeto=alfabeto,
             suma=suma,
             resultado=resultado,
+            modo_codificacion=modo_codificacion,
         )
 
     def copiar(e):
@@ -113,7 +115,9 @@ def tarjeta_resultado(
         acciones_control = ft.Row(spacing=8, controls=acciones)
 
     titulo = (palabra[:60] + "..." if len(palabra) > 60 else palabra)
-    altura_tarjeta = 274 if es_movil else 206
+    # El resultado puede ser un texto extenso al decodificar numeros. Se le da
+    # un area desplazable propia para mantener las acciones siempre accesibles.
+    altura_tarjeta = 292 if es_movil else 244
 
     return ft.Container(
         height=altura_tarjeta,
@@ -128,7 +132,7 @@ def tarjeta_resultado(
             offset=ft.Offset(0, 3),
         ),
         content=ft.Column(
-            tight=True,
+            expand=True,
             spacing=10,
             controls=[
                 ft.Row(
@@ -148,10 +152,21 @@ def tarjeta_resultado(
                         boton_copiar,
                     ],
                 ),
-                ft.Text(
-                    f"Resultado: {resultado}",
-                    size=22,
-                    weight=ft.FontWeight.BOLD,
+                ft.Container(
+                    expand=True,
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    content=ft.Column(
+                        scroll=ft.ScrollMode.AUTO,
+                        tight=True,
+                        controls=[
+                            ft.Text(
+                                f"Resultado: {resultado}",
+                                size=22,
+                                weight=ft.FontWeight.BOLD,
+                                selectable=True,
+                            ),
+                        ],
+                    ),
                 ),
                 acciones_control,
             ],

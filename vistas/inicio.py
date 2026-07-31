@@ -548,6 +548,7 @@ class InicioView:
             texto_boton="Guardar",
             funcion=lambda e, r=registro: self.confirmar_guardado(r),
             funcion_compartir=lambda e, r=registro: self.compartir_tarjeta(r),
+            modo_codificacion=registro.get("subtipo") or registro.get("modo_codificacion"),
         )
 
         self.resultado_actual.controls.append(tarjeta)

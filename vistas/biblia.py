@@ -1436,7 +1436,12 @@ class BibliaView:
             ft.IconButton(icon=ft.Icons.FORMAT_COLOR_RESET, tooltip="Quitar color seleccionado", icon_color=TEXTO_SECUNDARIO, on_click=lambda e: self.quitar_color_objetivo()),
             ft.IconButton(icon=ft.Icons.SAVE_ALT, tooltip="Guardar", icon_color=NARANJA_ACCENTO, on_click=lambda e: self.dialog_guardar_biblia()),
             ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="Descargar Biblia codificada (PDF/TXT)", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
-            ft.IconButton(icon=ft.Icons.CONTENT_COPY, tooltip="Copiar capitulo", icon_color=AZUL_ACCENTO, on_click=lambda e: self.copiar_capitulo()),
+            ft.IconButton(
+                icon=ft.Icons.CONTENT_COPY,
+                tooltip=self._ayuda_copiar_contexto(),
+                icon_color=AZUL_ACCENTO,
+                on_click=lambda e: self.copiar_contexto_lectura(),
+            ),
             ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Diccionario hebreo", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_diccionario_hebreo()),
             ft.IconButton(icon=ft.Icons.RECORD_VOICE_OVER, tooltip="Ver palabras del Cordero", icon_color=COLOR_PALABRAS_CORDERO, on_click=lambda e: self.dialog_palabras_cordero()),
             ft.IconButton(icon=ft.Icons.SELECT_ALL, tooltip="Activar/desactivar seleccion multiple", icon_color=NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO, on_click=lambda e: self.toggle_modo_compartir_multiple()),
@@ -4692,22 +4697,72 @@ class BibliaView:
         )
 
     def copiar_capitulo(self):
-        capitulo = self._capitulo_actual()
+        texto = self._texto_capitulo_actual()
 
-        if not capitulo:
+        if not texto:
             self._snack("No hay capitulo para copiar.")
             return
 
-        lineas = [
-            f"{self.libro_actual} {self.capitulo_actual}",
-            "",
-        ]
+        copiar_al_portapapeles(self.page, texto)
+        self._snack("Copiado correctamente")
+
+    def _texto_capitulo_actual(self):
+        capitulo = self._capitulo_actual()
+
+        if not capitulo:
+            return ""
+
+        lineas = [f"{self.libro_actual} {self.capitulo_actual}", ""]
         lineas.extend(
             f"{indice}. {texto}"
             for indice, texto in enumerate(capitulo, start=1)
         )
-        copiar_al_portapapeles(self.page, "\n".join(lineas))
+        return "\n".join(lineas)
+
+    def _texto_libro_actual(self):
+        libro = self._libro_actual()
+
+        if not libro:
+            return ""
+
+        lineas = [libro["nombre"], ""]
+        for numero_capitulo, versiculos in enumerate(libro["capitulos"], start=1):
+            lineas.append(f"{libro['nombre']} {numero_capitulo}")
+            lineas.extend(
+                f"{numero_versiculo}. {texto}"
+                for numero_versiculo, texto in enumerate(versiculos, start=1)
+            )
+            lineas.append("")
+
+        return "\n".join(lineas).rstrip()
+
+    def copiar_libro(self):
+        texto = self._texto_libro_actual()
+
+        if not texto:
+            self._snack("No hay libro para copiar.")
+            return
+
+        copiar_al_portapapeles(self.page, texto)
         self._snack("Copiado correctamente")
+
+    def _ayuda_copiar_contexto(self):
+        if self.modo_vista == "Versiculos":
+            return "Copiar versiculo seleccionado"
+        if self.modo_vista == "Capitulos":
+            return "Copiar capitulo actual"
+        return "Copiar libro actual"
+
+    def copiar_contexto_lectura(self):
+        if self.modo_vista == "Versiculos":
+            self.copiar_seleccion()
+            return
+
+        if self.modo_vista == "Capitulos":
+            self.copiar_capitulo()
+            return
+
+        self.copiar_libro()
 
     def buscar(self, e=None):
         if e is not None:
