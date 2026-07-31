@@ -7,6 +7,7 @@ import zlib
 
 COLOR_BLANCO_BORDE = "#FFFFFF"
 COLOR_MARRON_BORDE = "#795548"
+FORMAS_3D = {"cubo", "piramide", "cilindro", "esfera"}
 
 
 def _hex_rgb(color):
@@ -102,6 +103,29 @@ def _rellenar_elipse(pixeles, ancho, alto, cx, cy, rx, ry, color):
 
         for x in range(int(cx - rx), int(cx + rx) + 1):
             if ((x - cx) / rx) ** 2 + proporcion_y ** 2 <= 1:
+                _poner_pixel(pixeles, ancho, alto, x, y, color)
+
+
+def _rellenar_poligono(pixeles, ancho, alto, puntos, color):
+    if len(puntos) < 3:
+        return
+
+    izquierda = max(int(min(x for x, _ in puntos)), 0)
+    derecha = min(int(max(x for x, _ in puntos)) + 1, ancho - 1)
+    arriba = max(int(min(y for _, y in puntos)), 0)
+    abajo = min(int(max(y for _, y in puntos)) + 1, alto - 1)
+
+    for y in range(arriba, abajo + 1):
+        for x in range(izquierda, derecha + 1):
+            dentro = False
+            anterior = len(puntos) - 1
+            for actual, (px, py) in enumerate(puntos):
+                ax, ay = puntos[anterior]
+                cruza = (py > y) != (ay > y)
+                if cruza and x < (ax - px) * (y - py) / max(ay - py, 0.000001) + px:
+                    dentro = not dentro
+                anterior = actual
+            if dentro:
                 _poner_pixel(pixeles, ancho, alto, x, y, color)
 
 
@@ -287,6 +311,117 @@ def renderizar_lienzo_png_base64(lienzo, ancho=900, alto=520):
                     )
 
                 anterior = punto
+
+        elif tipo in FORMAS_3D:
+            x1, y1 = p(objeto["desde"])
+            x2, y2 = p(objeto["hasta"])
+            x = min(x1, x2)
+            y = min(y1, y2)
+            ancho_figura = max(abs(x2 - x1), 12)
+            alto_figura = max(abs(y2 - y1), 12)
+            relleno = objeto.get("relleno")
+
+            def poligono(puntos, color_actual, grosor_actual):
+                for indice in range(len(puntos)):
+                    _linea(
+                        pixeles,
+                        ancho,
+                        alto,
+                        puntos[indice][0],
+                        puntos[indice][1],
+                        puntos[(indice + 1) % len(puntos)][0],
+                        puntos[(indice + 1) % len(puntos)][1],
+                        grosor_actual,
+                        color_actual,
+                    )
+
+            def elipse(x_actual, y_actual, ancho_actual, alto_actual, color_actual, grosor_actual):
+                pasos = max(int((ancho_actual + alto_actual) * math.pi / 2), 24)
+                anterior = None
+                for paso in range(pasos + 1):
+                    angulo = 2 * math.pi * paso / pasos
+                    punto = (
+                        x_actual + ancho_actual / 2 + math.cos(angulo) * ancho_actual / 2,
+                        y_actual + alto_actual / 2 + math.sin(angulo) * alto_actual / 2,
+                    )
+                    if anterior:
+                        _linea(pixeles, ancho, alto, anterior[0], anterior[1], punto[0], punto[1], grosor_actual, color_actual)
+                    anterior = punto
+
+            def aplicar_borde(dibujar):
+                if borde:
+                    dibujar(borde, grosor_borde)
+                dibujar(color, grosor)
+
+            if tipo == "cubo":
+                profundidad = min(ancho_figura, alto_figura) * 0.22
+                frente = [
+                    (x + profundidad, y + profundidad),
+                    (x + ancho_figura, y + profundidad),
+                    (x + ancho_figura, y + alto_figura),
+                    (x + profundidad, y + alto_figura),
+                ]
+                atras = [
+                    (x, y),
+                    (x + ancho_figura - profundidad, y),
+                    (x + ancho_figura - profundidad, y + alto_figura - profundidad),
+                    (x, y + alto_figura - profundidad),
+                ]
+                if relleno:
+                    _rellenar_poligono(pixeles, ancho, alto, frente, _hex_rgb(relleno))
+
+                def dibujar(color_actual, grosor_actual):
+                    poligono(frente, color_actual, grosor_actual)
+                    poligono(atras, color_actual, grosor_actual)
+                    for indice in range(4):
+                        _linea(pixeles, ancho, alto, frente[indice][0], frente[indice][1], atras[indice][0], atras[indice][1], grosor_actual, color_actual)
+
+                aplicar_borde(dibujar)
+
+            elif tipo == "piramide":
+                base = [
+                    (x + ancho_figura * 0.18, y + alto_figura * 0.72),
+                    (x + ancho_figura * 0.82, y + alto_figura * 0.72),
+                    (x + ancho_figura, y + alto_figura),
+                    (x, y + alto_figura),
+                ]
+                punta = (x + ancho_figura / 2, y)
+                if relleno:
+                    _rellenar_poligono(pixeles, ancho, alto, [punta, base[0], base[1]], _hex_rgb(relleno))
+
+                def dibujar(color_actual, grosor_actual):
+                    poligono(base, color_actual, grosor_actual)
+                    for punto in base:
+                        _linea(pixeles, ancho, alto, punta[0], punta[1], punto[0], punto[1], grosor_actual, color_actual)
+
+                aplicar_borde(dibujar)
+
+            elif tipo == "cilindro":
+                alto_elipse = max(alto_figura * 0.28, 8)
+                abajo = y + alto_figura - alto_elipse
+                if relleno:
+                    _rellenar_rectangulo(pixeles, ancho, alto, x, y + alto_elipse / 2, x + ancho_figura, abajo + alto_elipse / 2, _hex_rgb(relleno))
+                    _rellenar_elipse(pixeles, ancho, alto, x + ancho_figura / 2, y + alto_elipse / 2, ancho_figura / 2, alto_elipse / 2, _hex_rgb(relleno))
+                    _rellenar_elipse(pixeles, ancho, alto, x + ancho_figura / 2, abajo + alto_elipse / 2, ancho_figura / 2, alto_elipse / 2, _hex_rgb(relleno))
+
+                def dibujar(color_actual, grosor_actual):
+                    elipse(x, y, ancho_figura, alto_elipse, color_actual, grosor_actual)
+                    elipse(x, abajo, ancho_figura, alto_elipse, color_actual, grosor_actual)
+                    _linea(pixeles, ancho, alto, x, y + alto_elipse / 2, x, abajo + alto_elipse / 2, grosor_actual, color_actual)
+                    _linea(pixeles, ancho, alto, x + ancho_figura, y + alto_elipse / 2, x + ancho_figura, abajo + alto_elipse / 2, grosor_actual, color_actual)
+
+                aplicar_borde(dibujar)
+
+            else:
+                if relleno:
+                    _rellenar_elipse(pixeles, ancho, alto, x + ancho_figura / 2, y + alto_figura / 2, ancho_figura / 2, alto_figura / 2, _hex_rgb(relleno))
+
+                def dibujar(color_actual, grosor_actual):
+                    elipse(x, y, ancho_figura, alto_figura, color_actual, grosor_actual)
+                    elipse(x + ancho_figura * 0.24, y, ancho_figura * 0.52, alto_figura, color_actual, grosor_actual)
+                    elipse(x, y + alto_figura * 0.28, ancho_figura, alto_figura * 0.44, color_actual, grosor_actual)
+
+                aplicar_borde(dibujar)
 
         elif tipo == "texto":
             x, y = p((objeto.get("x", 0), objeto.get("y", 0)))
