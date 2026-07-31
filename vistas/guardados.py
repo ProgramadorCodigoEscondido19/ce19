@@ -92,28 +92,28 @@ class GuardadosView:
         self.estadisticas_service = EstadisticasService(self.guardados, self.carpetas)
         self.busqueda_global_service = BusquedaGlobalService(self.guardados, self.carpetas)
         self.mantenimiento_service = MantenimientoService()
-        self.modo_cuadricula = True
+        # La lista es la vista inicial porque permite escanear carpetas y
+        # fechas como en el explorador de referencia. El icono ofrece pasar
+        # a cuadrícula cuando el usuario lo necesite.
+        self.modo_cuadricula = False
         self.modo_seleccion_multiple = False
         self.file_picker_excel = None
         self.file_picker_tarjeta = None
         
-        self.carpeta_actual_id = 1
-        self.carpeta_actual_nombre = "TARJETAS"
-        self.carpeta_seleccionada_id = 1
-        self.carpeta_seleccionada_nombre = "TARJETAS"
+        # Guardados abre en el nivel general, como el explorador de Windows.
+        # Desde allí se entra a cada carpeta con doble clic.
+        self.carpeta_actual_id = None
+        self.carpeta_actual_nombre = None
+        self.carpeta_seleccionada_id = None
+        self.carpeta_seleccionada_nombre = None
         
-        self.ruta_carpetas = [{"id":1,"nombre": "TARJETAS"}]
+        self.ruta_carpetas = []
         
         self.carpetas_expandidas = set()
         self.carpetas_colapsadas = True
         self.modo_vista = 'tarjetas'
         self.filtro_tipo = 'Todos'
         self.orden_guardados = 'Antiguos'
-        self.boton_vista = ft.IconButton(
-            icon=ft.Icons.VIEW_LIST,
-            tooltip='Ver como lista',
-            on_click=self.cambiar_vista
-        )
         self.campo_busqueda = ft.TextField(
             hint_text="Buscar...",
             prefix_icon=ft.Icons.SEARCH,
@@ -155,8 +155,8 @@ class GuardadosView:
             on_click=self.eliminar_carpeta,
         )
         self.boton_vista = ft.IconButton(
-            icon=ft.Icons.VIEW_LIST,
-            tooltip='Ver como lista',
+            icon=ft.Icons.GRID_VIEW,
+            tooltip='Ver como cuadrícula',
             on_click=self.cambiar_vista
         )
         self.boton_seleccion_multiple = ft.IconButton(
@@ -228,12 +228,12 @@ class GuardadosView:
             spacing=5,
             scroll=ft.ScrollMode.AUTO
         ) 
-        # Un único contenedor desplazable evita que una GridView o ListView
-        # quede anidada dentro de otra zona con scroll.
-        self.panel_contenido = ft.ListView(
+        # Un único panel con desplazamiento automático evita conflictos de
+        # tamaño al volver a entrar a Guardados en escritorio o en la web.
+        self.panel_contenido = ft.Column(
             expand=True,
             spacing=10,
-            padding=ft.Padding(left=0, top=0, right=4, bottom=4),
+            scroll=ft.ScrollMode.AUTO,
         )
         self.panel_izquierdo = ft.Container(
             width=250,
@@ -799,34 +799,38 @@ class GuardadosView:
             controls=[
                 ft.Container(expand=True, content=self.campo_busqueda),
                 self.boton_limpiar_busqueda,
-                ft.IconButton(
-                    icon=ft.Icons.FILTER_LIST,
-                    tooltip="Filtrar por tipo",
-                    icon_color=VIOLETA_IOS,
-                    on_click=lambda e: self.dialog_filtros_tipo(),
-                ),
             ],
         )
 
-        herramientas = ft.Row(
-            wrap=True,
-            spacing=8,
-            run_spacing=6,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            controls=[
-                ft.Container(
-                    width=None if self.es_movil() else 360,
-                    expand=self.es_movil(),
-                    content=buscador,
-                ),
-                self._selector_orden_guardados(),
-                self.barra_explorador,
-            ],
-        )
+        if self.es_movil():
+            herramientas = ft.Column(
+                tight=True,
+                spacing=6,
+                controls=[
+                    ft.Container(width=340, content=buscador),
+                    ft.Row(
+                        wrap=True,
+                        spacing=8,
+                        controls=[
+                            self.barra_explorador,
+                        ],
+                    ),
+                ],
+            )
+        else:
+            herramientas = ft.Row(
+                wrap=True,
+                spacing=8,
+                run_spacing=6,
+                controls=[
+                    ft.Container(width=360, content=buscador),
+                    self.barra_explorador,
+                ],
+            )
 
         return ft.Column(
             expand=True,
-            spacing=7,
+            spacing=10,
             controls=[
                 herramientas,
                 self.barra_ruta,
@@ -1668,11 +1672,11 @@ class GuardadosView:
         )
         self.page.overlay.append(dialog)
         dialog.open = True
-        self.page.update()
+        self._refrescar_pagina()
 
     def _cerrar_dialogo(self, dialogo):
         dialogo.open = False
-        self.page.update()
+        self._refrescar_pagina()
 
     def texto_previsualizacion(self, registro, size=13, max_lines=2, color=None):
         return ft.Text(
@@ -2961,15 +2965,65 @@ class GuardadosView:
             )
         )
 
-    def _tarjeta_carpeta_resumen(self, carpeta):
+    def _tarjeta_carpeta_resumen(self, carpeta, cuadricula=False):
         color, fondo, icono = self._estilo_carpeta(carpeta)
         cantidad = self._cantidad_registros_carpeta(carpeta)
-        seleccionada = carpeta.get("id") == self.carpeta_actual_id
+        seleccionada = carpeta.get("id") == self.carpeta_seleccionada_id
+
+        if cuadricula:
+            ancho = 155 if self.es_movil() else 210
+            return ft.GestureDetector(
+                mouse_cursor=ft.MouseCursor.CLICK,
+                on_tap=lambda e, c=carpeta: self._seleccionar_carpeta_explorador(c),
+                on_double_tap=lambda e, c=carpeta: self._entrar_carpeta_explorador(c),
+                on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
+                content=ft.Container(
+                    width=ancho,
+                    height=132,
+                    padding=12,
+                    bgcolor=PERLA_VIOLETA if seleccionada else BLANCO,
+                    border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
+                    border_radius=8,
+                    content=ft.Column(
+                        tight=True,
+                        spacing=8,
+                        controls=[
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                controls=[
+                                    ft.Container(
+                                        width=42,
+                                        height=42,
+                                        alignment=ft.Alignment(0, 0),
+                                        bgcolor=fondo,
+                                        border_radius=8,
+                                        content=ft.Icon(icono, color=color, size=22),
+                                    ),
+                                    ft.Icon(ft.Icons.MORE_VERT, size=19, color=TEXTO_SECUNDARIO),
+                                ],
+                            ),
+                            ft.Text(
+                                carpeta.get("nombre", "Carpeta"),
+                                size=13,
+                                weight=ft.FontWeight.BOLD,
+                                color=TEXTO_PRINCIPAL,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                            ft.Text(
+                                f"{cantidad} elemento{'s' if cantidad != 1 else ''}",
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                        ],
+                    ),
+                ),
+            )
 
         return ft.GestureDetector(
             mouse_cursor=ft.MouseCursor.CLICK,
-            on_tap=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
-            on_double_tap=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
+            on_tap=lambda e, c=carpeta: self._seleccionar_carpeta_explorador(c),
+            on_double_tap=lambda e, c=carpeta: self._entrar_carpeta_explorador(c),
             on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
             content=ft.Container(
                 height=78 if self.es_movil() else 82,
@@ -3028,21 +3082,23 @@ class GuardadosView:
         if not carpetas:
             return ft.Container()
 
+        if self.modo_cuadricula:
+            return ft.Row(
+                wrap=True,
+                spacing=10,
+                run_spacing=10,
+                controls=[
+                    self._tarjeta_carpeta_resumen(carpeta, cuadricula=True)
+                    for carpeta in carpetas
+                ],
+            )
+
         return ft.Column(
             tight=True,
             spacing=8,
             controls=[
-                ft.Text(
-                    "Carpetas",
-                    size=14,
-                    weight=ft.FontWeight.BOLD,
-                    color=TEXTO_PRINCIPAL,
-                ),
-                ft.Column(
-                    tight=True,
-                    spacing=8,
-                    controls=[self._tarjeta_carpeta_resumen(carpeta) for carpeta in carpetas],
-                ),
+                self._tarjeta_carpeta_resumen(carpeta)
+                for carpeta in carpetas
             ],
         )
 
@@ -3298,9 +3354,7 @@ class GuardadosView:
         self.actualizar_barra_ruta()
         self.actualizar_tabla()
         self.cargar_vista_carpetas()
-
-        self.panel_izquierdo.update()
-        self.panel_derecho.update()
+        self._refrescar_pagina()
     # ======================================
     # F() SELECCIONAR CARPETA
     # ======================================
@@ -3368,8 +3422,7 @@ class GuardadosView:
         self.actualizar_barra_ruta()
         self.actualizar_tabla()
         self.cargar_vista_carpetas()
-
-        self.panel_derecho.update()
+        self._refrescar_pagina()
     # ======================================
     # ACTUALIZAR BARRA DE RUTA
     # ======================================
@@ -3408,7 +3461,7 @@ class GuardadosView:
             )
 
         if actualizar:
-            self.page.update()
+            self._refrescar_pagina()
     
     # F(VOLVER INICIO)=======================================
     def volver_inicio(self):
@@ -3426,9 +3479,7 @@ class GuardadosView:
         self.actualizar_barra_ruta()
         self.actualizar_tabla()
         self.cargar_vista_carpetas()
-
-        self.panel_izquierdo.update()
-        self.panel_derecho.update()
+        self._refrescar_pagina()
     
     # F(CARGAR A CARPETA)====================================
     def volver_a_carpeta(self, carpeta):
@@ -3445,9 +3496,7 @@ class GuardadosView:
         self.actualizar_barra_ruta()
         self.actualizar_tabla()
         self.cargar_vista_carpetas()
-
-        self.panel_izquierdo.update()
-        self.panel_derecho.update()
+        self._refrescar_pagina()
    
     #F(OBTENER REGISTROS ACTUALES)===========================
     def obtener_registros_actuales(self):
@@ -3463,23 +3512,35 @@ class GuardadosView:
 
         return self.carpetas.obtener_hijos(self.carpeta_actual_id)
 
-    def _abrir_subcarpeta(self, carpeta):
+    def _seleccionar_carpeta_explorador(self, carpeta):
+        """Marca una carpeta sin abrirla, igual que un clic en Windows."""
+        self.carpeta_seleccionada_id = carpeta["id"]
+        self.carpeta_seleccionada_nombre = carpeta["nombre"]
+        self.actualizar_tabla()
+        self._refrescar_pagina()
+
+    def _entrar_carpeta_explorador(self, carpeta):
+        """Abre una carpeta con doble clic."""
         self.seleccionar_carpeta_arbol(carpeta)
+
+    def _abrir_subcarpeta(self, carpeta):
+        self._entrar_carpeta_explorador(carpeta)
 
     def _tarjeta_subcarpeta(self, carpeta):
         cantidad = self.contar_registros_carpeta(carpeta["nombre"])
         hijos = self.carpetas.obtener_hijos(carpeta["id"])
+        seleccionada = carpeta["id"] == self.carpeta_seleccionada_id
 
         return ft.GestureDetector(
             mouse_cursor=ft.MouseCursor.CLICK,
-            on_tap=lambda e, c=carpeta: self._abrir_subcarpeta(c),
+            on_tap=lambda e, c=carpeta: self._seleccionar_carpeta_explorador(c),
             on_double_tap=lambda e, c=carpeta: self._abrir_subcarpeta(c),
             on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
             content=ft.Container(
                 width=210,
                 padding=ft.Padding(left=12, top=10, right=12, bottom=10),
-                bgcolor=SUPERFICIE_PERLADA,
-                border=ft.Border.all(1, PERLA_BORDE),
+                bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
+                border=ft.Border.all(1.4 if seleccionada else 1, VIOLETA_IOS if seleccionada else PERLA_BORDE),
                 border_radius=18,
                 shadow=sombra_suave(0.035, 12, 0, 4),
                 content=ft.Row(
@@ -4144,11 +4205,13 @@ class GuardadosView:
 
         if self.modo_cuadricula:
             self.boton_vista.icon = ft.Icons.VIEW_LIST
+            self.boton_vista.tooltip = "Ver como lista"
         else:
             self.boton_vista.icon = ft.Icons.GRID_VIEW
+            self.boton_vista.tooltip = "Ver como cuadrícula"
 
         self.actualizar_tabla()
-        self.page.update()
+        self._refrescar_pagina()
 
     # =================================================
     # F() ACTUALIZAR TABLA
@@ -4178,15 +4241,11 @@ class GuardadosView:
         registros = self._aplicar_filtro_tipo(registros)
         registros = self._ordenar_registros(registros)
         subcarpetas = [] if busqueda_activa else self._subcarpetas_actuales()
-        es_carpeta_principal = (
-            self.carpeta_actual_id is None
-            or any(
-                carpeta.get("id") == self.carpeta_actual_id
-                for carpeta in self.carpetas.obtener_hijos(None)
-            )
-        )
+        es_inicio = self.carpeta_actual_id is None
 
-        if not busqueda_activa and es_carpeta_principal:
+        # En Inicio solo se muestran las carpetas principales. Al entrar a
+        # una carpeta no se vuelven a mezclar esas carpetas con sus archivos.
+        if not busqueda_activa and es_inicio:
             self.panel_contenido.controls.append(
                 self._seccion_carpetas_principales()
             )
@@ -4196,7 +4255,7 @@ class GuardadosView:
                 self._seccion_subcarpetas(subcarpetas)
             )
 
-        if len(registros) == 0 and not subcarpetas and not es_carpeta_principal:
+        if len(registros) == 0 and not subcarpetas and not es_inicio:
             self.panel_contenido.controls.append(
                 ft.Container(
                     height= 400,
@@ -5737,14 +5796,19 @@ class GuardadosView:
         self.page.update()
 
     def _on_state_change(self, event=None):
-
-        if event == "update":
+        # Esta vista queda registrada aunque el usuario esté en otra página.
+        # No se deben actualizar controles desmontados desde ese aviso global.
+        if event == "update" and getattr(self.router, "ruta_actual", None) == "guardados":
             self.actualizar_tabla()
             self.cargar_vista_carpetas()
-            try:
-                self.page.update()
-            except Exception:
-                pass
+            self._refrescar_pagina()
+
+    def _refrescar_pagina(self):
+        """Actualiza solo cuando la vista ya fue montada por Flet."""
+        try:
+            self.page.update()
+        except (RuntimeError, AssertionError):
+            pass
 
     def obtener_carpeta_actual(self):
 
