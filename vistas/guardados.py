@@ -353,7 +353,7 @@ class GuardadosView:
             ),
         )
         self.panel_derecho = ft.Container(
-            expand=False,
+            expand=True,
             padding=15,
             bgcolor=ft.Colors.with_opacity(0.96, BLANCO),
             border=ft.Border.all(1, PERLA_BORDE),
@@ -2769,18 +2769,13 @@ class GuardadosView:
     # F() AREA CENTRAL
     # ======================================
     def crear_area_trabajo(self):
-        # Las carpetas viven en el contenido principal; un segundo panel
-        # lateral hacía que la vista se sintiera apretada y repetida.
-        self.panel_derecho.height = self._alto_panel_guardados()
-        return self.panel_derecho
-
-    def _alto_panel_guardados(self):
-        alto = getattr(self.page, "height", None)
-        if alto is None and hasattr(self.page, "window"):
-            alto = getattr(self.page.window, "height", None)
-        alto = alto or (720 if self.es_movil() else 760)
-        reserva = 185 if self.es_movil() else 165
-        return max(390, int(alto) - reserva)
+        # Una fila expandible, incluso con un único panel, proporciona al
+        # contenido el ancho y alto acotados que Flet necesita para dibujarlo.
+        return ft.Row(
+            expand=True,
+            spacing=0,
+            controls=[self.panel_derecho],
+        )
 
     def _modo_responsivo(self):
         if self.es_movil():
@@ -3412,7 +3407,8 @@ class GuardadosView:
                 )
             )
 
-        self.page.update()
+        if actualizar:
+            self.page.update()
     
     # F(VOLVER INICIO)=======================================
     def volver_inicio(self):
@@ -5082,8 +5078,7 @@ class GuardadosView:
         dialog_ref["control"] = dialog
         self.page.overlay.append(dialog)
         renderizar()
-        if actualizar:
-            self.page.update()
+        self.page.update()
 
     def _guardar_tarjeta_jpg_en_destino(self, archivo, destino):
         archivo = Path(archivo)
