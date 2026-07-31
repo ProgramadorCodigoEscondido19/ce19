@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import flet as ft
@@ -82,7 +83,7 @@ class Carpetas:
 
     async def _cargar_web(self):
         try:
-            contenido = await self.preferencias_web.get(self.CLAVE_WEB)
+            contenido = await self._leer_preferencia_web()
             if not contenido:
                 await self._guardar_web()
                 return
@@ -105,20 +106,43 @@ class Carpetas:
         except Exception:
             pass
 
+    async def _leer_preferencia_web(self):
+        ultimo_error = None
+
+        for intento in range(3):
+            try:
+                return await self.preferencias_web.get(self.CLAVE_WEB)
+            except Exception as error:
+                ultimo_error = error
+                await asyncio.sleep(0.08 * (intento + 1))
+
+        raise ultimo_error
+
     async def _guardar_web(self):
-        try:
-            contenido = json.dumps(
-                self.lista,
-                ensure_ascii=False,
-            )
-            await self.preferencias_web.set(self.CLAVE_WEB, contenido)
-        except Exception:
-            pass
+        contenido = json.dumps(
+            self.lista,
+            ensure_ascii=False,
+        )
+
+        for intento in range(3):
+            try:
+                await self.preferencias_web.set(self.CLAVE_WEB, contenido)
+                return
+            except Exception:
+                if intento < 2:
+                    await asyncio.sleep(0.08 * (intento + 1))
 
     # ======================================
     # CARGAR
     #=======================================
     def cargar(self):
+        # En web se mantienen las carpetas guardadas por el navegador. Guardar
+        # aqui la estructura inicial reemplazaria las subcarpetas existentes.
+        if self.preferencias_web is not None:
+            self.lista = []
+            self._asegurar_carpetas_fijas()
+            return
+
         if os.path.exists(self.archivo):
             try:
                 with open(
