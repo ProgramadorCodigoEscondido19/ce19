@@ -351,7 +351,7 @@ class GuardadosView:
             ),
         )
         self.panel_derecho = ft.Container(
-            expand=True,
+            expand=False,
             padding=15,
             bgcolor=ft.Colors.with_opacity(0.96, BLANCO),
             border=ft.Border.all(1, PERLA_BORDE),
@@ -704,6 +704,10 @@ class GuardadosView:
         self.page.update()
 
     def _on_resize(self, e):
+        modo_actual = self._modo_responsivo()
+        if modo_actual == getattr(self, "_modo_responsivo_anterior", None):
+            return
+        self._modo_responsivo_anterior = modo_actual
         self.router.refrescar()
 
 
@@ -2765,7 +2769,23 @@ class GuardadosView:
     def crear_area_trabajo(self):
         # Las carpetas viven en el contenido principal; un segundo panel
         # lateral hacía que la vista se sintiera apretada y repetida.
+        self.panel_derecho.height = self._alto_panel_guardados()
         return self.panel_derecho
+
+    def _alto_panel_guardados(self):
+        alto = getattr(self.page, "height", None)
+        if alto is None and hasattr(self.page, "window"):
+            alto = getattr(self.page.window, "height", None)
+        alto = alto or (720 if self.es_movil() else 760)
+        reserva = 185 if self.es_movil() else 165
+        return max(390, int(alto) - reserva)
+
+    def _modo_responsivo(self):
+        if self.es_movil():
+            return "movil"
+        if self.es_tablet():
+            return "tablet"
+        return "pc"
 
     def _aplicar_responsive(self):
         if self.es_movil():
@@ -3099,6 +3119,7 @@ class GuardadosView:
         self.page.on_resize = self._on_resize
 
         self._aplicar_responsive()
+        self._modo_responsivo_anterior = self._modo_responsivo()
         self._aplicar_carpeta_preferida()
         # La navegación principal ya no muestra el árbol secundario. Evitar
         # actualizar la página antes de que el panel sea incorporado al árbol
