@@ -272,7 +272,7 @@ class InicioView:
         )
 
         self.boton = ft.ElevatedButton(
-            "CODIFICAR",
+            "DECODIFICAR",
             width=250,
             height=45,
             icon=ft.Icons.PLAY_ARROW,
@@ -380,11 +380,6 @@ class InicioView:
                         color=TEXTO_PRINCIPAL,
                     ),
                     self.palabra_input,
-                    ft.Text(
-                        "Modo de codificación",
-                        size=13,
-                        color=TEXTO_SECUNDARIO,
-                    ),
                     self.modo_codificacion,
                     self.ayuda_modo,
                     ft.Container(
