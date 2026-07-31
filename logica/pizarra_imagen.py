@@ -84,6 +84,27 @@ def _linea(pixeles, ancho, alto, x1, y1, x2, y2, grosor, color):
         _circulo(pixeles, ancho, alto, x, y, radio, color)
 
 
+def _rellenar_rectangulo(pixeles, ancho, alto, x1, y1, x2, y2, color):
+    izquierda, derecha = sorted((int(round(x1)), int(round(x2))))
+    arriba, abajo = sorted((int(round(y1)), int(round(y2))))
+
+    for y in range(arriba, abajo + 1):
+        for x in range(izquierda, derecha + 1):
+            _poner_pixel(pixeles, ancho, alto, x, y, color)
+
+
+def _rellenar_elipse(pixeles, ancho, alto, cx, cy, rx, ry, color):
+    if rx <= 0 or ry <= 0:
+        return
+
+    for y in range(int(cy - ry), int(cy + ry) + 1):
+        proporcion_y = (y - cy) / ry
+
+        for x in range(int(cx - rx), int(cx + rx) + 1):
+            if ((x - cx) / rx) ** 2 + proporcion_y ** 2 <= 1:
+                _poner_pixel(pixeles, ancho, alto, x, y, color)
+
+
 def _bounds(objetos):
     xs = []
     ys = []
@@ -188,6 +209,20 @@ def renderizar_lienzo_png_base64(lienzo, ancho=900, alto=520):
         elif tipo == "rectangulo":
             x1, y1 = p(objeto["desde"])
             x2, y2 = p(objeto["hasta"])
+            relleno = objeto.get("relleno")
+
+            if relleno:
+                _rellenar_rectangulo(
+                    pixeles,
+                    ancho,
+                    alto,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    _hex_rgb(relleno),
+                )
+
             if borde:
                 _linea(pixeles, ancho, alto, x1, y1, x2, y1, grosor_borde, borde)
                 _linea(pixeles, ancho, alto, x2, y1, x2, y2, grosor_borde, borde)
@@ -205,6 +240,20 @@ def renderizar_lienzo_png_base64(lienzo, ancho=900, alto=520):
             cy = (y1 + y2) / 2
             rx = abs(x2 - x1) / 2
             ry = abs(y2 - y1) / 2
+            relleno = objeto.get("relleno")
+
+            if relleno:
+                _rellenar_elipse(
+                    pixeles,
+                    ancho,
+                    alto,
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    _hex_rgb(relleno),
+                )
+
             pasos = max(int((rx + ry) * math.pi / 2), 24)
             anterior = None
 

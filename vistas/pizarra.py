@@ -214,6 +214,16 @@ class PizarraView:
                 ],
             )
 
+        if self.responsive.is_desktop():
+            return ft.Column(
+                expand=True,
+                spacing=8,
+                controls=[
+                    herramientas,
+                    lienzo,
+                ],
+            )
+
         return ft.Row(
             expand=True,
             spacing=12,
@@ -251,6 +261,9 @@ class PizarraView:
                 ),
             )
 
+        if self.responsive.is_desktop():
+            return self._cinta_herramientas_escritorio()
+
         herramientas = [
             ("lapiz", ft.Icons.EDIT, "Dibujar"),
             ("seleccionar", ft.Icons.SELECT_ALL, "Seleccionar y mover"),
@@ -260,7 +273,7 @@ class PizarraView:
             ("linea", ft.Icons.HORIZONTAL_RULE, "Linea recta"),
             ("rectangulo", ft.Icons.CROP_SQUARE, "Rectangulo"),
             ("circulo", ft.Icons.CIRCLE_OUTLINED, "Circulo"),
-            ("pintar", ft.Icons.FORMAT_COLOR_FILL, "Pintar fondo"),
+            ("pintar", ft.Icons.FORMAT_COLOR_FILL, "Rellenar figura"),
         ]
 
         botones = ft.Row(
@@ -422,8 +435,209 @@ class PizarraView:
                                 tooltip="Limpiar lienzo",
                                 on_click=lambda e: self.limpiar_lienzo(),
                             ),
+                            ft.IconButton(
+                                icon_size=18,
+                                width=34,
+                                height=34,
+                                icon=ft.Icons.FORMAT_COLOR_FILL,
+                                tooltip="Aplicar color al fondo",
+                                on_click=lambda e: self.pintar_fondo(),
+                            ),
                         ],
                     ),
+                ],
+            ),
+        )
+
+    def _cinta_herramientas_escritorio(self):
+        herramientas = [
+            ("lapiz", ft.Icons.EDIT, "Lapiz"),
+            ("seleccionar", ft.Icons.SELECT_ALL, "Seleccionar y mover"),
+            ("mano", ft.Icons.PAN_TOOL, "Desplazar lienzo"),
+            ("borrador", ft.Icons.AUTO_FIX_HIGH, "Borrador"),
+            ("texto", ft.Icons.TITLE, "Texto"),
+            ("pintar", ft.Icons.FORMAT_COLOR_FILL, "Rellenar figura"),
+        ]
+        formas = [
+            ("linea", ft.Icons.HORIZONTAL_RULE, "Linea recta"),
+            ("rectangulo", ft.Icons.CROP_SQUARE, "Rectangulo"),
+            ("circulo", ft.Icons.CIRCLE_OUTLINED, "Circulo"),
+        ]
+
+        def boton_herramienta(valor, icono, ayuda):
+            return ft.IconButton(
+                icon=icono,
+                icon_size=18,
+                width=28,
+                height=28,
+                tooltip=ayuda,
+                bgcolor=PERLA_VIOLETA if self.herramienta == valor else None,
+                on_click=lambda e, v=valor: self.cambiar_herramienta(v),
+            )
+
+        def grupo(titulo, contenido, ancho=None):
+            return ft.Container(
+                width=ancho,
+                padding=ft.Padding(left=5, top=3, right=5, bottom=3),
+                border=ft.Border.only(right=ft.BorderSide(1, BORDE_SUAVE)),
+                content=ft.Column(
+                    tight=True,
+                    spacing=1,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        contenido,
+                        ft.Text(titulo, size=10, color=TEXTO_SECUNDARIO),
+                    ],
+                ),
+            )
+
+        colores = ft.Row(
+            width=214,
+            tight=True,
+            spacing=3,
+            controls=[
+                ft.Container(
+                    width=19,
+                    height=19,
+                    bgcolor=color,
+                    border=ft.Border.all(
+                        3 if color == self.color else 2 if self._es_blanco_borde(color) else 1,
+                        COLOR_MARRON_PIZARRA if self._es_blanco_borde(color) else ft.Colors.BLACK,
+                    ),
+                    border_radius=3,
+                    tooltip="Blanco con borde marron" if self._es_blanco_borde(color) else color,
+                    on_click=lambda e, c=color: self.cambiar_color(c),
+                )
+                for color in COLORES_PIZARRA
+            ] + [
+                ft.IconButton(
+                    icon=ft.Icons.FORMAT_COLOR_FILL,
+                    icon_size=17,
+                    width=25,
+                    height=25,
+                    tooltip="Pintar fondo del lienzo",
+                    on_click=lambda e: self.pintar_fondo(),
+                )
+            ],
+        )
+
+        acciones = ft.Row(
+            tight=True,
+            spacing=1,
+            controls=[
+                ft.IconButton(
+                    icon=ft.Icons.UNDO,
+                    icon_size=18,
+                    width=28,
+                    height=28,
+                    tooltip="Deshacer",
+                    on_click=lambda e: self.deshacer(),
+                ),
+                ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_VERT,
+                    icon_size=18,
+                    padding=2,
+                    tooltip="Mas acciones",
+                    items=[
+                        ft.PopupMenuItem("Copiar ultimo", icon=ft.Icons.CONTENT_COPY, on_click=lambda e: self.copiar_ultimo()),
+                        ft.PopupMenuItem("Pegar", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self.pegar()),
+                        ft.PopupMenuItem("Limpiar lienzo", icon=ft.Icons.DELETE, on_click=lambda e: self.limpiar_lienzo()),
+                    ],
+                ),
+                ft.ElevatedButton(
+                    "Guardar",
+                    icon=ft.Icons.SAVE_ALT,
+                    height=30,
+                    on_click=lambda e: self.guardar_pizarra(),
+                ),
+            ],
+        )
+
+        tamano = ft.Column(
+            tight=True,
+            spacing=0,
+            controls=[
+                ft.Row(
+                    tight=True,
+                    spacing=2,
+                    controls=[
+                        ft.Text(f"T {self.grosor}", size=10, color=TEXTO_SECUNDARIO),
+                        ft.Slider(
+                            width=76,
+                            height=16,
+                            min=1,
+                            max=18,
+                            divisions=17,
+                            value=self.grosor,
+                            on_change=lambda e: self.actualizar_grosor(e.control.value),
+                        ),
+                    ],
+                ),
+                ft.Row(
+                    tight=True,
+                    spacing=2,
+                    controls=[
+                        ft.Text(f"G {self.borrador}", size=10, color=TEXTO_SECUNDARIO),
+                        ft.Slider(
+                            width=76,
+                            height=16,
+                            min=8,
+                            max=80,
+                            divisions=18,
+                            value=self.borrador,
+                            on_change=lambda e: self.actualizar_borrador(e.control.value),
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        zoom = ft.Column(
+            tight=True,
+            spacing=2,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Row(
+                    tight=True,
+                    spacing=0,
+                    controls=[
+                        ft.IconButton(icon=ft.Icons.ZOOM_OUT, icon_size=18, width=28, height=28, tooltip="Contraer", on_click=lambda e: self.cambiar_zoom(-0.1)),
+                        ft.IconButton(icon=ft.Icons.ZOOM_IN, icon_size=18, width=28, height=28, tooltip="Expandir", on_click=lambda e: self.cambiar_zoom(0.1)),
+                    ],
+                ),
+                ft.Text(f"{int(self.zoom * 100)}%", size=10, color=TEXTO_SECUNDARIO),
+            ],
+        )
+
+        texto = ft.TextField(
+            width=130,
+            height=34,
+            dense=True,
+            hint_text="Texto para colocar",
+            value=self.texto,
+            on_change=lambda e: self.actualizar_texto(e.control.value),
+            on_submit=lambda e: ocultar_teclado(self.page, e.control),
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+
+        return ft.Container(
+            padding=ft.Padding(left=3, top=2, right=3, bottom=2),
+            bgcolor=CARD_BLANCO,
+            border=ft.Border.all(1, BORDE_SUAVE),
+            border_radius=12,
+            shadow=_sombra_card(),
+            content=ft.Row(
+                spacing=0,
+                wrap=True,
+                run_spacing=0,
+                controls=[
+                    grupo("Herramientas", ft.Row(tight=True, spacing=1, controls=[boton_herramienta(*dato) for dato in herramientas]), 176),
+                    grupo("Formas", ft.Row(tight=True, spacing=1, controls=[boton_herramienta(*dato) for dato in formas]), 95),
+                    grupo("Texto", texto, 140),
+                    grupo("Tamano", tamano, 116),
+                    grupo("Colores", colores, 224),
+                    grupo("Vista", zoom, 66),
+                    grupo("Acciones", acciones, 125),
                 ],
             ),
         )
@@ -805,8 +1019,7 @@ class PizarraView:
         elif self.herramienta == "texto":
             self.dialog_agregar_texto(punto)
         elif self.herramienta == "pintar":
-            self.lienzos[self.lienzo_actual]["fondo"] = self.color
-            self.router.refrescar()
+            self.rellenar_figura(punto)
 
     def _doble_tap_down(self, e):
         if self.herramienta != "seleccionar" or not e.local_position:
@@ -1039,33 +1252,67 @@ class PizarraView:
         if tipo == "rectangulo":
             sx1, sy1 = self._pantalla(objeto["desde"])
             sx2, sy2 = self._pantalla(objeto["hasta"])
+            x = min(sx1, sx2)
+            y = min(sy1, sy2)
+            ancho = max(abs(sx2 - sx1), 4)
+            alto = max(abs(sy2 - sy1), 4)
+
+            formas = []
+            relleno = objeto.get("relleno")
+
+            if relleno:
+                formas.append(
+                    cv.Rect(
+                        x,
+                        y,
+                        ancho,
+                        alto,
+                        paint=self._pintura_relleno(relleno),
+                    )
+                )
 
             def rectangulo(color_actual, grosor_actual, extra):
                 return cv.Rect(
-                    min(sx1, sx2),
-                    min(sy1, sy2),
-                    max(abs(sx2 - sx1), 4),
-                    max(abs(sy2 - sy1), 4),
+                    x,
+                    y,
+                    ancho,
+                    alto,
                     paint=self._pintura_trazo(color_actual, grosor_actual, extra),
                 )
 
-            return self._formas_con_borde_blanco(rectangulo, color, grosor)
+            return formas + self._formas_con_borde_blanco(rectangulo, color, grosor)
 
         if tipo == "circulo":
             sx1, sy1 = self._pantalla(objeto["desde"])
             sx2, sy2 = self._pantalla(objeto["hasta"])
             medida = max(abs(sx2 - sx1), abs(sy2 - sy1), 6)
+            x = min(sx1, sx2)
+            y = min(sy1, sy2)
+
+            formas = []
+            relleno = objeto.get("relleno")
+
+            if relleno:
+                formas.append(
+                    cv.Oval(
+                        x,
+                        y,
+                        medida,
+                        medida,
+                        paint=self._pintura_relleno(relleno),
+                    )
+                )
 
             def circulo(color_actual, grosor_actual, extra):
                 return cv.Oval(
-                    min(sx1, sx2),
-                    min(sy1, sy2),
+                    x,
+                    y,
                     medida,
                     medida,
                     paint=self._pintura_trazo(color_actual, grosor_actual, extra),
                 )
 
-            return self._formas_con_borde_blanco(circulo, color, grosor)
+            return formas + self._formas_con_borde_blanco(circulo, color, grosor)
 
         if tipo == "texto":
             sx, sy = self._pantalla((objeto["x"], objeto["y"]))
@@ -1737,6 +1984,35 @@ class PizarraView:
 
         return None
 
+    def _figura_rellenable_en_punto(self, punto):
+        """Devuelve solo figuras cerradas; el balde nunca modifica el fondo."""
+        objetos = self.lienzos[self.lienzo_actual]["objetos"]
+
+        for indice in range(len(objetos) - 1, -1, -1):
+            objeto = objetos[indice]
+            tipo = objeto.get("tipo")
+
+            if tipo == "rectangulo":
+                x1, y1 = objeto["desde"]
+                x2, y2 = objeto["hasta"]
+                if min(x1, x2) <= punto[0] <= max(x1, x2) and min(y1, y2) <= punto[1] <= max(y1, y2):
+                    return indice
+
+            if tipo == "circulo":
+                x1, y1 = objeto["desde"]
+                x2, y2 = objeto["hasta"]
+                lado = max(abs(x2 - x1), abs(y2 - y1), 6)
+                izquierda = min(x1, x2)
+                arriba = min(y1, y2)
+                centro_x = izquierda + lado / 2
+                centro_y = arriba + lado / 2
+                radio = lado / 2
+
+                if (punto[0] - centro_x) ** 2 + (punto[1] - centro_y) ** 2 <= radio ** 2:
+                    return indice
+
+        return None
+
     def _punto_toca_objeto(self, punto, objeto):
         tipo = objeto["tipo"]
         radio = max(self.borrador / 2, objeto.get("grosor", 4) + 6)
@@ -2004,6 +2280,32 @@ class PizarraView:
                     objetos[indice]["color"] = color
 
         self.router.refrescar()
+
+    def rellenar_figura(self, punto):
+        indice = self._figura_rellenable_en_punto(punto)
+
+        if indice is None:
+            self._mostrar_mensaje("El balde solo rellena rectangulos o circulos cerrados.")
+            return
+
+        objeto = self.lienzos[self.lienzo_actual]["objetos"][indice]
+        objeto["relleno"] = self.color
+        self.objeto_seleccionado = None
+        self.objetos_seleccionados = []
+        self._redibujar_lienzo()
+
+    def pintar_fondo(self):
+        self.lienzos[self.lienzo_actual]["fondo"] = self.color
+        self._mostrar_mensaje("Color de fondo aplicado.")
+        self.router.refrescar()
+
+    def _mostrar_mensaje(self, mensaje):
+        self.page.snack_bar = ft.SnackBar(
+            content=ft.Text(mensaje),
+            behavior=ft.SnackBarBehavior.FLOATING,
+        )
+        self.page.snack_bar.open = True
+        self.page.update()
 
     def actualizar_texto(self, texto):
         self.texto = texto
