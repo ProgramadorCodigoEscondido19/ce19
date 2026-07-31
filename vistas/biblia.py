@@ -1432,8 +1432,25 @@ class BibliaView:
             for nombre, color in COLORES_RESALTADO.items()
         ]
 
+        colores.append(
+            ft.Container(
+                width=tamanio,
+                height=tamanio,
+                alignment=ft.Alignment(0, 0),
+                bgcolor=ft.Colors.WHITE,
+                border=ft.Border.all(1.4, "#E53935"),
+                border_radius=tamanio / 2,
+                tooltip="Quitar color del elemento seleccionado",
+                on_click=lambda e: self.quitar_color_objetivo(),
+                content=ft.Icon(
+                    ft.Icons.BLOCK,
+                    size=tamanio - 4,
+                    color="#E53935",
+                ),
+            )
+        )
+
         acciones = [
-            ft.IconButton(icon=ft.Icons.FORMAT_COLOR_RESET, tooltip="Quitar color seleccionado", icon_color=TEXTO_SECUNDARIO, on_click=lambda e: self.quitar_color_objetivo()),
             ft.IconButton(icon=ft.Icons.SAVE_ALT, tooltip="Guardar", icon_color=NARANJA_ACCENTO, on_click=lambda e: self.dialog_guardar_biblia()),
             ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="Descargar Biblia codificada (PDF/TXT)", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
             ft.IconButton(

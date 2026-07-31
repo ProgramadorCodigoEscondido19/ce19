@@ -64,6 +64,18 @@ COLOR_ICONOS = {
 }
 
 
+# Identidad visual de las carpetas principales. Las subcarpetas heredan una
+# apariencia neutra para que la jerarquía siga siendo fácil de leer.
+ESTILOS_CARPETAS = {
+    "TARJETAS": ("#7C3AED", "#F1EBFF", ft.Icons.STYLE),
+    "PIZARRAS": ("#D97706", "#FFF2E0", ft.Icons.EDIT),
+    "FRAGMENTOS BIBLICOS": ("#E11D70", "#FDEAF2", ft.Icons.MENU_BOOK),
+    "COLORES": ("#2563EB", "#EAF2FF", ft.Icons.COLOR_LENS),
+    "TIEMPO": ("#16A34A", "#EAF8EF", ft.Icons.SCHEDULE),
+    "CALCULADORA": ("#7C3AED", "#F1EBFF", ft.Icons.CALCULATE),
+}
+
+
 class GuardadosView:
     # ======================================
     # INIT
@@ -232,7 +244,7 @@ class GuardadosView:
             padding=10,
             bgcolor=SUPERFICIE_PERLADA,
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=18,
+            border_radius=8,
             content=ft.Column(
                 expand=True,
                 spacing=8,
@@ -347,6 +359,9 @@ class GuardadosView:
         self.panel_derecho = ft.Container(
             expand=True,
             padding=15,
+            bgcolor=ft.Colors.with_opacity(0.96, BLANCO),
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=8,
             content=self._crear_panel_derecho_content(),
         )
         
@@ -809,6 +824,8 @@ class GuardadosView:
             controls=[
                 herramientas,
                 self.barra_ruta,
+                self.barra_filtros_tipo,
+                self.barra_orden_guardados,
                 self.barra_acciones,
                 ft.Divider(height=1),
                 self.panel_contenido
@@ -2706,17 +2723,16 @@ class GuardadosView:
         if self.es_movil():
             return ft.Column(
                 expand=True,
-                spacing=0,
+                spacing=8,
                 controls=[
                     self.panel_izquierdo,
-                    ft.Divider(height=1),
                     self.panel_derecho,
                 ],
             )
 
         return ft.Row(
             expand=True,
-            spacing=0,
+            spacing=10,
             controls=[
                 self.panel_izquierdo,
                 self.panel_derecho,
@@ -2726,7 +2742,7 @@ class GuardadosView:
     def _aplicar_responsive(self):
         if self.es_movil():
             self.panel_izquierdo.width = None
-            self.panel_izquierdo.height = 64 if self.carpetas_colapsadas else 170
+            self.panel_izquierdo.height = 68 if self.carpetas_colapsadas else 168
             self.panel_izquierdo.padding = 8
             self.panel_izquierdo.content = self.crear_barra_carpetas_movil()
             self.panel_derecho.padding = 10
@@ -2834,7 +2850,7 @@ class GuardadosView:
             )
 
         return ft.Column(
-            expand=True,
+            tight=True,
             spacing=6,
             controls=controles,
         )
@@ -2880,50 +2896,162 @@ class GuardadosView:
             padding=padding,
             bgcolor=SUPERFICIE_PERLADA,
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=18,
+            border_radius=8,
             shadow=sombra_suave(0.055, 18, 0, 6),
             content=content,
         )
 
+    def _estilo_carpeta(self, carpeta):
+        return ESTILOS_CARPETAS.get(
+            carpeta.get("nombre", "").upper(),
+            ("#B97852", "#FFF1E8", ft.Icons.FOLDER),
+        )
+
+    def _cantidad_registros_carpeta(self, carpeta):
+        carpeta_id = carpeta.get("id")
+        nombre = carpeta.get("nombre")
+        return sum(
+            1
+            for registro in self.guardados.obtener()
+            if (
+                registro.get("carpeta_id") == carpeta_id
+                or (
+                    registro.get("carpeta_id") is None
+                    and registro.get("carpeta", "TARJETAS") == nombre
+                )
+            )
+        )
+
+    def _tarjeta_carpeta_resumen(self, carpeta):
+        color, fondo, icono = self._estilo_carpeta(carpeta)
+        cantidad = self._cantidad_registros_carpeta(carpeta)
+        seleccionada = carpeta.get("id") == self.carpeta_actual_id
+
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
+            on_double_tap=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
+            on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
+            content=ft.Container(
+                width=145 if self.es_movil() else 178,
+                height=122,
+                padding=12,
+                ink=True,
+                bgcolor=BLANCO,
+                border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
+                border_radius=8,
+                shadow=sombra_suave(0.035, 10, 0, 3),
+                content=ft.Column(
+                    tight=True,
+                    spacing=8,
+                    controls=[
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Container(
+                                    width=38,
+                                    height=38,
+                                    alignment=ft.Alignment(0, 0),
+                                    bgcolor=fondo,
+                                    border_radius=8,
+                                    content=ft.Icon(icono, color=color, size=22),
+                                ),
+                                ft.Icon(ft.Icons.CHEVRON_RIGHT, color=color, size=18),
+                            ],
+                        ),
+                        ft.Text(
+                            carpeta.get("nombre", "Carpeta"),
+                            size=12,
+                            weight=ft.FontWeight.BOLD,
+                            color=TEXTO_PRINCIPAL,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.Text(
+                            f"{cantidad} elemento{'s' if cantidad != 1 else ''}",
+                            size=10,
+                            color=color,
+                            max_lines=1,
+                        ),
+                    ],
+                ),
+            ),
+        )
+
+    def _seccion_carpetas_principales(self):
+        carpetas = self.carpetas.obtener_hijos(None)
+        if not carpetas:
+            return ft.Container()
+
+        return ft.Column(
+            tight=True,
+            spacing=8,
+            controls=[
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text(
+                            "Carpetas principales",
+                            size=14,
+                            weight=ft.FontWeight.BOLD,
+                            color=TEXTO_PRINCIPAL,
+                        ),
+                        ft.Text(
+                            "Abrir carpeta",
+                            size=11,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                ),
+                ft.Row(
+                    wrap=True,
+                    spacing=10,
+                    run_spacing=10,
+                    controls=[self._tarjeta_carpeta_resumen(carpeta) for carpeta in carpetas],
+                ),
+            ],
+        )
+
     def _hero_guardados_visual(self):
         total = len(self.guardados.obtener()) if hasattr(self.guardados, "obtener") else 0
-        carpeta = self.carpeta_actual_nombre or "TARJETAS"
         return ft.Container(
-            padding=ft.Padding(left=22, top=16, right=22, bottom=16),
-            border_radius=20,
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment(-1, -1),
-                end=ft.Alignment(1, 1),
-                colors=[SUPERFICIE_PERLADA, "#F8F3FB", "#FFF8EE", "#F6ECFF"],
-            ),
+            padding=ft.Padding(left=18, top=13, right=14, bottom=13),
+            bgcolor=ft.Colors.with_opacity(0.94, BLANCO),
             border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=8,
             content=ft.Row(
+                wrap=True,
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Column(
+                    ft.Row(
                         tight=True,
-                        spacing=4,
+                        spacing=10,
                         controls=[
-                            ft.Text("Biblioteca personal", size=14, color=TEXTO_SECUNDARIO, weight=ft.FontWeight.BOLD),
-                            ft.Text("Guardados", size=30 if not self.es_movil() else 24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                            ft.Text(f"Carpeta actual: {carpeta}", size=13, color=TEXTO_SECUNDARIO),
+                            ft.Container(
+                                width=38,
+                                height=38,
+                                alignment=ft.Alignment(0, 0),
+                                border_radius=8,
+                                bgcolor=ft.Colors.with_opacity(0.12, VIOLETA_IOS),
+                                content=ft.Icon(ft.Icons.SAVE, color=VIOLETA_IOS, size=21),
+                            ),
+                            ft.Column(
+                                tight=True,
+                                spacing=2,
+                                controls=[
+                                    ft.Text("Guardados", size=22 if self.es_movil() else 24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                                    ft.Text(f"{total} elemento{'s' if total != 1 else ''} en tu biblioteca", size=11, color=TEXTO_SECUNDARIO),
+                                ],
+                            ),
                         ],
                     ),
-                    ft.Container(
-                        visible=not self.es_movil(),
-                        padding=ft.Padding(left=16, top=10, right=16, bottom=10),
-                        bgcolor=SUPERFICIE_PERLADA,
-                        border=ft.Border.all(1, PERLA_BORDE),
-                        border_radius=18,
-                        content=ft.Column(
-                            tight=True,
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                ft.Text(str(total), size=24, weight=ft.FontWeight.BOLD, color=VIOLETA_IOS),
-                                ft.Text("registros", size=12, color=TEXTO_SECUNDARIO),
-                            ],
-                        ),
+                    ft.ElevatedButton(
+                        "+ Nueva",
+                        icon=ft.Icons.CREATE_NEW_FOLDER,
+                        color=BLANCO,
+                        bgcolor=VIOLETA_IOS,
+                        on_click=lambda e: self.dialog_crear_carpeta(),
                     ),
                 ],
             ),
@@ -2968,15 +3096,16 @@ class GuardadosView:
 
         contenido_guardados = ft.Column(
             expand=True,
-            spacing=6,
+            spacing=10,
             controls=[
-                self._tarjeta_visual(self.crear_area_trabajo(), padding=0, expand=True),
+                self._hero_guardados_visual(),
+                self.crear_area_trabajo(),
             ],
         )
 
         return ft.Container(
             expand=True,
-            padding=6 if not self.es_movil() else 4,
+            padding=8 if not self.es_movil() else 6,
             content=contenido_guardados,
         )
     # ======================================
@@ -3800,8 +3929,7 @@ class GuardadosView:
         seleccionada = self.esta_seleccionado(registro)
 
         return ft.Container(
-            width=250,
-            height=300,
+            height=224 if self.es_movil() else 242,
             padding=12,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
@@ -3809,7 +3937,7 @@ class GuardadosView:
                 2 if seleccionada else 1,
                 VIOLETA_IOS if seleccionada else PERLA_BORDE,
             ),
-            border_radius=14,
+            border_radius=8,
             shadow=sombra_suave(0.05, 14, 0, 4),
             content=ft.Column(
                 spacing=8,
@@ -3863,9 +3991,9 @@ class GuardadosView:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.END,
                         controls=[
-                            ft.TextButton(
-                                "Abrir",
+                            ft.IconButton(
                                 icon=ft.Icons.OPEN_IN_NEW,
+                                tooltip="Abrir",
                                 on_click=lambda e, r=registro: self.abrir_detalle(r),
                             ),
                         ],
@@ -3879,9 +4007,9 @@ class GuardadosView:
     def crear_cuadricula(self, registros):
         return ft.GridView(
             expand=True,
-            max_extent=270,
-            spacing=14,
-            run_spacing=14,
+            max_extent=172 if self.es_movil() else 248,
+            spacing=10,
+            run_spacing=10,
             controls=[
                 self.crear_tarjeta_cuadrada(registro)
                 for registro in registros
@@ -3898,7 +4026,7 @@ class GuardadosView:
             controls=[
                 ft.Container(
                     padding=10,
-                    border_radius=10,
+                    border_radius=8,
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                     bgcolor=(PERLA_VIOLETA if self.esta_seleccionado(registro) else SUPERFICIE_PERLADA),
                     border=ft.Border.all(
@@ -4016,13 +4144,25 @@ class GuardadosView:
         registros = self._aplicar_filtro_tipo(registros)
         registros = self._ordenar_registros(registros)
         subcarpetas = [] if busqueda_activa else self._subcarpetas_actuales()
+        es_carpeta_principal = (
+            self.carpeta_actual_id is None
+            or any(
+                carpeta.get("id") == self.carpeta_actual_id
+                for carpeta in self.carpetas.obtener_hijos(None)
+            )
+        )
+
+        if not busqueda_activa and es_carpeta_principal:
+            self.panel_contenido.controls.append(
+                self._seccion_carpetas_principales()
+            )
 
         if subcarpetas:
             self.panel_contenido.controls.append(
                 self._seccion_subcarpetas(subcarpetas)
             )
 
-        if len(registros) == 0 and not subcarpetas:
+        if len(registros) == 0 and not subcarpetas and not es_carpeta_principal:
             self.panel_contenido.controls.append(
                 ft.Container(
                     height= 400,
