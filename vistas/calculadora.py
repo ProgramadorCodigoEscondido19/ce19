@@ -126,6 +126,7 @@ class CalculadoraView:
                     content=ft.Column(
                         expand=True,
                         scroll=ft.ScrollMode.AUTO,
+                        auto_scroll=True,
                         spacing=4,
                         horizontal_alignment=ft.CrossAxisAlignment.END,
                         controls=[self.display_sub, self.display],
@@ -569,7 +570,7 @@ class CalculadoraView:
         if valor is None:
             if len(tecla) == 1 and tecla in "0123456789+-*/":
                 valor = tecla
-            elif normalizada.startswith("numpad") and normalizada[-1:] in "0123456789":
+            elif normalizada.startswith(("numpad", "num", "digit")) and normalizada[-1:] in "0123456789":
                 valor = normalizada[-1]
 
         if valor is not None:

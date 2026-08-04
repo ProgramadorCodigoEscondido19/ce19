@@ -12,6 +12,8 @@
 - La seleccion de versiculos se actualiza de forma mas rapida, sin reconstruir toda la pantalla.
 - La calculadora mantiene las operaciones largas dentro de un area desplazable, con todos sus botones accesibles.
 - Se incorporo soporte para el teclado fisico: numeros, operaciones, Enter, retroceso, borrar y Escape.
+- El visor de operaciones acompana automaticamente el ultimo numero ingresado.
+- Se corrigio la carga de capitulos en Biblia cuando se abre desde el lector.
 - Aplicar o quitar color a versiculos visibles ahora refresca solo los elementos modificados para responder con mayor rapidez.
 - Se retiro codigo de busqueda anterior que ya no se utilizaba.
 

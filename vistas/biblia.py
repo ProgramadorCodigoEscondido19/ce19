@@ -2360,7 +2360,7 @@ class BibliaView:
 
         self.panel_lectura.controls.append(
             ft.Text(
-                f"{BibliaService.titulo_libro(libro['nombre'])}: capitulos",
+                f"{libro['nombre']}: capitulos",
                 weight=ft.FontWeight.BOLD,
             )
         )
