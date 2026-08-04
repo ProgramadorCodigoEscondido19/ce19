@@ -10,6 +10,9 @@
 - Se renovó el resaltado biblico: primero se seleccionan uno o varios elementos y luego se aplica el color activo con el circulo de color.
 - El selector de color se cierra automaticamente al elegir un color y muestra la seleccion activa.
 - La seleccion de versiculos se actualiza de forma mas rapida, sin reconstruir toda la pantalla.
+- La calculadora mantiene las operaciones largas dentro de un area desplazable, con todos sus botones accesibles.
+- Se incorporo soporte para el teclado fisico: numeros, operaciones, Enter, retroceso, borrar y Escape.
+- Aplicar o quitar color a versiculos visibles ahora refresca solo los elementos modificados para responder con mayor rapidez.
 - Se retiro codigo de busqueda anterior que ya no se utilizaba.
 
 ## Abrir en la web

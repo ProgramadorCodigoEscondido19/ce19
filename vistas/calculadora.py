@@ -103,6 +103,7 @@ class CalculadoraView:
 
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
+        self.page.on_keyboard_event = self._teclado_fisico
         es_movil = self.responsive.is_mobile()
         self.display.size = 36 if es_movil else 52
 
@@ -116,13 +117,15 @@ class CalculadoraView:
                     ft.Icons.CALCULATE,
                 ),
                 ft.Container(
+                    height=154 if es_movil else 174,
                     padding=18,
                     alignment=ft.Alignment(1, 0),
                     bgcolor=SUPERFICIE_PERLADA,
                     border_radius=18,
                     border=ft.Border.all(1, PERLA_BORDE),
                     content=ft.Column(
-                        tight=True,
+                        expand=True,
+                        scroll=ft.ScrollMode.AUTO,
                         spacing=4,
                         horizontal_alignment=ft.CrossAxisAlignment.END,
                         controls=[self.display_sub, self.display],
@@ -140,7 +143,6 @@ class CalculadoraView:
             )
             if es_movil
             else ft.Row(
-                expand=True,
                 spacing=18,
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=[
@@ -154,10 +156,16 @@ class CalculadoraView:
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
             padding=4 if es_movil else 8,
-            alignment=ft.Alignment(0, 0),
-            content=ft.Container(
-                width=1120,
-                content=panel_moderno(cuerpo, padding=18 if es_movil else 20),
+            content=ft.Column(
+                expand=True,
+                scroll=ft.ScrollMode.AUTO,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Container(
+                        width=1120,
+                        content=panel_moderno(cuerpo, padding=18 if es_movil else 20),
+                    )
+                ],
             ),
         )
 
@@ -459,27 +467,9 @@ class CalculadoraView:
         except (RuntimeError, AssertionError):
             pass
 
-    def _teclado(self):
-        filas = [
-            ["C", "⌫", "/", "*"],
-            ["7", "8", "9", "-"],
-            ["4", "5", "6", "+"],
-            ["1", "2", "3", "="],
-            ["0", ".", "±", "="],
-        ]
-
-        return ft.Column(
-            spacing=10,
-            controls=[
-                ft.Row(spacing=10, controls=[self._boton(valor) for valor in fila])
-                for fila in filas
-            ],
-        )
-
     def _boton(self, valor):
         es_operador = valor in {"+", "-", "*", "/", "="}
         es_control = valor in {"C", "⌫", "±"}
-        es_control = es_control or valor in {"⌫", "±"}
         if es_operador:
             bgcolor = VIOLETA_IOS
             color = BLANCO
@@ -534,12 +524,8 @@ class CalculadoraView:
 
         if valor == "C":
             self.expresion = ""
-        elif valor == "⌫":
-            self.expresion = self.expresion[:-1]
         elif valor == "=":
             self._calcular()
-        elif valor == "±":
-            self._cambiar_signo()
         elif valor in "+-*/":
             self._agregar_operador(valor)
         elif valor == ".":
@@ -548,6 +534,46 @@ class CalculadoraView:
             self.expresion += valor
 
         self._actualizar_display()
+
+    def _teclado_fisico(self, e):
+        """Permite usar el teclado numerico sin interceptar las otras vistas."""
+        if getattr(self.router, "activo", None) != "calculadora":
+            return
+        if any(getattr(e, modificador, False) for modificador in ("ctrl", "alt", "meta")):
+            return
+
+        tecla = str(getattr(e, "key", "") or "")
+        normalizada = tecla.lower().replace(" ", "")
+        equivalencias = {
+            "enter": "=",
+            "numpadenter": "=",
+            "=": "=",
+            "add": "+",
+            "numpadadd": "+",
+            "subtract": "-",
+            "numpadsubtract": "-",
+            "multiply": "*",
+            "numpadmultiply": "*",
+            "divide": "/",
+            "numpaddivide": "/",
+            "decimal": ".",
+            "numpaddecimal": ".",
+            ",": ".",
+            ".": ".",
+            "backspace": "⌫",
+            "delete": "⌫",
+            "escape": "C",
+        }
+        valor = equivalencias.get(normalizada)
+
+        if valor is None:
+            if len(tecla) == 1 and tecla in "0123456789+-*/":
+                valor = tecla
+            elif normalizada.startswith("numpad") and normalizada[-1:] in "0123456789":
+                valor = normalizada[-1]
+
+        if valor is not None:
+            self._presionar(valor)
 
     def _agregar_operador(self, operador):
         if not self.expresion:

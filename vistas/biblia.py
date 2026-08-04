@@ -1952,8 +1952,24 @@ class BibliaView:
         except (AttributeError, RuntimeError, AssertionError):
             pass
 
-    def _refrescar_lectura_colores(self):
-        """Refresco acotado para seleccionar o colorear sin recargar todos los paneles."""
+    def _refrescar_lectura_colores(self, objetivos=None):
+        """Actualiza solo los versiculos afectados; reconstruye la vista solo si hace falta."""
+        objetivos = set(objetivos or [])
+        son_versiculos_visibles = bool(objetivos) and all(
+            objetivo in self._controles_versiculos
+            and "|DIG|" not in objetivo
+            for objetivo in objetivos
+        )
+
+        if son_versiculos_visibles:
+            try:
+                if all(self._actualizar_versiculo_seleccionado(verso) for verso in objetivos):
+                    self._actualizar_estado_color_visible()
+                    self.page.update()
+                    return
+            except (RuntimeError, AssertionError, AttributeError):
+                pass
+
         try:
             self._render_lectura()
             self._actualizar_estado_color_visible()
@@ -3036,7 +3052,7 @@ class BibliaView:
     def seleccionar_color(self, nombre):
         nombre = self._normalizar_color(nombre)
         self.color_actual = nombre
-        objetivos = self._objetivos_color_activos()
+        objetivos = set(self._objetivos_color_activos())
 
         if objetivos:
             for objetivo in objetivos:
@@ -3047,7 +3063,7 @@ class BibliaView:
             self._snack("Color aplicado.")
 
         self.modo_color_directo = False
-        self._refrescar_lectura_colores()
+        self._refrescar_lectura_colores(objetivos)
 
     def _parsear_objetivo_color(self, objetivo):
         if "|DIG|" not in objetivo:
@@ -3065,6 +3081,7 @@ class BibliaView:
         self.seleccionar_color(self.color_actual)
 
     def _quitar_colores_seleccionados(self, objetivos):
+        objetivos = set(objetivos)
         for objetivo in objetivos:
             clave, parte, indice = self._parsear_objetivo_color(objetivo)
 
@@ -3087,7 +3104,7 @@ class BibliaView:
         self._limpiar_objetivos_color()
         self.modo_color_directo = False
         self._snack("Color quitado.")
-        self._refrescar_lectura_colores()
+        self._refrescar_lectura_colores(objetivos)
 
     def _actualizar_versiculo_seleccionado(self, verso):
         """Cambia el borde del versiculo tocado sin reconstruir el capitulo."""
@@ -3122,6 +3139,15 @@ class BibliaView:
             fila = control.content
             fila.controls[0].visible = seleccionado_multiple
             fila.controls[1].visible = marcado
+            texto_control = fila.controls[-1]
+            color_texto = self._texto_color(resaltado)
+            if getattr(texto_control, "spans", None):
+                for span in texto_control.spans:
+                    estilo = getattr(span, "style", None)
+                    if estilo and estilo.color != COLOR_PALABRAS_CORDERO:
+                        estilo.color = color_texto
+            else:
+                texto_control.color = color_texto
             control.update()
         except (AttributeError, RuntimeError, AssertionError):
             return False
@@ -3164,8 +3190,7 @@ class BibliaView:
             self.verso_seleccionado = None
             self.ultimo_verso_accionado = None
             self._snack("Color del versiculo quitado.")
-            self._render_lectura()
-            self.page.update()
+            self._refrescar_lectura_colores({verso})
             return
 
         self.codificar_versiculo_biblia(verso)
