@@ -229,6 +229,8 @@ class BibliaView:
         self.seccion_movil = "lectura"
         self.objetivo_color = None
         self.objetivo_color_control = None
+        self.objetivos_color = set()
+        self.modo_color_directo = False
         self._cache_primer_resaltado = {}
         self.codificador_service = CodificadorService()
         self.exportador_biblia_codificada = ExportadorBibliaCodificada()
@@ -239,6 +241,7 @@ class BibliaView:
             spacing=6,
             padding=0,
         )
+        self._controles_versiculos = {}
         self.referencia_rapida = ft.TextField(
             hint_text="Ir a referencia: Juan 3:16, Salmo 91, Génesis 1",
             prefix_icon=ft.Icons.MENU_BOOK,
@@ -1152,36 +1155,44 @@ class BibliaView:
             ],
         )
 
-        def crear_flotante_busqueda(titulo, contenido, ancho_modal):
-            """Flotante liviano sin el layout interno de AlertDialog."""
+        def crear_flotante_busqueda(titulo, contenido, ancho_modal, al_cerrar):
+            """Flotante con fondo clickeable y cuadro central independiente."""
             ancho_pagina = getattr(self.page, "width", None) or 760
             alto_pagina = getattr(self.page, "height", None) or 720
-            return ft.Container(
+            fondo = ft.GestureDetector(
+                on_tap=lambda ev: al_cerrar(),
+                content=ft.Container(
+                    width=ancho_pagina,
+                    height=alto_pagina,
+                    bgcolor=ft.Colors.with_opacity(0.62, ft.Colors.BLACK),
+                ),
+            )
+            cuadro = ft.Container(
+                width=min(ancho_modal, max(300, ancho_pagina - 32)),
+                padding=ft.Padding(24, 22, 24, 20),
+                border_radius=24,
+                bgcolor=PERLA_PANEL,
+                shadow=sombra_suave(),
+                content=ft.Column(
+                    tight=True,
+                    spacing=14,
+                    controls=[
+                        ft.Text(
+                            titulo,
+                            size=24,
+                            weight=ft.FontWeight.W_500,
+                            color=TEXTO_PRINCIPAL,
+                        ),
+                        contenido,
+                    ],
+                ),
+            )
+            return ft.Stack(
                 data="biblia_flotante",
                 width=ancho_pagina,
                 height=alto_pagina,
-                bgcolor=ft.Colors.with_opacity(0.62, ft.Colors.BLACK),
                 alignment=ft.Alignment(0, 0),
-                content=ft.Container(
-                    width=min(ancho_modal, max(300, ancho_pagina - 32)),
-                    padding=ft.Padding(24, 22, 24, 20),
-                    border_radius=24,
-                    bgcolor=PERLA_PANEL,
-                    shadow=sombra_suave(),
-                    content=ft.Column(
-                        tight=True,
-                        spacing=14,
-                        controls=[
-                            ft.Text(
-                                titulo,
-                                size=24,
-                                weight=ft.FontWeight.W_500,
-                                color=TEXTO_PRINCIPAL,
-                            ),
-                            contenido,
-                        ],
-                    ),
-                ),
+                controls=[fondo, cuadro],
             )
 
         def cerrar_dialogo(dialogo):
@@ -1199,6 +1210,15 @@ class BibliaView:
                 height=alto_lista,
                 spacing=7,
                 padding=ft.Padding(left=0, top=0, right=8, bottom=0),
+            )
+            conteo_libros = {}
+            for resultado in resultados:
+                libro = resultado.get("libro", "")
+                if libro:
+                    conteo_libros[libro] = conteo_libros.get(libro, 0) + 1
+            libros_encontrados = ", ".join(
+                f"{libro} ({cantidad})"
+                for libro, cantidad in conteo_libros.items()
             )
 
             dialogo_resultados_ref = {"control": None}
@@ -1245,6 +1265,13 @@ class BibliaView:
                 spacing=10,
                 controls=[
                     ft.Text(f"{len(resultados)} resultados encontrados.", size=12, color=TEXTO_SECUNDARIO),
+                    ft.Text(
+                        f"Libros: {libros_encontrados}",
+                        size=11,
+                        color=VIOLETA_ACCENTO,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
                     ft.Row(
                         alignment=ft.MainAxisAlignment.END,
                         spacing=8,
@@ -1268,7 +1295,7 @@ class BibliaView:
                 ],
             )
             dialogo_resultados = crear_flotante_busqueda(
-                "Resultados de la busqueda", contenido, ancho + 48
+                "Resultados de la busqueda", contenido, ancho + 48, cerrar_resultados
             )
             dialogo_resultados_ref["control"] = dialogo_resultados
             self.page.overlay.append(dialogo_resultados)
@@ -1282,7 +1309,7 @@ class BibliaView:
             ocultar_teclado(self.page, campo)
             self.ultima_busqueda_texto = termino
             self.ultimos_resultados_busqueda = buscar_texto(self.libros, termino)
-            self._cerrar_flotante_biblia(dialogo_busqueda)
+            cerrar_busqueda()
             if not self.ultimos_resultados_busqueda:
                 self._snack("No se encontraron resultados para esta busqueda.")
                 return
@@ -1308,13 +1335,21 @@ class BibliaView:
                         ),
                         ft.TextButton(
                             "Cancelar",
-                            on_click=lambda ev: self._cerrar_flotante_biblia(dialogo_busqueda),
+                            on_click=lambda ev: cerrar_busqueda(),
                         ),
                     ],
                 ),
             ],
         )
-        dialogo_busqueda = crear_flotante_busqueda("Buscar", contenido_busqueda, ancho + 48)
+        dialogo_busqueda_ref = {"control": None}
+
+        def cerrar_busqueda(ev=None):
+            self._cerrar_flotante_biblia(dialogo_busqueda_ref["control"])
+
+        dialogo_busqueda = crear_flotante_busqueda(
+            "Buscar", contenido_busqueda, ancho + 48, cerrar_busqueda
+        )
+        dialogo_busqueda_ref["control"] = dialogo_busqueda
         self.page.overlay.append(dialogo_busqueda)
         self.page.update()
 
@@ -1542,68 +1577,125 @@ class BibliaView:
         self.page.update()
 
     def _barra_resaltado(self):
-        tamanio = 26 if self.responsive.is_mobile() else 28
+        movil = self.responsive.is_mobile()
 
-        colores = [
-            ft.Container(
-                width=tamanio,
-                height=tamanio,
-                bgcolor=color,
-                border=ft.Border.all(
-                    3 if nombre == self.color_actual else 1,
-                    BORDER_MARRON if self._es_blanco_borde(nombre) else ft.Colors.with_opacity(0.38, ft.Colors.BLACK),
-                ),
-                border_radius=tamanio / 2,
-                tooltip=nombre,
-                shadow=(
-                    ft.BoxShadow(
-                        blur_radius=12,
-                        spread_radius=0,
-                        color=ft.Colors.with_opacity(0.22, color),
-                        offset=ft.Offset(0, 4),
-                    )
-                    if nombre == self.color_actual
-                    else None
-                ),
-                on_click=lambda e, n=nombre: self.seleccionar_color(n),
+        def accion(icono, ayuda, color, callback):
+            return ft.IconButton(
+                icon=icono,
+                tooltip=ayuda,
+                icon_color=color,
+                icon_size=20 if movil else 24,
+                on_click=lambda e: callback(),
             )
-            for nombre, color in COLORES_RESALTADO.items()
-        ]
 
-        colores.append(
-            ft.Container(
-                width=tamanio,
-                height=tamanio,
-                alignment=ft.Alignment(0, 0),
-                bgcolor=ft.Colors.WHITE,
-                border=ft.Border.all(1.4, "#E53935"),
-                border_radius=tamanio / 2,
-                tooltip="Quitar color del elemento seleccionado",
-                on_click=lambda e: self.quitar_color_objetivo(),
-                content=ft.Icon(
-                    ft.Icons.BLOCK,
-                    size=tamanio - 4,
-                    color="#E53935",
+        def crear_acciones_principales():
+            return [
+                accion(ft.Icons.SAVE_ALT, "Guardar", NARANJA_ACCENTO, self.dialog_guardar_biblia),
+                accion(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), AZUL_ACCENTO, self.copiar_contexto_lectura),
+                accion(
+                    ft.Icons.SELECT_ALL,
+                    "Activar/desactivar seleccion multiple",
+                    NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO,
+                    self.toggle_modo_compartir_multiple,
                 ),
+                accion(ft.Icons.SHARE, "Compartir", VIOLETA_ACCENTO, self.dialog_compartir_biblia),
+            ]
+
+        def crear_menu_extra():
+            return ft.PopupMenuButton(
+                icon=ft.Icons.MORE_VERT,
+                icon_color=TEXTO_SECUNDARIO,
+                tooltip="Mas acciones",
+                items=[
+                    ft.PopupMenuItem(
+                        content="Descargar Biblia codificada",
+                        icon=ft.Icons.DOWNLOAD,
+                        on_click=lambda e: self.dialog_exportar_biblia_codificada(),
+                    ),
+                    ft.PopupMenuItem(
+                        content="Diccionario hebreo",
+                        icon=ft.Icons.MENU_BOOK,
+                        on_click=lambda e: self.dialog_diccionario_hebreo(),
+                    ),
+                    ft.PopupMenuItem(
+                        content="Palabras del Cordero",
+                        icon=ft.Icons.RECORD_VOICE_OVER,
+                        on_click=lambda e: self.dialog_palabras_cordero(),
+                    ),
+                    ft.PopupMenuItem(
+                        content="Ver marcados por color",
+                        icon=ft.Icons.FILTER_ALT,
+                        on_click=lambda e: self.dialog_versiculos_por_color(),
+                    ),
+                ],
             )
+
+        color_hex = self._hex_color(self.color_actual, ft.Colors.WHITE)
+        indicador_color = ft.Container(
+            width=30 if movil else 34,
+            height=30 if movil else 34,
+            bgcolor=color_hex,
+            border=ft.Border.all(
+                1.5,
+                BORDER_MARRON if self._es_blanco_borde(self.color_actual) else TEXTO_PRINCIPAL,
+            ),
+            border_radius=20,
+            tooltip=f"Aplicar {self.color_actual} a los elementos seleccionados.",
+            on_click=lambda e: self.activar_color_directo(),
+        )
+        texto_accion_color = "Quitar color" if self._seleccion_tiene_color() else "Elegir color"
+        boton_color = ft.OutlinedButton(
+            texto_accion_color,
+            icon=ft.Icons.FORMAT_COLOR_RESET if texto_accion_color == "Quitar color" else ft.Icons.FORMAT_PAINT,
+            on_click=lambda e: self.accion_color_contextual(),
+        )
+        contador_color = ft.Text(
+            f"{len(self._objetivos_color_activos())} seleccionados",
+            size=12,
+            color=NARANJA_ACCENTO if self._objetivos_color_activos() else TEXTO_SECUNDARIO,
+            visible=bool(self._objetivos_color_activos()),
+        )
+        self._indicador_color_control = indicador_color
+        self._boton_color_control = boton_color
+        self._contador_color_control = contador_color
+        encabezado = ft.Row(
+            tight=True,
+            spacing=8,
+            controls=[
+                ft.Text("Resaltado", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                indicador_color,
+                boton_color,
+                contador_color,
+            ],
         )
 
-        acciones = [
-            ft.IconButton(icon=ft.Icons.SAVE_ALT, tooltip="Guardar", icon_color=NARANJA_ACCENTO, on_click=lambda e: self.dialog_guardar_biblia()),
-            ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="Descargar Biblia codificada (PDF/TXT)", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
-            ft.IconButton(
-                icon=ft.Icons.CONTENT_COPY,
-                tooltip=self._ayuda_copiar_contexto(),
-                icon_color=AZUL_ACCENTO,
-                on_click=lambda e: self.copiar_contexto_lectura(),
-            ),
-            ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Diccionario hebreo", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_diccionario_hebreo()),
-            ft.IconButton(icon=ft.Icons.RECORD_VOICE_OVER, tooltip="Ver palabras del Cordero", icon_color=COLOR_PALABRAS_CORDERO, on_click=lambda e: self.dialog_palabras_cordero()),
-            ft.IconButton(icon=ft.Icons.SELECT_ALL, tooltip="Activar/desactivar seleccion multiple", icon_color=NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO, on_click=lambda e: self.toggle_modo_compartir_multiple()),
-            ft.IconButton(icon=ft.Icons.SHARE, tooltip="Compartir", icon_color=VIOLETA_ACCENTO, on_click=lambda e: self.dialog_compartir_biblia()),
-            ft.IconButton(icon=ft.Icons.FILTER_ALT, tooltip="Ver marcados por color", icon_color=VERDE_ACCENTO, on_click=lambda e: self.dialog_versiculos_por_color()),
-        ]
+        if movil:
+            return ft.Container(
+                padding=ft.Padding(left=10, top=8, right=10, bottom=7),
+                bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.WHITE),
+                border=ft.Border.all(1, BORDE_SUAVE),
+                border_radius=14,
+                content=ft.Column(
+                    tight=True,
+                    spacing=5,
+                    controls=[
+                        encabezado,
+                        ft.Row(
+                            tight=True,
+                            scroll=ft.ScrollMode.AUTO,
+                            spacing=2,
+                            controls=crear_acciones_principales() + [crear_menu_extra()],
+                        ),
+                    ],
+                ),
+            )
 
+        acciones = crear_acciones_principales() + [
+            accion(ft.Icons.DOWNLOAD, "Descargar Biblia codificada (PDF/TXT)", VIOLETA_ACCENTO, self.dialog_exportar_biblia_codificada),
+            accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", VIOLETA_ACCENTO, self.dialog_diccionario_hebreo),
+            accion(ft.Icons.RECORD_VOICE_OVER, "Ver palabras del Cordero", COLOR_PALABRAS_CORDERO, self.dialog_palabras_cordero),
+            accion(ft.Icons.FILTER_ALT, "Ver marcados por color", VERDE_ACCENTO, self.dialog_versiculos_por_color),
+        ]
         return ft.Container(
             padding=ft.Padding(left=12, top=10, right=12, bottom=10),
             bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.WHITE),
@@ -1614,17 +1706,95 @@ class BibliaView:
                 spacing=8,
                 run_spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    ft.Text("Resaltado", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    ft.Text(
-                        f"{len(self.versos_compartir)} seleccionados",
-                        size=12,
-                        color=NARANJA_ACCENTO if self.versos_compartir else TEXTO_SECUNDARIO,
-                        visible=self.modo_compartir_multiple or bool(self.versos_compartir),
-                    ),
-                ] + colores + acciones,
+                controls=[encabezado] + acciones,
             ),
         )
+
+    def activar_color_directo(self):
+        if not self._objetivos_color_activos():
+            self._snack("Seleccione primero el libro, capitulo o versiculo que desea colorear.")
+            return
+
+        self.seleccionar_color(self.color_actual)
+
+    def accion_color_contextual(self):
+        objetivos = self._objetivos_color_activos()
+
+        if not objetivos:
+            # Tambien permite preparar un color antes de seleccionar el elemento.
+            self.dialog_elegir_color_biblia()
+            return
+
+        if self._seleccion_tiene_color():
+            self._quitar_colores_seleccionados(objetivos)
+            return
+
+        self.dialog_elegir_color_biblia()
+
+    def dialog_elegir_color_biblia(self):
+        def cerrar(e=None):
+            self._cerrar_flotante_biblia(dialog)
+
+        controles = []
+        botones_color = []
+
+        def elegir(nombre, control):
+            nombre = self._normalizar_color(nombre)
+            self.color_actual = nombre
+
+            for nombre_control, control_color in botones_color:
+                activo = nombre_control == nombre
+                control_color.border = ft.Border.all(
+                    3 if activo else 1,
+                    BORDER_MARRON
+                    if self._es_blanco_borde(nombre_control)
+                    else TEXTO_PRINCIPAL,
+                )
+                control_color.content.visible = activo
+                try:
+                    control_color.update()
+                except (RuntimeError, AssertionError):
+                    pass
+
+            # Cerramos antes de refrescar la lectura: evita que el dialogo quede
+            # montado sobre una pantalla que ya se reconstruyo.
+            cerrar()
+            self.seleccionar_color(nombre)
+
+        for nombre, color in COLORES_RESALTADO.items():
+            seleccionado = nombre == self.color_actual
+            boton = ft.Container(
+                    width=46,
+                    height=46,
+                    bgcolor=color,
+                    border=ft.Border.all(
+                        3 if seleccionado else 1,
+                        BORDER_MARRON if self._es_blanco_borde(nombre) else TEXTO_PRINCIPAL,
+                    ),
+                    border_radius=23,
+                    tooltip=nombre,
+                    alignment=ft.Alignment(0, 0),
+                    content=ft.Icon(
+                        ft.Icons.CHECK,
+                        color=self._texto_color(nombre),
+                        visible=seleccionado,
+                    ),
+                    on_click=lambda e, n=nombre: elegir(n, e.control),
+                )
+            controles.append(boton)
+            botones_color.append((nombre, boton))
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Elegir color"),
+            content=ft.Container(
+                width=360,
+                content=ft.Row(wrap=True, spacing=10, run_spacing=10, controls=controles),
+            ),
+            actions=[ft.TextButton("Cancelar", on_click=cerrar)],
+        )
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
 
     def _opciones_libros(self):
         return [
@@ -1713,8 +1883,119 @@ class BibliaView:
 
         return self.objetivo_color
 
+    def _objetivos_color_activos(self):
+        objetivos = set(self.objetivos_color)
+
+        if self.objetivo_color:
+            objetivos.add(self.objetivo_color)
+
+        if self.verso_seleccionado:
+            objetivos.add(self.verso_seleccionado)
+
+        if self.modo_compartir_multiple:
+            objetivos.update(self.versos_compartir)
+
+        return objetivos
+
     def _esta_marcado_para_color(self, clave):
-        return self._objetivo_base() == clave
+        if self._objetivo_base() == clave:
+            return True
+
+        for objetivo in self._objetivos_color_activos():
+            if objetivo == clave or objetivo.split("|DIG|", 1)[0] == clave:
+                return True
+
+        return False
+
+    def _limpiar_objetivos_color(self):
+        self.objetivos_color.clear()
+        self.objetivo_color = None
+        self.objetivo_color_control = None
+        self.verso_seleccionado = None
+        self.versos_compartir.clear()
+        self.modo_compartir_multiple = False
+
+    def _actualizar_estado_color_visible(self):
+        """Actualiza solo la barra de color sin reconstruir toda la pagina."""
+        cantidad = len(self._objetivos_color_activos())
+        quitar = self._seleccion_tiene_color()
+        color_hex = self._hex_color(self.color_actual, ft.Colors.WHITE)
+
+        try:
+            indicador = self._indicador_color_control
+            indicador.bgcolor = color_hex
+            indicador.border = ft.Border.all(
+                1.5,
+                BORDER_MARRON if self._es_blanco_borde(self.color_actual) else TEXTO_PRINCIPAL,
+            )
+            indicador.tooltip = (
+                f"Aplicar {self.color_actual} a los elementos seleccionados."
+            )
+            indicador.update()
+        except (AttributeError, RuntimeError, AssertionError):
+            pass
+
+        try:
+            boton = self._boton_color_control
+            boton.content = "Quitar color" if quitar else "Elegir color"
+            boton.icon = ft.Icons.FORMAT_COLOR_RESET if quitar else ft.Icons.FORMAT_PAINT
+            boton.update()
+        except (AttributeError, RuntimeError, AssertionError):
+            pass
+
+        try:
+            contador = self._contador_color_control
+            contador.value = f"{cantidad} seleccionados"
+            contador.visible = bool(cantidad)
+            contador.color = NARANJA_ACCENTO if cantidad else TEXTO_SECUNDARIO
+            contador.update()
+        except (AttributeError, RuntimeError, AssertionError):
+            pass
+
+    def _refrescar_lectura_colores(self):
+        """Refresco acotado para seleccionar o colorear sin recargar todos los paneles."""
+        try:
+            self._render_lectura()
+            self._actualizar_estado_color_visible()
+            self.page.update()
+        except (RuntimeError, AssertionError, AttributeError):
+            self.router.refrescar()
+
+    def _objetivo_tiene_color(self, objetivo):
+        clave = objetivo.split("|DIG|", 1)[0]
+        dato = self.resaltados.get(clave)
+
+        if isinstance(dato, dict):
+            return any(dato.get("digitos", []))
+
+        return bool(dato)
+
+    def _seleccion_tiene_color(self):
+        """El ultimo elemento tocado define si la accion es colorear o quitar."""
+        objetivo = self.objetivo_color or self.verso_seleccionado
+        if (
+            not objetivo
+            and self.modo_compartir_multiple
+            and self.ultimo_verso_accionado in self.versos_compartir
+        ):
+            objetivo = self.ultimo_verso_accionado
+        return bool(objetivo and self._objetivo_tiene_color(objetivo))
+
+    def _alternar_objetivo_color(self, clave, mensaje=None):
+        if clave in self.objetivos_color:
+            self.objetivos_color.remove(clave)
+            if self.objetivo_color == clave:
+                self.objetivo_color = next(iter(self.objetivos_color), None)
+        else:
+            self.objetivos_color.add(clave)
+            self.objetivo_color = clave
+
+        self.objetivo_color_control = None
+        self.verso_seleccionado = None
+        self.ultimo_verso_accionado = None
+
+        if mensaje:
+            self._snack(mensaje)
 
     def _icono_marcado(self, visible=True, size=18):
         return ft.Icon(
@@ -1926,6 +2207,7 @@ class BibliaView:
 
     def _render_lectura(self):
         self._cache_primer_resaltado = {}
+        self._controles_versiculos.clear()
         self.panel_lectura.controls.clear()
 
         if not self.libros:
@@ -2022,8 +2304,11 @@ class BibliaView:
         def doble_click_libro(e, libro_nombre=nombre):
             self.codificar_libro_biblia(libro_nombre)
 
+        def tocar_libro(e, libro_nombre=nombre):
+            self.ir_a_libro(libro_nombre)
+
         contenido_libro = ft.GestureDetector(
-            on_tap=lambda e, l=nombre: self.ir_a_libro(l),
+            on_tap=tocar_libro,
             on_double_tap=doble_click_libro,
             on_long_press=lambda e, l=nombre: self.seleccionar_libro_para_color(l),
             content=ft.Container(
@@ -2044,29 +2329,11 @@ class BibliaView:
             ),
         )
 
-        controles = [contenido_libro]
-
-        if color:
-            controles.append(
-                ft.IconButton(
-                    icon=ft.Icons.FORMAT_COLOR_RESET,
-                    icon_size=16,
-                    tooltip="Quitar color del libro",
-                    icon_color=texto_color,
-                    on_click=lambda e, l=nombre: self.quitar_color_libro(l),
-                )
-            )
-
         return ft.Container(
             bgcolor=fondo,
             border=borde,
             border_radius=8,
-            content=ft.Row(
-                tight=True,
-                spacing=0,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=controles,
-            ),
+            content=contenido_libro,
         )
 
     def _render_capitulos(self):
@@ -2102,7 +2369,7 @@ class BibliaView:
         color = self._color_capitulo_directo(libro, capitulo)
         clave = self._clave_capitulo(libro, capitulo)
         color_resuelto = color or self._primer_color_resaltado(f"{libro}|{capitulo}|")
-        seleccionado = self._objetivo_base() == clave
+        seleccionado = self._esta_marcado_para_color(clave)
 
         contenedor = self._control_identificador(
             capitulo,
@@ -2112,8 +2379,11 @@ class BibliaView:
             alto=36,
         )
 
+        def tocar_capitulo(e):
+            on_tap(e)
+
         return ft.GestureDetector(
-            on_tap=on_tap,
+            on_tap=tocar_capitulo,
             on_double_tap=lambda e, l=libro, c=capitulo:
                 self.codificar_capitulo_biblia(l, c),
             on_long_press=lambda e, l=libro, c=capitulo:
@@ -2475,10 +2745,12 @@ class BibliaView:
         if activar:
             self.verso_seleccionado = None
             self.objetivo_color = None
+            self.objetivos_color.clear()
             mensaje = "Seleccion multiple activada. Toque versiculos para agregarlos o quitarlos."
         else:
             self.versos_compartir.clear()
             self.objetivo_color = None
+            self.objetivos_color.clear()
             mensaje = "Seleccion multiple desactivada."
 
         self._snack(mensaje)
@@ -2534,9 +2806,11 @@ class BibliaView:
             if evento is not None:
                 self._actualizar_control_verso_multiple(evento, verso)
 
+            self._actualizar_estado_color_visible()
+
             return
 
-        self.seleccionar_verso(verso)
+        self.seleccionar_verso(verso, evento)
 
     def toggle_verso_compartir(self, verso, refrescar=True):
         if verso in self.versos_compartir:
@@ -2584,10 +2858,59 @@ class BibliaView:
             seleccionado = self.verso_seleccionado == vid
             seleccionado_multiple = vid in self.versos_compartir
             verso_marcado = self._esta_marcado_para_color(vid)
-            numero_seleccionado = self._objetivo_base() == clave_numero
+            numero_seleccionado = self._esta_marcado_para_color(clave_numero)
             color_fondo = self._hex_color(resaltado)
             color_texto = self._texto_color(resaltado)
 
+            contenedor_verso = ft.Container(
+                padding=8,
+                border_radius=6,
+                ink=True,
+                ink_color=ft.Colors.with_opacity(0.16, ft.Colors.BLUE),
+                bgcolor=(
+                    color_fondo
+                    if resaltado
+                    else "#FFF7D6"
+                    if seleccionado_multiple
+                    else PERLA_VIOLETA if seleccionado or verso_marcado else ft.Colors.WHITE
+                ),
+                border=ft.Border.all(
+                    2 if seleccionado or verso_marcado or seleccionado_multiple else 1,
+                    NARANJA_ACCENTO
+                    if seleccionado_multiple
+                    else VIOLETA_IOS
+                    if seleccionado or verso_marcado
+                    else BORDER_MARRON
+                    if self._es_blanco_borde(resaltado)
+                    else ft.Colors.GREY_300,
+                ),
+                content=ft.Row(
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    spacing=8,
+                    controls=[
+                        ft.Icon(
+                            ft.Icons.CHECK_CIRCLE,
+                            size=18,
+                            color=NARANJA_ACCENTO,
+                            visible=seleccionado_multiple,
+                        ),
+                        self._icono_marcado(visible=verso_marcado),
+                        self._control_identificador(
+                            indice,
+                            resaltado_numero,
+                            seleccionado=numero_seleccionado,
+                            sufijo=".",
+                            alto=30,
+                        ),
+                        self._texto_versiculo_visual(
+                            self.libro_actual,
+                            texto,
+                            color_texto,
+                        ),
+                    ],
+                ),
+            )
+            self._controles_versiculos[vid] = contenedor_verso
             self.panel_lectura.controls.append(
                 ft.GestureDetector(
                     on_tap=lambda e, v=vid: self.tocar_versiculo(v, e),
@@ -2595,54 +2918,7 @@ class BibliaView:
                     on_long_press=lambda e, v=vid: self.elegir_modo_color_identificador(
                         self._clave_numero_verso(v)
                     ),
-                    content=ft.Container(
-                        padding=8,
-                        border_radius=6,
-                        ink=True,
-                        ink_color=ft.Colors.with_opacity(0.16, ft.Colors.BLUE),
-                        bgcolor=(
-                            color_fondo
-                            if resaltado
-                            else "#FFF7D6"
-                            if seleccionado_multiple
-                            else PERLA_VIOLETA if seleccionado or verso_marcado else ft.Colors.WHITE
-                        ),
-                        border=ft.Border.all(
-                            2 if seleccionado or verso_marcado or seleccionado_multiple else 1,
-                            NARANJA_ACCENTO
-                            if seleccionado_multiple
-                            else VIOLETA_IOS
-                            if seleccionado or verso_marcado
-                            else BORDER_MARRON
-                            if self._es_blanco_borde(resaltado)
-                            else ft.Colors.GREY_300,
-                        ),
-                        content=ft.Row(
-                            vertical_alignment=ft.CrossAxisAlignment.START,
-                            spacing=8,
-                            controls=[
-                                ft.Icon(
-                                    ft.Icons.CHECK_CIRCLE,
-                                    size=18,
-                                    color=NARANJA_ACCENTO,
-                                    visible=seleccionado_multiple,
-                                ),
-                                self._icono_marcado(visible=verso_marcado),
-                                self._control_identificador(
-                                    indice,
-                                    resaltado_numero,
-                                    seleccionado=numero_seleccionado,
-                                    sufijo=".",
-                                    alto=30,
-                                ),
-                                self._texto_versiculo_visual(
-                                    self.libro_actual,
-                                    texto,
-                                    color_texto,
-                                ),
-                            ],
-                        ),
-                    ),
+                    content=contenedor_verso,
                 )
             )
     def cambiar_modo(self, e):
@@ -2753,39 +3029,133 @@ class BibliaView:
         self.ir_a_capitulo(capitulo)
 
     def marcar_para_colorear(self, clave, mensaje="Seleccione un color."):
-        self.objetivo_color = clave
-        self.objetivo_color_control = None
-        self.verso_seleccionado = None
-        self.ultimo_verso_accionado = None
-        self._snack(mensaje)
+        self.modo_color_directo = False
+        self._alternar_objetivo_color(clave, mensaje)
         self.router.refrescar()
 
     def seleccionar_color(self, nombre):
         nombre = self._normalizar_color(nombre)
         self.color_actual = nombre
+        objetivos = self._objetivos_color_activos()
 
-        if self.objetivo_color:
-            clave, parte, indice = self._parse_objetivo_color()
-            self._aplicar_color_identificador(clave, parte, indice, nombre)
+        if objetivos:
+            for objetivo in objetivos:
+                clave, parte, indice = self._parsear_objetivo_color(objetivo)
+                self._aplicar_color_identificador(clave, parte, indice, nombre)
             guardar_resaltados(self.resaltados)
-            self.objetivo_color = None
+            self._limpiar_objetivos_color()
+            self._snack("Color aplicado.")
+
+        self.modo_color_directo = False
+        self._refrescar_lectura_colores()
+
+    def _parsear_objetivo_color(self, objetivo):
+        if "|DIG|" not in objetivo:
+            return objetivo, "completo", None
+
+        clave, indice = objetivo.rsplit("|DIG|", 1)
+        try:
+            return clave, "digito", int(indice)
+        except ValueError:
+            return clave, "digito", 0
+
+    def _aplicar_color_directo(self, clave):
+        self.objetivos_color = {clave}
+        self.objetivo_color = clave
+        self.seleccionar_color(self.color_actual)
+
+    def _quitar_colores_seleccionados(self, objetivos):
+        for objetivo in objetivos:
+            clave, parte, indice = self._parsear_objetivo_color(objetivo)
+
+            if parte == "digito":
+                dato = self.resaltados.get(clave)
+                if isinstance(dato, dict):
+                    digitos = list(dato.get("digitos", []))
+                    if 0 <= indice < len(digitos):
+                        digitos[indice] = None
+                    if any(digitos):
+                        dato["digitos"] = digitos
+                        self.resaltados[clave] = dato
+                    else:
+                        self.resaltados.pop(clave, None)
+                continue
+
+            self.resaltados.pop(clave, None)
+
+        guardar_resaltados(self.resaltados)
+        self._limpiar_objetivos_color()
+        self.modo_color_directo = False
+        self._snack("Color quitado.")
+        self._refrescar_lectura_colores()
+
+    def _actualizar_versiculo_seleccionado(self, verso):
+        """Cambia el borde del versiculo tocado sin reconstruir el capitulo."""
+        control = self._controles_versiculos.get(verso)
+        if control is None:
+            return False
+
+        resaltado = self.resaltados.get(verso)
+        seleccionado = self.verso_seleccionado == verso
+        seleccionado_multiple = verso in self.versos_compartir
+        marcado = self._esta_marcado_para_color(verso)
+
+        control.bgcolor = (
+            self._hex_color(resaltado)
+            if resaltado
+            else "#FFF7D6"
+            if seleccionado_multiple
+            else PERLA_VIOLETA if seleccionado or marcado else ft.Colors.WHITE
+        )
+        control.border = ft.Border.all(
+            2 if seleccionado or marcado or seleccionado_multiple else 1,
+            NARANJA_ACCENTO
+            if seleccionado_multiple
+            else VIOLETA_IOS
+            if seleccionado or marcado
+            else BORDER_MARRON
+            if self._es_blanco_borde(resaltado)
+            else ft.Colors.GREY_300,
+        )
+
+        try:
+            fila = control.content
+            fila.controls[0].visible = seleccionado_multiple
+            fila.controls[1].visible = marcado
+            control.update()
+        except (AttributeError, RuntimeError, AssertionError):
+            return False
+
+        return True
+
+    def seleccionar_verso(self, verso, evento=None):
+        verso_anterior = self.verso_seleccionado
+        if verso == self.verso_seleccionado:
+            self.objetivos_color.clear()
             self.verso_seleccionado = None
-            self.objetivo_color_control = None
-            self.router.refrescar()
+            self.objetivo_color = None
+        else:
+            # Fuera del modo multiple solo puede quedar un versiculo seleccionado.
+            self.objetivos_color = {verso}
+            self.objetivo_color = verso
+            self.verso_seleccionado = verso
+
+        self.objetivo_color_control = None
+        self.ultimo_verso_accionado = verso
+
+        actualizados = all(
+            self._actualizar_versiculo_seleccionado(clave)
+            for clave in {clave for clave in (verso_anterior, verso) if clave}
+        )
+        if actualizados:
+            self._actualizar_estado_color_visible()
+            try:
+                self.page.update()
+            except (RuntimeError, AssertionError):
+                self._refrescar_lectura_colores()
             return
 
-        if self.verso_seleccionado:
-            self.resaltar_seleccion()
-        else:
-            self.router.refrescar()
-
-    def seleccionar_verso(self, verso):
-        self.objetivo_color = None
-        self.objetivo_color_control = None
-        self.verso_seleccionado = verso
-        self.ultimo_verso_accionado = verso
-        self._render_lectura()
-        self.page.update()
+        self._refrescar_lectura_colores()
 
     def doble_tap_verso(self, verso):
         if verso in self.resaltados:
@@ -2942,22 +3312,16 @@ class BibliaView:
             cerrar()
 
             if parte == "completo":
-                self.objetivo_color = clave
+                destino = clave
             else:
-                self.objetivo_color = f"{clave}|DIG|{indice}"
+                destino = f"{clave}|DIG|{indice}"
 
-            self.verso_seleccionado = None
-            self.objetivo_color_control = None
-            self._snack("Seleccione un color.")
+            self._alternar_objetivo_color(destino, "Numero seleccionado.")
             self.router.refrescar()
 
         def aplicar_auto(e=None):
             cerrar()
             self._aplicar_tres_colores_identificador(clave)
-
-        def quitar(e=None):
-            cerrar()
-            self.quitar_color_identificador(clave)
 
         acciones = [
             ft.ElevatedButton(
@@ -2984,13 +3348,6 @@ class BibliaView:
                     ),
                 ]
             )
-
-        acciones.append(
-            ft.TextButton(
-                "Quitar color",
-                on_click=quitar,
-            )
-        )
 
         dialog = ft.AlertDialog(
             title=ft.Text(f"Color del numero {numero}"),

@@ -6,7 +6,11 @@
 
 - Se mejoro el buscador biblico en celular: los botones Guardar y Cerrar quedan visibles antes de la lista de resultados.
 - El campo de busqueda recupera el foco al tocarlo nuevamente.
-- Se retiro codigo de la busqueda anterior que ya no se utilizaba.
+- Los flotantes de busqueda ahora se cierran con Cancelar, Cerrar o al tocar fuera del cuadro.
+- Se renovó el resaltado biblico: primero se seleccionan uno o varios elementos y luego se aplica el color activo con el circulo de color.
+- El selector de color se cierra automaticamente al elegir un color y muestra la seleccion activa.
+- La seleccion de versiculos se actualiza de forma mas rapida, sin reconstruir toda la pantalla.
+- Se retiro codigo de busqueda anterior que ya no se utilizaba.
 
 ## Abrir en la web
 
