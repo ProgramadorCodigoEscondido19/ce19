@@ -14,7 +14,6 @@ from core.app_state import state
 from logica.biblia import (
     BIBLIA_ARCHIVO,
     buscar_texto,
-    cargar_biblia,
     cargar_resaltados,
     guardar_resaltados,
     verso_id,
@@ -233,23 +232,12 @@ class BibliaView:
         self._cache_primer_resaltado = {}
         self.codificador_service = CodificadorService()
         self.exportador_biblia_codificada = ExportadorBibliaCodificada()
-        self.resultados_busqueda = ft.Column(
-            expand=True,
-            scroll=ft.ScrollMode.AUTO,
-            spacing=6,
-        )
         self.ultimos_resultados_busqueda = []
         self.ultima_busqueda_texto = ""
         self.panel_lectura = ft.ListView(
             expand=True,
             spacing=6,
             padding=0,
-        )
-        self.busqueda = ft.TextField(
-            hint_text="Buscar",
-            prefix_icon=ft.Icons.SEARCH,
-            on_submit=self.buscar,
-            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
         )
         self.referencia_rapida = ft.TextField(
             hint_text="Ir a referencia: Juan 3:16, Salmo 91, Génesis 1",
@@ -374,18 +362,6 @@ class BibliaView:
         if hasattr(self, "referencia_rapida"):
             self.referencia_rapida.value = ""
             self.referencia_rapida.update()
-
-    def limpiar_busqueda(self, e=None):
-        if hasattr(self, "busqueda"):
-            self.busqueda.value = ""
-        self.resultados_busqueda.controls.clear()
-        self.ultimos_resultados_busqueda = []
-        self.ultima_busqueda_texto = ""
-        try:
-            self.busqueda.update()
-            self.resultados_busqueda.update()
-        except Exception:
-            self.page.update()
 
     def _normalizar_ultima_lectura(self):
         if not self.libros:
@@ -1130,55 +1106,217 @@ class BibliaView:
 
     def _panel_busqueda(self):
         return self._tarjeta_moderna(
-            expand=True,
             padding=18,
             content=ft.Column(
-                expand=True,
+                tight=True,
                 spacing=14,
                 controls=[
                     self._titulo_seccion("Buscar", ft.Icons.SEARCH, AZUL_ACCENTO),
-                    self.busqueda,
-                    ft.Row(
-                        wrap=True,
-                        spacing=8,
-                        run_spacing=8,
-                        controls=[
-                            ft.ElevatedButton(
-                                "Buscar",
-                                icon=ft.Icons.SEARCH,
-                                on_click=self.buscar,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.CONTENT_COPY,
-                                tooltip="Copiar seleccion",
-                                icon_color=TEXTO_SECUNDARIO,
-                                on_click=lambda e: self.copiar_seleccion(),
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.SAVE_ALT,
-                                tooltip="Guardar resultados de busqueda",
-                                icon_color=NARANJA_ACCENTO,
-                                on_click=self.guardar_busqueda,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.CLOSE,
-                                tooltip="Limpiar busqueda",
-                                icon_color=TEXTO_SECUNDARIO,
-                                on_click=self.limpiar_busqueda,
-                            ),
-                        ],
+                    ft.Text(
+                        "Abra una busqueda completa para revisar resultados por libro o todos juntos.",
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
                     ),
-                    ft.Container(
-                        height=260 if self.responsive.is_mobile() else 360,
-                        border=ft.Border.all(1, BORDE_SUAVE),
-                        border_radius=14,
-                        padding=8,
-                        bgcolor=ft.Colors.with_opacity(0.42, ft.Colors.WHITE),
-                        content=self.resultados_busqueda,
+                    ft.ElevatedButton(
+                        "Buscar",
+                        icon=ft.Icons.SEARCH,
+                        on_click=self.dialog_busqueda,
                     ),
                 ],
             ),
         )
+
+    def dialog_busqueda(self, e=None):
+        """Abre un cuadro compacto; los resultados se crean en otro dialogo.
+
+        Evitar mutar controles dentro de un AlertDialog abierto previene que Flet
+        conserve una superficie vacia de ListView antes de una busqueda.
+        """
+        ancho = 350 if self.responsive.is_mobile() else 560
+        campo = ft.TextField(
+            label="Buscar en toda la Biblia",
+            prefix_icon=ft.Icons.SEARCH,
+            autofocus=True,
+            expand=True,
+            always_call_on_tap=True,
+            on_click=lambda ev: campo.focus(),
+            on_tap_outside=lambda ev: ocultar_teclado(self.page, ev.control),
+        )
+        modo = ft.Dropdown(
+            label="Vista de resultados",
+            value="Por libros",
+            width=180,
+            options=[
+                ft.dropdown.Option("Por libros"),
+                ft.dropdown.Option("Todos juntos"),
+            ],
+        )
+
+        def crear_flotante_busqueda(titulo, contenido, ancho_modal):
+            """Flotante liviano sin el layout interno de AlertDialog."""
+            ancho_pagina = getattr(self.page, "width", None) or 760
+            alto_pagina = getattr(self.page, "height", None) or 720
+            return ft.Container(
+                data="biblia_flotante",
+                width=ancho_pagina,
+                height=alto_pagina,
+                bgcolor=ft.Colors.with_opacity(0.62, ft.Colors.BLACK),
+                alignment=ft.Alignment(0, 0),
+                content=ft.Container(
+                    width=min(ancho_modal, max(300, ancho_pagina - 32)),
+                    padding=ft.Padding(24, 22, 24, 20),
+                    border_radius=24,
+                    bgcolor=PERLA_PANEL,
+                    shadow=sombra_suave(),
+                    content=ft.Column(
+                        tight=True,
+                        spacing=14,
+                        controls=[
+                            ft.Text(
+                                titulo,
+                                size=24,
+                                weight=ft.FontWeight.W_500,
+                                color=TEXTO_PRINCIPAL,
+                            ),
+                            contenido,
+                        ],
+                    ),
+                ),
+            )
+
+        def cerrar_dialogo(dialogo):
+            self._cerrar_flotante_biblia(dialogo)
+
+        def abrir_resultados(resultados, vista):
+            alto_pagina = getattr(self.page, "height", None)
+            if alto_pagina is None and hasattr(self.page, "window"):
+                alto_pagina = getattr(self.page.window, "height", None)
+            if self.responsive.is_mobile():
+                alto_lista = max(220, min(330, int((alto_pagina or 720) - 330)))
+            else:
+                alto_lista = max(260, min(510, int((alto_pagina or 760) - 265)))
+            lista = ft.ListView(
+                height=alto_lista,
+                spacing=7,
+                padding=ft.Padding(left=0, top=0, right=8, bottom=0),
+            )
+
+            dialogo_resultados_ref = {"control": None}
+
+            def cerrar_resultados(ev=None):
+                cerrar_dialogo(dialogo_resultados_ref["control"])
+
+            def abrir_resultado(resultado):
+                cerrar_resultados()
+                self.ir_a_resultado(resultado)
+
+            if vista == "Por libros":
+                for titulo, grupo in self._grupos_resultados_busqueda(resultados):
+                    lista.controls.append(
+                        ft.Container(
+                            padding=ft.Padding(left=4, top=8, right=4, bottom=2),
+                            content=ft.Text(
+                                titulo,
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=VIOLETA_ACCENTO,
+                            ),
+                        )
+                    )
+                    for resultado in grupo:
+                        lista.controls.append(
+                            self._control_resultado_busqueda(
+                                resultado,
+                                al_abrir=lambda r=resultado: abrir_resultado(r),
+                            )
+                        )
+            else:
+                for resultado in resultados:
+                    lista.controls.append(
+                        self._control_resultado_busqueda(
+                            resultado,
+                            al_abrir=lambda r=resultado: abrir_resultado(r),
+                        )
+                    )
+
+            contenido = ft.Column(
+                width=ancho,
+                tight=True,
+                spacing=10,
+                controls=[
+                    ft.Text(f"{len(resultados)} resultados encontrados.", size=12, color=TEXTO_SECUNDARIO),
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=8,
+                        controls=[
+                            ft.ElevatedButton(
+                                "Guardar",
+                                icon=ft.Icons.SAVE_ALT,
+                                on_click=self.guardar_busqueda,
+                            ),
+                            ft.TextButton("Cerrar", on_click=cerrar_resultados),
+                        ],
+                    ),
+                    ft.Container(
+                        height=alto_lista + 16,
+                        padding=8,
+                        border=ft.Border.all(1, BORDE_SUAVE),
+                        border_radius=12,
+                        bgcolor="#FFFFFF",
+                        content=lista,
+                    ),
+                ],
+            )
+            dialogo_resultados = crear_flotante_busqueda(
+                "Resultados de la busqueda", contenido, ancho + 48
+            )
+            dialogo_resultados_ref["control"] = dialogo_resultados
+            self.page.overlay.append(dialogo_resultados)
+            self.page.update()
+
+        def ejecutar_busqueda(ev=None):
+            termino = (campo.value or "").strip()
+            if not termino:
+                self._snack("Escriba una palabra para buscar.")
+                return
+            ocultar_teclado(self.page, campo)
+            self.ultima_busqueda_texto = termino
+            self.ultimos_resultados_busqueda = buscar_texto(self.libros, termino)
+            self._cerrar_flotante_biblia(dialogo_busqueda)
+            if not self.ultimos_resultados_busqueda:
+                self._snack("No se encontraron resultados para esta busqueda.")
+                return
+            abrir_resultados(self.ultimos_resultados_busqueda, modo.value)
+
+        campo.on_submit = ejecutar_busqueda
+        contenido_busqueda = ft.Column(
+            width=ancho,
+            tight=True,
+            spacing=10,
+            controls=[
+                campo,
+                ft.Row(
+                    wrap=True,
+                    spacing=8,
+                    run_spacing=8,
+                    controls=[
+                        modo,
+                        ft.ElevatedButton(
+                            "Buscar",
+                            icon=ft.Icons.SEARCH,
+                            on_click=ejecutar_busqueda,
+                        ),
+                        ft.TextButton(
+                            "Cancelar",
+                            on_click=lambda ev: self._cerrar_flotante_biblia(dialogo_busqueda),
+                        ),
+                    ],
+                ),
+            ],
+        )
+        dialogo_busqueda = crear_flotante_busqueda("Buscar", contenido_busqueda, ancho + 48)
+        self.page.overlay.append(dialogo_busqueda)
+        self.page.update()
 
     def dialog_palabras_cordero(self, e=None):
         resultados = self._versiculos_palabras_cordero()
@@ -1939,7 +2077,7 @@ class BibliaView:
 
         self.panel_lectura.controls.append(
             ft.Text(
-                f"{libro['nombre']}: capitulos",
+                f"{BibliaService.titulo_libro(libro['nombre'])}: capitulos",
                 weight=ft.FontWeight.BOLD,
             )
         )
@@ -4781,74 +4919,100 @@ class BibliaView:
 
         self.copiar_libro()
 
-    def buscar(self, e=None):
-        if e is not None:
-            ocultar_teclado(self.page, e.control)
+    def _grupos_resultados_busqueda(self, resultados):
+        actuales = [
+            resultado
+            for resultado in resultados
+            if resultado.get("libro") == self.libro_actual
+        ]
+        restantes = [
+            resultado
+            for resultado in resultados
+            if resultado.get("libro") != self.libro_actual
+        ]
 
-        self.resultados_busqueda.controls.clear()
+        grupos = []
+        if actuales:
+            grupos.append((f"Libro actual: {self.libro_actual} ({len(actuales)})", actuales))
 
-        resultados = buscar_texto(self.libros, self.busqueda.value or "")
-        self.ultimos_resultados_busqueda = resultados
-        self.ultima_busqueda_texto = (self.busqueda.value or "").strip()
+        libro_actual = None
+        grupo_actual = []
+        for resultado in restantes:
+            libro = resultado.get("libro", "")
+            if libro != libro_actual:
+                if grupo_actual:
+                    grupos.append((f"{libro_actual} ({len(grupo_actual)})", grupo_actual))
+                libro_actual = libro
+                grupo_actual = []
+            grupo_actual.append(resultado)
 
-        for resultado in resultados[:80]:
-            vid = verso_id(
-                resultado["libro"],
-                resultado["capitulo"],
-                resultado["versiculo"],
-            )
-            seleccionado_multiple = vid in self.versos_compartir
+        if grupo_actual:
+            grupos.append((f"{libro_actual} ({len(grupo_actual)})", grupo_actual))
 
-            self.resultados_busqueda.controls.append(
-                ft.Container(
-                    padding=8,
-                    bgcolor="#FFF7D6" if seleccionado_multiple else ft.Colors.WHITE,
-                    border=ft.Border.all(
-                        2 if seleccionado_multiple else 1,
-                        NARANJA_ACCENTO if seleccionado_multiple else ft.Colors.GREY_300,
+        return grupos
+
+    def _control_resultado_busqueda(self, resultado, al_abrir=None):
+        vid = verso_id(
+            resultado["libro"],
+            resultado["capitulo"],
+            resultado["versiculo"],
+        )
+        seleccionado_multiple = vid in self.versos_compartir
+
+        def abrir(ev=None):
+            if al_abrir:
+                al_abrir()
+                return
+
+            self.ir_a_resultado(resultado)
+
+        return ft.Container(
+            padding=8,
+            bgcolor=(
+                "#FFF7D6"
+                if seleccionado_multiple
+                else ft.Colors.WHITE
+            ),
+            border=ft.Border.all(
+                2 if seleccionado_multiple else 1,
+                NARANJA_ACCENTO
+                if seleccionado_multiple
+                else ft.Colors.GREY_300,
+            ),
+            border_radius=6,
+            on_click=(
+                (lambda e, v=vid: self.toggle_verso_compartir(v))
+                if self.modo_compartir_multiple
+                else abrir
+            ),
+            content=ft.Row(
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+                controls=[
+                    ft.Icon(
+                        ft.Icons.CHECK_CIRCLE,
+                        size=18,
+                        color=NARANJA_ACCENTO,
+                        visible=seleccionado_multiple,
                     ),
-                    border_radius=6,
-                    on_click=(
-                        (lambda e, v=vid: self.toggle_verso_compartir(v))
-                        if self.modo_compartir_multiple
-                        else (lambda e, r=resultado: self.ir_a_resultado(r))
+                    ft.Text(
+                        (
+                            f"{resultado['libro']} "
+                            f"{resultado['capitulo']}:{resultado['versiculo']} "
+                            f"{resultado['texto']}"
+                        ),
+                        expand=True,
+                        selectable=True,
                     ),
-                    content=ft.Row(
-                        spacing=8,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
-                        controls=[
-                            ft.Icon(
-                                ft.Icons.CHECK_CIRCLE,
-                                size=18,
-                                color=NARANJA_ACCENTO,
-                                visible=seleccionado_multiple,
-                            ),
-                            ft.Text(
-                                (
-                                    f"{resultado['libro']} "
-                                    f"{resultado['capitulo']}:{resultado['versiculo']} "
-                                    f"{resultado['texto']}"
-                                ),
-                                expand=True,
-                                selectable=True,
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                tooltip="Abrir versiculo",
-                                icon_color=TEXTO_SECUNDARIO,
-                                on_click=lambda e, r=resultado: self.ir_a_resultado(r),
-                            ),
-                        ],
+                    ft.IconButton(
+                        icon=ft.Icons.OPEN_IN_NEW,
+                        tooltip="Abrir versiculo",
+                        icon_color=TEXTO_SECUNDARIO,
+                        on_click=abrir,
                     ),
-                )
-            )
-
-        if not resultados:
-            self.resultados_busqueda.controls.append(
-                ft.Text("Sin resultados.")
-            )
-
-        self.page.update()
+                ],
+            ),
+        )
 
     def _texto_resultados_busqueda(self):
         termino = self.ultima_busqueda_texto or "Busqueda"

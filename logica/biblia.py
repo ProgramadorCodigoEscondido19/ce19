@@ -185,6 +185,7 @@ def cargar_biblia(archivo=BIBLIA_ARCHIVO):
 
     return libros
 
+
 def cargar_resaltados(archivo=RESALTADOS_ARCHIVO):
     if not os.path.exists(archivo):
         return {}
@@ -278,6 +279,7 @@ def _buscar_por_alternativas(libros, consultas):
     resultados = []
 
     for libro in libros:
+        nombre_libro = libro["nombre"]
         for capitulo_indice, capitulo in enumerate(libro["capitulos"], start=1):
             for versiculo_indice, texto in enumerate(capitulo, start=1):
                 texto_normalizado = normalizar_busqueda(texto)
@@ -285,7 +287,8 @@ def _buscar_por_alternativas(libros, consultas):
                 if any(c in texto_normalizado for c in consultas):
                     resultados.append(
                         {
-                            "libro": libro["nombre"],
+                            "tipo": "versiculo",
+                            "libro": nombre_libro,
                             "capitulo": capitulo_indice,
                             "versiculo": versiculo_indice,
                             "texto": texto,

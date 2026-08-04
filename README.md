@@ -1,5 +1,13 @@
 # CODIGO ESCONDIDO 19
 
+## Version actual: 1.0.5
+
+### Detalle de la actualizacion
+
+- Se mejoro el buscador biblico en celular: los botones Guardar y Cerrar quedan visibles antes de la lista de resultados.
+- El campo de busqueda recupera el foco al tocarlo nuevamente.
+- Se retiro codigo de la busqueda anterior que ya no se utilizaba.
+
 ## Abrir en la web
 
 La aplicacion web se abre desde:
