@@ -1,8 +1,17 @@
 # CODIGO ESCONDIDO 19
 
-## Version actual: 1.0.5
+## Version actual: 1.0.6
 
 ### Detalle de la actualizacion
+
+- Se incorporo el fondo claro con cruz y numeros de colores.
+- Se simplifico la lectura biblica en celular: se retiro la cabecera repetida de libros y la vuelta atras queda compacta en capitulos y versiculos.
+- El boton movil `Azar` ahora se llama `Aleatorio`.
+- Guardar, copiar, seleccion multiple y descarga se organizan en una fila de iconos sin desplazamiento lateral.
+- Los libros biblicos ahora se muestran en contenedores uniformes para una lectura mas ordenada.
+- Los capitulos se colorean completos, igual que los libros, sin selector por cifras.
+
+### Cambios anteriores
 
 - Se mejoro el buscador biblico en celular: los botones Guardar y Cerrar quedan visibles antes de la lista de resultados.
 - El campo de busqueda recupera el foco al tocarlo nuevamente.

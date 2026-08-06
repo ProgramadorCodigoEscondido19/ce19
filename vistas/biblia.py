@@ -711,7 +711,7 @@ class BibliaView:
                                 on_click=lambda e: self.cambiar_seccion_movil("buscar"),
                             ),
                             ft.ElevatedButton(
-                                "Azar",
+                                "Aleatorio",
                                 bgcolor=(PERLA_VIOLETA if self.seccion_movil == "azar" else None),
                                 on_click=lambda e: self.cambiar_seccion_movil("azar"),
                             ),
@@ -1010,30 +1010,39 @@ class BibliaView:
                 ),
             )
 
+        controles_lectura = [
+            self._barra_resaltado(),
+            ft.Divider(height=1, color=BORDE_SUAVE),
+            ft.Container(
+                expand=True,
+                padding=ft.Padding(left=4, top=4, right=4, bottom=4),
+                on_click=self.deseleccionar_actual,
+                content=self.panel_lectura,
+            ),
+        ]
+
+        if self.responsive.is_mobile():
+            # En libros la cabecera no aporta contexto y consume espacio de lectura.
+            # En niveles internos se mantiene una vuelta atras compacta.
+            controles_lectura.insert(0, self._navegacion_lectura())
+        else:
+            controles_lectura.insert(
+                0,
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[self._titulo_seccion("Lectura", ft.Icons.BOOK, ROJO_ACCENTO)],
+                ),
+            )
+            controles_lectura.insert(1, self._navegacion_lectura())
+
         return self._tarjeta_moderna(
             expand=True,
             padding=18 if self.responsive.is_mobile() else 24,
             content=ft.Column(
                 expand=True,
                 spacing=14,
-                controls=[
-                    ft.Row(
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            self._titulo_seccion("Lectura", ft.Icons.BOOK, ROJO_ACCENTO),
-                        ],
-                    ),
-                    self._navegacion_lectura(),
-                    self._barra_resaltado(),
-                    ft.Divider(height=1, color=BORDE_SUAVE),
-                    ft.Container(
-                        expand=True,
-                        padding=ft.Padding(left=4, top=4, right=4, bottom=4),
-                        on_click=self.deseleccionar_actual,
-                        content=self.panel_lectura,
-                    ),
-                ],
+                controls=controles_lectura,
             ),
         )
 
@@ -1046,6 +1055,32 @@ class BibliaView:
             titulo = self.libro_actual or "Capitulos"
         else:
             titulo = "Libros"
+
+        if self.responsive.is_mobile() and not puede_volver:
+            return ft.Container(visible=False, height=0)
+
+        if self.responsive.is_mobile():
+            return ft.Row(
+                tight=True,
+                spacing=2,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="Volver",
+                        icon_color=TEXTO_SECUNDARIO,
+                        on_click=lambda e: self.volver_lectura(),
+                    ),
+                    ft.Text(
+                        titulo,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=TEXTO_PRINCIPAL,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                ],
+            )
 
         return ft.Container(
             padding=ft.Padding(left=8, top=6, right=8, bottom=6),
@@ -1608,6 +1643,11 @@ class BibliaView:
                 tooltip="Mas acciones",
                 items=[
                     ft.PopupMenuItem(
+                        content="Compartir",
+                        icon=ft.Icons.SHARE,
+                        on_click=lambda e: self.dialog_compartir_biblia(),
+                    ),
+                    ft.PopupMenuItem(
                         content="Descargar Biblia codificada",
                         icon=ft.Icons.DOWNLOAD,
                         on_click=lambda e: self.dialog_exportar_biblia_codificada(),
@@ -1670,6 +1710,23 @@ class BibliaView:
         )
 
         if movil:
+            acciones_movil = [
+                accion(ft.Icons.SAVE_ALT, "Guardar", NARANJA_ACCENTO, self.dialog_guardar_biblia),
+                accion(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), AZUL_ACCENTO, self.copiar_contexto_lectura),
+                accion(
+                    ft.Icons.SELECT_ALL,
+                    "Activar/desactivar seleccion multiple",
+                    NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO,
+                    self.toggle_modo_compartir_multiple,
+                ),
+                accion(
+                    ft.Icons.DOWNLOAD,
+                    "Descargar Biblia codificada (PDF/TXT)",
+                    VIOLETA_ACCENTO,
+                    self.dialog_exportar_biblia_codificada,
+                ),
+                crear_menu_extra(),
+            ]
             return ft.Container(
                 padding=ft.Padding(left=10, top=8, right=10, bottom=7),
                 bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.WHITE),
@@ -1682,9 +1739,8 @@ class BibliaView:
                         encabezado,
                         ft.Row(
                             tight=True,
-                            scroll=ft.ScrollMode.AUTO,
                             spacing=2,
-                            controls=crear_acciones_principales() + [crear_menu_extra()],
+                            controls=acciones_movil,
                         ),
                     ],
                 ),
@@ -2301,6 +2357,7 @@ class BibliaView:
 
     def _tarjeta_libro(self, libro):
         nombre = libro["nombre"]
+        movil = self.responsive.is_mobile()
         clave = self._clave_libro(nombre)
         color = self._color_libro_resaltado(nombre)
         fondo = self._hex_color(color, ft.Colors.WHITE)
@@ -2328,24 +2385,25 @@ class BibliaView:
             on_double_tap=doble_click_libro,
             on_long_press=lambda e, l=nombre: self.seleccionar_libro_para_color(l),
             content=ft.Container(
-                padding=ft.Padding(left=12, top=9, right=8, bottom=9),
-                content=ft.Row(
-                    tight=True,
-                    spacing=6,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        self._icono_marcado(visible=seleccionado),
-                        ft.Text(
-                            f"{nombre} ({len(libro['capitulos'])})",
-                            color=texto_color,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
+                width=132 if movil else 152,
+                height=68,
+                alignment=ft.Alignment(0, 0),
+                padding=8,
+                content=ft.Text(
+                    f"{nombre}\n({len(libro['capitulos'])})",
+                    color=texto_color,
+                    weight=ft.FontWeight.BOLD,
+                    size=13 if movil else 14,
+                    text_align=ft.TextAlign.CENTER,
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
             ),
         )
 
         return ft.Container(
+            width=132 if movil else 152,
+            height=68,
             bgcolor=fondo,
             border=borde,
             border_radius=8,
@@ -2403,7 +2461,7 @@ class BibliaView:
             on_double_tap=lambda e, l=libro, c=capitulo:
                 self.codificar_capitulo_biblia(l, c),
             on_long_press=lambda e, l=libro, c=capitulo:
-                self.elegir_modo_color_identificador(self._clave_capitulo(l, c)),
+                self.seleccionar_capitulo_completo_para_color(l, c),
             content=contenedor,
         )
 

@@ -1,7 +1,7 @@
 import flet as ft
 
 APP_NAME = "CODIGO ESCONDIDO 19"
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 ESTRELLA_ICONO = "icon.png"
 
 # Paleta obligatoria del proyecto
@@ -40,7 +40,7 @@ FONDO_APP = "#FCFAFF"
 # =====================================================
 # FONDO GLOBAL DE TODA LA APP (NO AFECTA LA INTRO)
 # =====================================================
-FONDO_APP_IMAGEN = "fondo_app.webp"
+FONDO_APP_IMAGEN = "fondo_cruz_numeros.png"
 FONDO_IMAGEN_APP = FONDO_APP_IMAGEN
 SUPERFICIE_BLANCA = "#FFFFFF"
 SUPERFICIE_PERLADA = "#FFFEFC"
