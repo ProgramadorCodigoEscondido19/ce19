@@ -2634,7 +2634,9 @@ class GuardadosView:
 
     def _actualizar_barra_acciones(self):
         cantidad = len(self.registros_seleccionados())
-        self.barra_acciones.visible = cantidad > 0
+        # El inicio solo muestra carpetas. Nunca debe conservar acciones de
+        # un archivo seleccionado al regresar desde una carpeta.
+        self.barra_acciones.visible = cantidad > 0 and not self._esta_en_inicio_guardados()
         self.texto_seleccion.value = (
             f"{cantidad} seleccionado"
             if cantidad == 1
@@ -2642,14 +2644,28 @@ class GuardadosView:
         ) if cantidad else ""
 
     def deseleccionar_actual(self, e=None):
-        if not self.tarjeta_seleccionada and not self.ids_seleccionados:
+        if (
+            not self.tarjeta_seleccionada
+            and not self.ids_seleccionados
+            and self.carpeta_seleccionada_id is None
+        ):
             return
 
         self.tarjeta_seleccionada = None
         self.ids_seleccionados.clear()
+        self.carpeta_seleccionada_id = None
+        self.carpeta_seleccionada_nombre = None
         self._actualizar_barra_acciones()
         self.actualizar_tabla()
-        self.page.update()
+        self._refrescar_pagina()
+
+    def _zona_vacia_deseleccion(self):
+        """Area neutra para quitar una seleccion sin buscar un boton."""
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.BASIC,
+            on_tap=self.deseleccionar_actual,
+            content=ft.Container(height=300 if self.es_movil() else 180),
+        )
 
     def toggle_seleccion_multiple(self, registro):
         id_registro = registro.get("id")
@@ -3378,6 +3394,11 @@ class GuardadosView:
         self.carpeta_actual_id = carpeta["id"]
         self.carpeta_actual_nombre = carpeta["nombre"]
 
+        self.tarjeta_seleccionada = None
+        self.ids_seleccionados.clear()
+        self.modo_seleccion_multiple = False
+        self.boton_seleccion_multiple.bgcolor = None
+
 
         self.carpeta_seleccionada_id = carpeta["id"]
         self.carpeta_seleccionada_nombre = carpeta["nombre"]
@@ -3451,6 +3472,11 @@ class GuardadosView:
         self.carpeta_actual_id = carpeta["id"]
         self.carpeta_actual_nombre = carpeta["nombre"]
 
+        self.tarjeta_seleccionada = None
+        self.ids_seleccionados.clear()
+        self.modo_seleccion_multiple = False
+        self.boton_seleccion_multiple.bgcolor = None
+
         self.carpeta_seleccionada_id = carpeta["id"]
         self.carpeta_seleccionada_nombre = carpeta["nombre"]
 
@@ -3513,6 +3539,11 @@ class GuardadosView:
         self.carpeta_seleccionada_id = None
         self.carpeta_seleccionada_nombre = None 
 
+        self.tarjeta_seleccionada = None
+        self.ids_seleccionados.clear()
+        self.modo_seleccion_multiple = False
+        self.boton_seleccion_multiple.bgcolor = None
+
         self.ruta_carpetas = []
 
         self.actualizar_barra_ruta()
@@ -3527,6 +3558,11 @@ class GuardadosView:
 
         self.carpeta_seleccionada_id = carpeta["id"]
         self.carpeta_seleccionada_nombre = carpeta["nombre"]
+
+        self.tarjeta_seleccionada = None
+        self.ids_seleccionados.clear()
+        self.modo_seleccion_multiple = False
+        self.boton_seleccion_multiple.bgcolor = None
 
         self.ruta_carpetas = self.carpetas.obtener_ruta(
             carpeta["id"]
@@ -4065,7 +4101,7 @@ class GuardadosView:
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
             border=ft.Border.all(
-                2 if seleccionada else 1,
+                1,
                 VIOLETA_IOS if seleccionada else PERLA_BORDE,
             ),
             border_radius=8,
@@ -4119,16 +4155,6 @@ class GuardadosView:
                             ],
                         ),
                     ),
-                    ft.Row(
-                        alignment=ft.MainAxisAlignment.END,
-                        controls=[
-                            ft.IconButton(
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                tooltip="Abrir",
-                                on_click=lambda e, r=registro: self.abrir_detalle(r),
-                            ),
-                        ],
-                    ),
                 ],
             ),
         )
@@ -4164,7 +4190,7 @@ class GuardadosView:
                     clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                     bgcolor=(PERLA_VIOLETA if self.esta_seleccionado(registro) else SUPERFICIE_PERLADA),
                     border=ft.Border.all(
-                        2 if self.esta_seleccionado(registro) else 1,
+                        1,
                         VIOLETA_IOS if self.esta_seleccionado(registro) else PERLA_BORDE,
                     ),
                     content=ft.Row(
@@ -4224,12 +4250,6 @@ class GuardadosView:
                                 ),
                                 expand=True,
                             ),
-                            ft.IconButton(
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                tooltip="Abrir",
-                                icon_color=VIOLETA_IOS,
-                                on_click=lambda e, r=registro: self.abrir_detalle(r),
-                            ),
                         ],
                     ),
                 )
@@ -4286,6 +4306,7 @@ class GuardadosView:
             self.panel_contenido.controls.append(
                 self._seccion_carpetas_principales(carpetas)
             )
+            self.panel_contenido.controls.append(self._zona_vacia_deseleccion())
             return
         
         if registros is None:        
@@ -4337,9 +4358,11 @@ class GuardadosView:
                     )
                 )
             )
+            self.panel_contenido.controls.append(self._zona_vacia_deseleccion())
             return
 
         if not registros:
+            self.panel_contenido.controls.append(self._zona_vacia_deseleccion())
             return
 
         if self.modo_cuadricula:
@@ -4351,6 +4374,8 @@ class GuardadosView:
             self.panel_contenido.controls.append(
                 self.crear_lista(registros)
             )
+
+        self.panel_contenido.controls.append(self._zona_vacia_deseleccion())
         
                     
     # -------------------------------------------------
