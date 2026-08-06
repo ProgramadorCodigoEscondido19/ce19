@@ -752,6 +752,13 @@ class PizarraView:
         if self.herramienta == "lapiz":
             self._cursor_activo = True
             self._cursor_punto = punto
+
+            # Un trazo del mismo color que el lienzo no debe quedar guardado:
+            # de otro modo reaparece al cambiar luego el fondo.
+            if self._color_coincide_con_fondo(self.color):
+                self._trazo_actual = None
+                return
+
             self._trazo_actual = {
                 "tipo": "trazo",
                 "puntos": [punto],
@@ -815,6 +822,9 @@ class PizarraView:
         self._cursor_punto = punto
 
         if self._trazo_actual is None:
+            if self._color_coincide_con_fondo(self.color):
+                return
+
             self._trazo_actual = {
                 "tipo": "trazo",
                 "puntos": [anterior],
@@ -2343,9 +2353,72 @@ class PizarraView:
         return partes if hubo_borrado else [objeto]
 
     def _agregar_objeto(self, objeto):
+        if self._objeto_es_invisible_en_fondo(objeto):
+            return False
+
         self._registrar_historial()
         self.lienzos[self.lienzo_actual]["objetos"].append(objeto)
         self._redibujar_lienzo()
+        return True
+
+    def _color_coincide_con_fondo(self, color, fondo=None):
+        """Indica si un color no se distingue del lienzo actual."""
+        if not color:
+            return False
+
+        fondo = fondo or self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+        return str(color).upper() == str(fondo).upper()
+
+    def _objeto_es_invisible_en_fondo(self, objeto, fondo=None):
+        """Evita conservar objetos sin ninguna parte visible sobre el fondo."""
+        fondo = fondo or self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
+        tipo = objeto.get("tipo")
+
+        if tipo in ("trazo", "linea", "texto"):
+            return self._color_coincide_con_fondo(objeto.get("color"), fondo)
+
+        if tipo in ("rectangulo", "circulo"):
+            return (
+                self._color_coincide_con_fondo(objeto.get("color"), fondo)
+                and self._color_coincide_con_fondo(objeto.get("relleno", fondo), fondo)
+            )
+
+        if tipo == "cubo":
+            geometria = self._geometria_cubo(objeto)
+            color_base = objeto.get("color")
+            relleno_base = objeto.get("relleno", fondo)
+            caras = objeto.get("caras", {})
+            aristas = objeto.get("aristas", {})
+            colores_caras = [
+                caras.get(nombre, relleno_base if nombre == "frente" else fondo)
+                for nombre in geometria["caras"]
+            ]
+            colores_aristas = [
+                aristas.get(nombre, color_base)
+                for nombre, _, _ in geometria["aristas"]
+            ]
+            return all(
+                self._color_coincide_con_fondo(color, fondo)
+                for color in [*colores_caras, *colores_aristas]
+            )
+
+        return False
+
+    def _aplicar_color_uniforme(self, objeto, color):
+        """Aplica un color al objeto completo, incluidas las partes de un cubo."""
+        objeto["color"] = color
+        tipo = objeto.get("tipo")
+
+        if tipo in ("rectangulo", "circulo"):
+            objeto["relleno"] = color
+        elif tipo == "cubo":
+            geometria = self._geometria_cubo(objeto)
+            objeto["relleno"] = color
+            objeto["caras"] = {nombre: color for nombre in geometria["caras"]}
+            objeto["aristas"] = {
+                nombre: color
+                for nombre, _, _ in geometria["aristas"]
+            }
 
     def crear_lienzo(self, lado):
         nuevo = {
@@ -2397,10 +2470,10 @@ class PizarraView:
 
             for indice in seleccion:
                 if 0 <= indice < len(objetos):
-                    if color.upper() == fondo.upper():
+                    if self._color_coincide_con_fondo(color, fondo):
                         del objetos[indice]
                     else:
-                        objetos[indice]["color"] = color
+                        self._aplicar_color_uniforme(objetos[indice], color)
 
             if seleccion:
                 self.objeto_seleccionado = None
@@ -2417,23 +2490,16 @@ class PizarraView:
             self.pintar_fondo()
             return
 
-        indice, parte = objetivo
+        indice, _ = objetivo
         objeto = self.lienzos[self.lienzo_actual]["objetos"][indice]
         fondo = self.lienzos[self.lienzo_actual].get("fondo", "#FFFFFF")
         self._registrar_historial()
 
-        if objeto.get("tipo") == "cubo" and parte:
-            tipo_parte, nombre = parte
-            atributo = "caras" if tipo_parte == "cara" else "aristas"
-            objeto.setdefault(atributo, {})[nombre] = self.color
-        elif objeto.get("tipo") in ("linea", "trazo"):
-            if self.color.upper() == fondo.upper():
-                del self.lienzos[self.lienzo_actual]["objetos"][indice]
-                self._mostrar_mensaje("Trazo eliminado al coincidir con el fondo.")
-            else:
-                objeto["color"] = self.color
+        if self._color_coincide_con_fondo(self.color, fondo):
+            del self.lienzos[self.lienzo_actual]["objetos"][indice]
+            self._mostrar_mensaje("Objeto eliminado al coincidir con el fondo.")
         else:
-            objeto["relleno"] = self.color
+            self._aplicar_color_uniforme(objeto, self.color)
 
         self.objeto_seleccionado = None
         self.objetos_seleccionados = []
@@ -2449,8 +2515,9 @@ class PizarraView:
         for objeto in objetos:
             tipo = objeto.get("tipo")
 
-            # El cubo conserva sus otras caras: solo se limpia la superficie
-            # que pasa a coincidir con el lienzo, como ocurre en Paint.
+            # En cubos creados antes de esta regla puede haber caras o
+            # aristas de distintos colores. Se limpian solo las que pasan a
+            # coincidir con el fondo y se elimina el cubo si ya no se ve nada.
             if tipo == "cubo":
                 caras = objeto.get("caras", {})
                 aristas = objeto.get("aristas", {})
@@ -2464,11 +2531,13 @@ class PizarraView:
                     for nombre, color in aristas.items()
                     if str(color).upper() != color_fondo
                 }
-                restantes.append(objeto)
+                if self._objeto_es_invisible_en_fondo(objeto, color_fondo):
+                    eliminados += 1
+                else:
+                    restantes.append(objeto)
                 continue
 
-            color_visible = objeto.get("relleno") or objeto.get("color")
-            if color_visible and str(color_visible).upper() == color_fondo:
+            if self._objeto_es_invisible_en_fondo(objeto, color_fondo):
                 eliminados += 1
                 continue
 
