@@ -115,16 +115,22 @@ class GuardadosView:
         self.filtro_tipo = 'Todos'
         self.orden_guardados = 'Antiguos'
         self.campo_busqueda = ft.TextField(
-            hint_text="Buscar...",
+            hint_text="Buscar carpetas",
             prefix_icon=ft.Icons.SEARCH,
             dense=True,
             width=280,
+            filled=True,
+            bgcolor=BLANCO,
+            border_color=PERLA_BORDE,
+            focused_border_color=VIOLETA_IOS,
+            border_radius=14,
             on_change=self.buscar_registros,
             on_submit=lambda e: ocultar_teclado(self.page, e.control),
             on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
         )
         self.boton_limpiar_busqueda = ft.IconButton(
             icon=ft.Icons.CLOSE,
+            visible=False,
             tooltip="Limpiar búsqueda",
             on_click=self.limpiar_busqueda,
         )
@@ -215,10 +221,10 @@ class GuardadosView:
             on_click=self.dialog_limpieza_app,
         )
         self.barra_explorador = ft.Row(
-            spacing=0,
+            tight=True,
+            spacing=2,
             controls=[
                 self.boton_vista,
-                ft.VerticalDivider(width=1),
                 self.boton_seleccion_multiple,
             ]
         )
@@ -354,10 +360,10 @@ class GuardadosView:
         )
         self.panel_derecho = ft.Container(
             expand=True,
-            padding=15,
-            bgcolor=ft.Colors.with_opacity(0.96, BLANCO),
+            padding=14,
+            bgcolor=PERLA_PANEL,
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=8,
+            border_radius=20,
             content=self._crear_panel_derecho_content(),
         )
         
@@ -802,19 +808,25 @@ class GuardadosView:
             ],
         )
 
+        # En el nivel general el buscador sirve para localizar carpetas. Las
+        # acciones del explorador solo aparecen una vez que el usuario entra
+        # en una carpeta.
+        self.acciones_explorador = ft.Container(
+            visible=not self._esta_en_inicio_guardados(),
+            padding=ft.Padding(left=3, top=2, right=3, bottom=2),
+            bgcolor=PERLA_VIOLETA,
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=12,
+            content=self.barra_explorador,
+        )
+
         if self.es_movil():
             herramientas = ft.Column(
                 tight=True,
                 spacing=6,
                 controls=[
-                    ft.Container(width=340, content=buscador),
-                    ft.Row(
-                        wrap=True,
-                        spacing=8,
-                        controls=[
-                            self.barra_explorador,
-                        ],
-                    ),
+                    buscador,
+                    self.acciones_explorador,
                 ],
             )
         else:
@@ -823,22 +835,30 @@ class GuardadosView:
                 spacing=8,
                 run_spacing=6,
                 controls=[
-                    ft.Container(width=360, content=buscador),
-                    self.barra_explorador,
+                    ft.Container(width=420, content=buscador),
+                    self.acciones_explorador,
                 ],
             )
+
+        self.herramientas_guardados = ft.Container(
+            padding=0,
+            bgcolor=ft.Colors.TRANSPARENT,
+            content=herramientas,
+        )
 
         return ft.Column(
             expand=True,
             spacing=10,
             controls=[
-                herramientas,
+                self.herramientas_guardados,
                 self.barra_ruta,
                 self.barra_acciones,
-                ft.Divider(height=1),
                 self.panel_contenido
             ],
         )
+
+    def _esta_en_inicio_guardados(self):
+        return self.carpeta_actual_id is None
 
     def _categoria_registro(self, registro):
         tipo = registro.get("tipo", "tarjeta")
@@ -1005,6 +1025,7 @@ class GuardadosView:
 
     def limpiar_busqueda(self, e=None):
         self.campo_busqueda.value = ""
+        self.boton_limpiar_busqueda.visible = False
         self.actualizar_tabla()
         self.page.update()
 
@@ -2965,55 +2986,70 @@ class GuardadosView:
             )
         )
 
+    def _abrir_o_seleccionar_carpeta(self, carpeta):
+        if self.es_movil():
+            self._entrar_carpeta_explorador(carpeta)
+        else:
+            self._seleccionar_carpeta_explorador(carpeta)
+
     def _tarjeta_carpeta_resumen(self, carpeta, cuadricula=False):
         color, fondo, icono = self._estilo_carpeta(carpeta)
         cantidad = self._cantidad_registros_carpeta(carpeta)
         seleccionada = carpeta.get("id") == self.carpeta_seleccionada_id
 
         if cuadricula:
-            ancho = 155 if self.es_movil() else 210
+            ancho = (
+                max(86, min(108, int((self.ancho_actual() - 54) / 3)))
+                if self.es_movil()
+                else 190
+            )
+            alto = 138 if self.es_movil() else 164
             return ft.GestureDetector(
                 mouse_cursor=ft.MouseCursor.CLICK,
-                on_tap=lambda e, c=carpeta: self._seleccionar_carpeta_explorador(c),
+                on_tap=lambda e, c=carpeta: self._abrir_o_seleccionar_carpeta(c),
                 on_double_tap=lambda e, c=carpeta: self._entrar_carpeta_explorador(c),
                 on_secondary_tap=lambda e, c=carpeta: self.menu_contextual_carpeta(c),
                 content=ft.Container(
                     width=ancho,
-                    height=132,
-                    padding=12,
+                    height=alto,
+                    padding=10,
                     bgcolor=PERLA_VIOLETA if seleccionada else BLANCO,
                     border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
-                    border_radius=8,
+                    border_radius=18,
+                    shadow=sombra_suave(0.035, 12, 0, 4),
                     content=ft.Column(
                         tight=True,
-                        spacing=8,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=7,
                         controls=[
-                            ft.Row(
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                controls=[
-                                    ft.Container(
-                                        width=42,
-                                        height=42,
-                                        alignment=ft.Alignment(0, 0),
-                                        bgcolor=fondo,
-                                        border_radius=8,
-                                        content=ft.Icon(icono, color=color, size=22),
-                                    ),
-                                    ft.Icon(ft.Icons.MORE_VERT, size=19, color=TEXTO_SECUNDARIO),
-                                ],
+                            ft.Container(
+                                width=48 if self.es_movil() else 58,
+                                height=48 if self.es_movil() else 58,
+                                alignment=ft.Alignment(0, 0),
+                                bgcolor=fondo,
+                                border_radius=16,
+                                content=ft.Icon(icono, color=color, size=27 if self.es_movil() else 31),
                             ),
                             ft.Text(
                                 carpeta.get("nombre", "Carpeta"),
-                                size=13,
+                                size=11 if self.es_movil() else 13,
                                 weight=ft.FontWeight.BOLD,
                                 color=TEXTO_PRINCIPAL,
-                                max_lines=1,
+                                text_align=ft.TextAlign.CENTER,
+                                max_lines=2,
                                 overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                            ft.Text(
-                                f"{cantidad} elemento{'s' if cantidad != 1 else ''}",
-                                size=11,
-                                color=TEXTO_SECUNDARIO,
+                            ft.Row(
+                                tight=True,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                controls=[
+                                    ft.Icon(ft.Icons.FOLDER_OUTLINED, size=14, color=color),
+                                    ft.Text(
+                                        str(cantidad),
+                                        size=11,
+                                        color=TEXTO_SECUNDARIO,
+                                    ),
+                                ],
                             ),
                         ],
                     ),
@@ -3077,61 +3113,64 @@ class GuardadosView:
             ),
         )
 
-    def _seccion_carpetas_principales(self):
-        carpetas = self.carpetas.obtener_hijos(None)
+    def _seccion_carpetas_principales(self, carpetas=None):
+        carpetas = carpetas if carpetas is not None else self.carpetas.obtener_hijos(None)
         if not carpetas:
-            return ft.Container()
-
-        if self.modo_cuadricula:
-            return ft.Row(
-                wrap=True,
-                spacing=10,
-                run_spacing=10,
-                controls=[
-                    self._tarjeta_carpeta_resumen(carpeta, cuadricula=True)
-                    for carpeta in carpetas
-                ],
+            return ft.Container(
+                padding=30,
+                alignment=ft.Alignment(0, 0),
+                content=ft.Text("No se encontraron carpetas", color=TEXTO_SECUNDARIO),
             )
 
+        filas = [carpetas[indice:indice + 3] for indice in range(0, len(carpetas), 3)]
         return ft.Column(
             tight=True,
-            spacing=8,
+            spacing=10 if self.es_movil() else 16,
             controls=[
-                self._tarjeta_carpeta_resumen(carpeta)
-                for carpeta in carpetas
+                ft.Row(
+                    spacing=10 if self.es_movil() else 16,
+                    controls=[
+                        self._tarjeta_carpeta_resumen(carpeta, cuadricula=True)
+                        for carpeta in fila
+                    ],
+                )
+                for fila in filas
             ],
         )
 
     def _hero_guardados_visual(self):
         return ft.Container(
-            padding=ft.Padding(left=10, top=10, right=10, bottom=10),
-            bgcolor=ft.Colors.with_opacity(0.94, BLANCO),
-            border_radius=8,
+            padding=ft.Padding(left=16, top=8, right=10, bottom=8),
+            bgcolor=PERLA_PANEL,
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=14,
+            shadow=sombra_suave(0.03, 10, 0, 3),
             content=ft.Row(
-                wrap=True,
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                tight=True,
+                spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Row(
-                        tight=True,
-                        spacing=0,
-                        controls=[
-                            ft.Column(
-                                tight=True,
-                                spacing=2,
-                                controls=[
-                                    ft.Text("Guardados", size=22 if self.es_movil() else 24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                                    ft.Text("Organiza y encuentra lo que necesitas.", size=11, color=TEXTO_SECUNDARIO),
-                                ],
-                            ),
-                        ],
+                    ft.Text(
+                        "Guardados",
+                        size=21 if self.es_movil() else 24,
+                        weight=ft.FontWeight.BOLD,
+                        color=TEXTO_PRINCIPAL,
                     ),
-                    ft.ElevatedButton(
-                        "+ Nueva",
-                        icon=ft.Icons.CREATE_NEW_FOLDER,
-                        color=BLANCO,
-                        bgcolor=VIOLETA_IOS,
+                    ft.Container(
+                        width=34,
+                        height=34,
+                        alignment=ft.Alignment(0, 0),
+                        bgcolor=PERLA_VIOLETA,
+                        border=ft.Border.all(1, PERLA_BORDE),
+                        border_radius=10,
+                        ink=True,
+                        tooltip="Crear carpeta",
                         on_click=lambda e: self.dialog_crear_carpeta(),
+                        content=ft.Icon(
+                            ft.Icons.CREATE_NEW_FOLDER,
+                            size=18,
+                            color=VIOLETA_IOS,
+                        ),
                     ),
                 ],
             ),
@@ -3429,36 +3468,36 @@ class GuardadosView:
     def actualizar_barra_ruta(self, actualizar=True):
         self.barra_ruta.controls.clear()
 
-        # INICIO
-        self.barra_ruta.controls.append(
-            ft.GestureDetector(
-                mouse_cursor=ft.MouseCursor.CLICK,
-                on_tap=lambda e: self.volver_inicio(),
-                content=ft.Text(
-                    "Inicio",
-                    color=VIOLETA_IOS,
+        # En el nivel general no hay ruta que mostrar. Dentro de carpetas se
+        # usa una sola flecha: el explorador queda claro incluso en celular.
+        if self.carpeta_actual_id is None:
+            self.barra_ruta.visible = False
+        else:
+            self.barra_ruta.visible = True
+            ruta = self.ruta_carpetas or []
+            carpeta_anterior = ruta[-2] if len(ruta) > 1 else None
+
+            if carpeta_anterior:
+                volver = lambda e, c=carpeta_anterior: self.volver_a_carpeta(c)
+                ayuda = f"Volver a {carpeta_anterior['nombre']}"
+            else:
+                volver = lambda e: self.volver_inicio()
+                ayuda = "Volver a Guardados"
+
+            self.barra_ruta.controls.extend([
+                ft.IconButton(
+                    icon=ft.Icons.ARROW_BACK,
+                    tooltip=ayuda,
+                    icon_color=VIOLETA_IOS,
+                    on_click=volver,
+                ),
+                ft.Text(
+                    self.carpeta_actual_nombre or "Guardados",
+                    size=16,
+                    color=TEXTO_PRINCIPAL,
                     weight=ft.FontWeight.BOLD,
                 ),
-            )
-        )
-
-        # RUTA
-        for carpeta in self.ruta_carpetas:
-            self.barra_ruta.controls.append(
-                ft.Text(">")
-            )
-            
-            self.barra_ruta.controls.append(
-                ft.GestureDetector(
-                    mouse_cursor=ft.MouseCursor.CLICK,
-                    on_tap=lambda e, c=carpeta: self.volver_a_carpeta(c),
-                    content=ft.Text(
-                        carpeta["nombre"],
-                        color=VIOLETA_IOS,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                )
-            )
+            ])
 
         if actualizar:
             self._refrescar_pagina()
@@ -4117,12 +4156,12 @@ class GuardadosView:
     def crear_lista(self, registros):
         return ft.Column(
             tight=True,
-            spacing=8,
+            spacing=10,
             controls=[
                 ft.Container(
-                    padding=10,
-                    border_radius=8,
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    padding=ft.Padding(left=12, top=11, right=10, bottom=11),
+                    border_radius=14,
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                     bgcolor=(PERLA_VIOLETA if self.esta_seleccionado(registro) else SUPERFICIE_PERLADA),
                     border=ft.Border.all(
                         2 if self.esta_seleccionado(registro) else 1,
@@ -4145,10 +4184,10 @@ class GuardadosView:
                                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                     controls=[
                                         ft.Container(
-                                            width=48,
-                                            height=48,
+                                            width=46,
+                                            height=46,
                                             alignment=ft.Alignment(0, 0),
-                                            border_radius=10,
+                                            border_radius=12,
                                             bgcolor=ft.Colors.with_opacity(0.05, VIOLETA_IOS),
                                             content=self.icono_registro(registro),
                                         ),
@@ -4161,18 +4200,18 @@ class GuardadosView:
                                                     ft.Text(
                                                         self.titulo_registro(registro),
                                                         weight=ft.FontWeight.BOLD,
-                                                        size=16,
+                                                        size=15,
                                                         max_lines=1,
                                                         overflow=ft.TextOverflow.ELLIPSIS,
                                                     ),
                                                     self.texto_previsualizacion(
                                                         registro,
-                                                        size=13,
+                                                        size=12,
                                                         max_lines=1,
                                                         color=TEXTO_SECUNDARIO,
                                                     ),
                                                     ft.Text(
-                                                        f"{self.etiqueta_tipo_registro(registro)} · {self.fecha_corta_registro(registro)}",
+                                                        self.etiqueta_tipo_registro(registro),
                                                         size=11,
                                                         color=TEXTO_SECUNDARIO,
                                                         max_lines=1,
@@ -4185,9 +4224,10 @@ class GuardadosView:
                                 ),
                                 expand=True,
                             ),
-                            ft.TextButton(
-                                "Abrir",
+                            ft.IconButton(
                                 icon=ft.Icons.OPEN_IN_NEW,
+                                tooltip="Abrir",
+                                icon_color=VIOLETA_IOS,
                                 on_click=lambda e, r=registro: self.abrir_detalle(r),
                             ),
                         ],
@@ -4221,6 +4261,32 @@ class GuardadosView:
         self.panel_contenido.controls.clear()
         self._actualizar_barra_acciones()
         busqueda_activa = bool(str(getattr(self.campo_busqueda, "value", "") or "").strip())
+        es_inicio = self._esta_en_inicio_guardados()
+
+        if hasattr(self, "acciones_explorador"):
+            self.acciones_explorador.visible = not es_inicio
+        if hasattr(self, "herramientas_guardados"):
+            self.herramientas_guardados.padding = 0
+        self.barra_ruta.visible = not es_inicio
+        self.boton_limpiar_busqueda.visible = busqueda_activa
+        self.campo_busqueda.hint_text = (
+            "Buscar carpetas" if es_inicio else f"Buscar en {self.carpeta_actual_nombre or 'carpeta'}"
+        )
+
+        # El nivel general es un tablero de carpetas: no mezcla archivos ni
+        # cronologÃ­as. El buscador de este nivel filtra exclusivamente carpetas.
+        if es_inicio:
+            texto_busqueda = str(getattr(self.campo_busqueda, "value", "") or "").strip().lower()
+            carpetas = self.carpetas.obtener_hijos(None)
+            if texto_busqueda:
+                carpetas = [
+                    carpeta for carpeta in carpetas
+                    if texto_busqueda in str(carpeta.get("nombre", "")).lower()
+                ]
+            self.panel_contenido.controls.append(
+                self._seccion_carpetas_principales(carpetas)
+            )
+            return
         
         if registros is None:        
             if self.carpeta_actual_nombre is None:
@@ -4241,15 +4307,6 @@ class GuardadosView:
         registros = self._aplicar_filtro_tipo(registros)
         registros = self._ordenar_registros(registros)
         subcarpetas = [] if busqueda_activa else self._subcarpetas_actuales()
-        es_inicio = self.carpeta_actual_id is None
-
-        # En Inicio solo se muestran las carpetas principales. Al entrar a
-        # una carpeta no se vuelven a mezclar esas carpetas con sus archivos.
-        if not busqueda_activa and es_inicio:
-            self.panel_contenido.controls.append(
-                self._seccion_carpetas_principales()
-            )
-
         if subcarpetas:
             self.panel_contenido.controls.append(
                 self._seccion_subcarpetas(subcarpetas)

@@ -608,6 +608,19 @@ class PizarraView:
         panel = 250 if self.responsive.is_tablet() else 280
         return max(360, ancho - panel - 64)
 
+    def _ancho_logico_lienzo(self):
+        """Ancho real que puede usarse sin recortar el area visible."""
+        ancho_visible = self.viewport_ancho / max(self.zoom, 0.3)
+        ancho_objetos = ANCHO_LIENZO
+
+        for objeto in self.lienzos[self.lienzo_actual].get("objetos", []):
+            try:
+                ancho_objetos = max(ancho_objetos, self._bounds(objeto)[2] + 24)
+            except (KeyError, TypeError, ValueError):
+                continue
+
+        return max(ANCHO_LIENZO, int(math.ceil(ancho_visible)), int(math.ceil(ancho_objetos)))
+
     def _control_objeto(self, objeto):
         tipo = objeto["tipo"]
 
@@ -1006,13 +1019,17 @@ class PizarraView:
 
     def _punto(self, offset):
         return (
-            self._limitar(offset.x / self.zoom - self.pan_x, 0, ANCHO_LIENZO),
+            self._limitar(offset.x / self.zoom - self.pan_x, 0, self._ancho_logico_lienzo()),
             self._limitar(offset.y / self.zoom - self.pan_y, 0, ALTO_LIENZO),
         )
 
     def _punto_centro_visible(self):
         return (
-            self._limitar(self.viewport_ancho / (2 * max(self.zoom, 0.3)) - self.pan_x, 0, ANCHO_LIENZO),
+            self._limitar(
+                self.viewport_ancho / (2 * max(self.zoom, 0.3)) - self.pan_x,
+                0,
+                self._ancho_logico_lienzo(),
+            ),
             self._limitar(self.viewport_alto / (2 * max(self.zoom, 0.3)) - self.pan_y, 0, ALTO_LIENZO),
         )
 
@@ -1073,7 +1090,7 @@ class PizarraView:
         return max(minimo, min(maximo, valor))
 
     def _limitar_pan(self):
-        min_x = min(0, self.viewport_ancho / max(self.zoom, 0.3) - ANCHO_LIENZO)
+        min_x = min(0, self.viewport_ancho / max(self.zoom, 0.3) - self._ancho_logico_lienzo())
         min_y = min(0, self.viewport_alto / max(self.zoom, 0.3) - ALTO_LIENZO)
         self.pan_x = self._limitar(self.pan_x, min_x, 0)
         self.pan_y = self._limitar(self.pan_y, min_y, 0)
@@ -2205,8 +2222,9 @@ class PizarraView:
         if y1 + dy < 0:
             dy = -y1
 
-        if x2 + dx > ANCHO_LIENZO:
-            dx = ANCHO_LIENZO - x2
+        ancho_lienzo = self._ancho_logico_lienzo()
+        if x2 + dx > ancho_lienzo:
+            dx = ancho_lienzo - x2
 
         if y2 + dy > ALTO_LIENZO:
             dy = ALTO_LIENZO - y2
