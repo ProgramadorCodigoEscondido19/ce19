@@ -2075,7 +2075,9 @@ class PizarraView:
                     if self._distancia_segmento(punto, desde, hasta) <= margen:
                         return indice, ("arista", nombre)
 
-                for nombre in ("superior", "derecha", "inferior", "izquierda", "frente"):
+                # La cara frontal queda por encima de las laterales. Asi el
+                # balde pinta exactamente la superficie visible que se toca.
+                for nombre in ("frente", "superior", "derecha", "inferior", "izquierda"):
                     if self._punto_en_poligono(punto, geometria["caras"][nombre]):
                         return indice, ("cara", nombre)
 
@@ -2439,6 +2441,40 @@ class PizarraView:
 
     def pintar_fondo(self):
         self._registrar_historial()
+        color_fondo = self.color.upper()
+        objetos = self.lienzos[self.lienzo_actual]["objetos"]
+        restantes = []
+        eliminados = 0
+
+        for objeto in objetos:
+            tipo = objeto.get("tipo")
+
+            # El cubo conserva sus otras caras: solo se limpia la superficie
+            # que pasa a coincidir con el lienzo, como ocurre en Paint.
+            if tipo == "cubo":
+                caras = objeto.get("caras", {})
+                aristas = objeto.get("aristas", {})
+                objeto["caras"] = {
+                    nombre: color
+                    for nombre, color in caras.items()
+                    if str(color).upper() != color_fondo
+                }
+                objeto["aristas"] = {
+                    nombre: color
+                    for nombre, color in aristas.items()
+                    if str(color).upper() != color_fondo
+                }
+                restantes.append(objeto)
+                continue
+
+            color_visible = objeto.get("relleno") or objeto.get("color")
+            if color_visible and str(color_visible).upper() == color_fondo:
+                eliminados += 1
+                continue
+
+            restantes.append(objeto)
+
+        self.lienzos[self.lienzo_actual]["objetos"] = restantes
         self.lienzos[self.lienzo_actual]["fondo"] = self.color
         if self._superficie_lienzo is not None:
             self._superficie_lienzo.bgcolor = self.color
@@ -2449,7 +2485,10 @@ class PizarraView:
                 pass
 
         self._redibujar_lienzo()
-        self._mostrar_mensaje("Color de fondo aplicado.")
+        mensaje = "Color de fondo aplicado."
+        if eliminados:
+            mensaje += f" Se eliminaron {eliminados} objeto{'s' if eliminados != 1 else ''} del mismo color."
+        self._mostrar_mensaje(mensaje)
 
     def _mostrar_mensaje(self, mensaje):
         self.page.snack_bar = ft.SnackBar(
