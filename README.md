@@ -1,6 +1,6 @@
 # CODIGO ESCONDIDO 19
 
-## Version actual: 1.0.6
+## Version actual: 1.7
 
 ### Detalle de la actualizacion
 
@@ -10,6 +10,8 @@
 - Guardar, copiar, seleccion multiple y descarga se organizan en una fila de iconos sin desplazamiento lateral.
 - Los libros biblicos ahora se muestran en contenedores uniformes para una lectura mas ordenada.
 - Los capitulos se colorean completos, igual que los libros, sin selector por cifras.
+- Se agregaron niveles de acceso locales y claves iniciales protegidas mediante hash.
+- La exportacion de Guardados en Excel ahora crea una hoja por carpeta, con columnas ajustadas y comparaciones en varias lineas.
 
 ### Cambios anteriores
 

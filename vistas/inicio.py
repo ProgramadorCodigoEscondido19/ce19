@@ -2,8 +2,10 @@ from ui.responsive import Responsive
 from ui.responsive_layout import ResponsiveLayout
 import flet as ft
 from services.codificador_service import CodificadorService
+from services.alfabetos_service import AlfabetosService
 from services.notificacion_service import NotificacionService
 from vistas.componentes import tarjeta_resultado
+from vistas.detalle import mostrar_detalle_comparacion
 from ui.sidebar import AppSidebar
 from ui.compartir import compartir_texto
 from ui.tema import (
@@ -18,6 +20,7 @@ from ui.tema import (
 )
 from ui.teclado import ocultar_teclado
 from ui.tareas import ejecutar_demorado
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from core.app_state import state
 from core.event_bus import bus
 
@@ -265,6 +268,17 @@ class InicioView:
             on_select=self._actualizar_modo_codificacion,
         )
 
+        self.alfabeto_selector = ft.Dropdown(
+            label="Alfabeto",
+            border_radius=18,
+            filled=True,
+            bgcolor="#FCFAFF",
+            border_color="#E7DCEB",
+            focused_border_color="#A44BA8",
+            on_select=self._seleccionar_alfabeto,
+        )
+        self.actualizar_alfabeto(actualizar_pantalla=False)
+
         self.ayuda_modo = ft.Text(
             "Texto normal: Hola → 9 + 18 + 13 + 1",
             size=12,
@@ -284,6 +298,13 @@ class InicioView:
             height=45,
             icon=ft.Icons.CLEAR,
             on_click=self.limpiar_codificador,
+        )
+
+        self.boton_comparar = ft.OutlinedButton(
+            "Comparar",
+            height=45,
+            icon=ft.Icons.COMPARE_ARROWS,
+            on_click=self.abrir_comparacion,
         )
 
         self.mensaje_exito = ft.Text(
@@ -354,10 +375,18 @@ class InicioView:
     def _contenido_principal(self):
         es_movil = self.responsive.is_mobile()
         es_tablet = self.responsive.is_tablet()
+        solo_texto_a_numeros = getattr(self.router, "nivel", 4) == 1
 
         self.titulo.size = 22 if es_movil else 26 if es_tablet else 30
         self.boton.width = None if es_movil else 220 if es_tablet else 250
         self.palabra_input.max_lines = 4 if es_movil else 2
+        self.modo_codificacion.visible = not solo_texto_a_numeros
+        if solo_texto_a_numeros:
+            self.modo_codificacion.value = "texto_a_numeros"
+            self.palabra_input.label = "Ingrese texto"
+            self.palabra_input.hint_text = "Ej: Hola"
+            self.boton.text = "CODIFICAR"
+        self.boton_comparar.visible = self.modo_codificacion.value == "texto_a_numeros"
 
         acciones = ft.Row(
             wrap=True,
@@ -365,6 +394,7 @@ class InicioView:
             run_spacing=8,
             controls=[
                 self.boton,
+                self.boton_comparar,
                 self.boton_limpiar,
             ],
         )
@@ -380,6 +410,7 @@ class InicioView:
                         color=TEXTO_PRINCIPAL,
                     ),
                     self.palabra_input,
+                    self.alfabeto_selector,
                     self.modo_codificacion,
                     self.ayuda_modo,
                     ft.Container(
@@ -470,12 +501,146 @@ class InicioView:
                 "Ej: 29 = z, 9_18_13_1 = Hola."
             )
             self.boton.text = "DECODIFICAR"
+            self.boton_comparar.visible = False
         else:
             self.palabra_input.label = "Ingrese texto"
             self.palabra_input.hint_text = "Ej: Hola"
             self.ayuda_modo.value = "Texto normal: Hola → 9 + 18 + 13 + 1"
             self.boton.text = "CODIFICAR"
+            self.boton_comparar.visible = True
 
+        self.page.update()
+
+    def actualizar_alfabeto(self, actualizar_pantalla=True):
+        alfabetos = AlfabetosService.listar()
+        activo = AlfabetosService.activo_id()
+        self.alfabeto_selector.options = [
+            ft.dropdown.Option(alfabeto["id"], text=alfabeto["nombre"])
+            for alfabeto in alfabetos
+        ]
+        self.alfabeto_selector.value = activo
+        self.codificador_service.seleccionar_alfabeto(activo)
+        self.motor = self.codificador_service.motor
+        if actualizar_pantalla:
+            self.page.update()
+
+    def _seleccionar_alfabeto(self, e=None):
+        self.codificador_service.seleccionar_alfabeto(self.alfabeto_selector.value)
+        self.motor = self.codificador_service.motor
+        self.page.update()
+
+    def abrir_comparacion(self, e=None):
+        texto = (self.palabra_input.value or "").strip()
+        if not texto:
+            self.mensaje_error.value = "Ingrese primero el texto que desea comparar."
+            self.mensaje_error.visible = True
+            self.page.update()
+            return
+
+        alfabetos = AlfabetosService.listar()
+        seleccionados = {alfabeto["id"] for alfabeto in alfabetos}
+        lista = ft.Column(spacing=4)
+
+        def actualizar_estado(identificador, marcado):
+            if marcado:
+                seleccionados.add(identificador)
+            else:
+                seleccionados.discard(identificador)
+
+        for alfabeto in alfabetos:
+            lista.controls.append(
+                ft.Checkbox(
+                    label=alfabeto["nombre"],
+                    value=True,
+                    on_change=lambda ev, ident=alfabeto["id"]: actualizar_estado(
+                        ident, bool(ev.control.value)
+                    ),
+                )
+            )
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        def comparar(ev=None):
+            if len(seleccionados) < 2:
+                self.mensaje_error.value = "Seleccione al menos dos diccionarios para comparar."
+                self.mensaje_error.visible = True
+                cerrar()
+                return
+            resultados = self.codificador_service.comparar_diccionarios(texto, seleccionados)
+            cerrar()
+            self.mostrar_comparacion(resultados)
+
+        dialog = ft.AlertDialog(
+            modal=False,
+            title=ft.Text("Comparar diccionarios"),
+            content=ft.Container(
+                width=360,
+                content=ft.Column(tight=True, spacing=10, controls=[
+                    ft.Text("Seleccione los diccionarios para calcular el mismo texto.", size=12),
+                    lista,
+                ]),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=cerrar),
+                ft.ElevatedButton(
+                    "Comparar",
+                    icon=ft.Icons.COMPARE_ARROWS,
+                    on_click=comparar,
+                ),
+            ],
+        )
+        mostrar_dialogo(self.page, dialog)
+
+    def mostrar_comparacion(self, resultados):
+        if not resultados:
+            self.mensaje_error.value = "No se pudieron comparar los diccionarios seleccionados."
+            self.mensaje_error.visible = True
+            self.page.update()
+            return
+
+        texto = resultados[0].get("palabra", self.palabra_input.value or "")
+        filas_guardadas = [
+            {
+                "alfabeto": resultado.get("alfabeto", "Diccionario"),
+                "suma": resultado.get("suma", ""),
+                "resultado": resultado.get("resultado", ""),
+                "detalle_palabras": resultado.get("detalle_palabras", []),
+            }
+            for resultado in resultados
+        ]
+        registro = {
+            "palabra": texto,
+            "alfabeto": "Comparacion de diccionarios",
+            "suma": "\n".join(
+                f"{fila['alfabeto']}: {fila['suma']}" for fila in filas_guardadas
+            ),
+            "resultado": " | ".join(
+                f"{fila['alfabeto']}: {fila['resultado']}" for fila in filas_guardadas
+            ),
+            "modo_codificacion": "Comparacion de diccionarios",
+            "comparacion": filas_guardadas,
+        }
+        self.ultimo_registro = registro
+        resumen = " | ".join(
+            f"{fila['alfabeto']}: {fila['resultado']}" for fila in filas_guardadas
+        )
+        self.resultado_actual.controls.clear()
+        self.resultado_actual.controls.append(
+            tarjeta_resultado(
+                page=self.page,
+                palabra=texto,
+                alfabeto="Comparacion",
+                suma=registro["suma"],
+                resultado=resumen,
+                texto_boton="Guardar",
+                funcion=lambda e, r=registro: self.confirmar_guardado(r),
+                funcion_compartir=lambda e, r=registro: self.compartir_tarjeta(r),
+                modo_codificacion="Comparacion de diccionarios",
+                mostrar_guardar=getattr(self.router, "nivel", 4) >= 2,
+                funcion_detalle=lambda e, r=registro: mostrar_detalle_comparacion(self.page, r),
+            )
+        )
         self.page.update()
 
     # =====================================================
@@ -484,6 +649,8 @@ class InicioView:
     def codificar(self, e):
         if self.responsive.is_mobile():
             ocultar_teclado(self.page)
+        if getattr(self.router, "nivel", 4) == 1:
+            self.modo_codificacion.value = "texto_a_numeros"
         texto = self.palabra_input.value.strip()
 
         if not texto:
@@ -496,7 +663,7 @@ class InicioView:
 
         try:
             if self.modo_codificacion.value == "numeros_a_texto":
-                datos = self.codificador_service.decodificar_numeros_29(
+                datos = self.codificador_service.decodificar_numeros(
                     self.palabra_input.value
                 )
             else:
@@ -544,6 +711,7 @@ class InicioView:
             funcion=lambda e, r=registro: self.confirmar_guardado(r),
             funcion_compartir=lambda e, r=registro: self.compartir_tarjeta(r),
             modo_codificacion=registro.get("subtipo") or registro.get("modo_codificacion"),
+            mostrar_guardar=getattr(self.router, "nivel", 4) >= 2,
         )
 
         self.resultado_actual.controls.append(tarjeta)

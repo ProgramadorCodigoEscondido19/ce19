@@ -294,6 +294,9 @@ class BibliaView:
         )
         self._normalizar_ultima_lectura()
 
+    def _solo_lectura(self):
+        return getattr(self.router, "nivel", 4) == 1
+
 
 
     def _cargar_ultima_lectura(self):
@@ -1246,6 +1249,10 @@ class BibliaView:
                 spacing=7,
                 padding=ft.Padding(left=0, top=0, right=8, bottom=0),
             )
+            estado_resultados = {
+                "limite": 30,
+                "libros_abiertos": {},
+            }
             conteo_libros = {}
             for resultado in resultados:
                 libro = resultado.get("libro", "")
@@ -1265,41 +1272,114 @@ class BibliaView:
                 cerrar_resultados()
                 self.ir_a_resultado(resultado)
 
-            if vista == "Por libros":
-                for titulo, grupo in self._grupos_resultados_busqueda(resultados):
-                    lista.controls.append(
-                        ft.Container(
-                            padding=ft.Padding(left=4, top=8, right=4, bottom=2),
-                            content=ft.Text(
-                                titulo,
-                                size=12,
-                                weight=ft.FontWeight.BOLD,
-                                color=VIOLETA_ACCENTO,
+            resumen_resultados = ft.Text(
+                size=12,
+                color=TEXTO_SECUNDARIO,
+            )
+
+            def renderizar_resultados():
+                """Muestra resultados por tramos para no sobrecargar la ventana."""
+                limite = min(estado_resultados["limite"], len(resultados))
+                visibles = resultados[:limite]
+                lista.controls.clear()
+
+                if vista == "Por libros":
+                    for titulo, grupo in self._grupos_resultados_busqueda(visibles):
+                        clave_grupo = titulo.rsplit(" (", 1)[0]
+                        abierto = estado_resultados["libros_abiertos"].setdefault(clave_grupo, True)
+                        cuerpo = ft.Container(
+                            visible=abierto,
+                            padding=ft.Padding(left=4, top=2, right=0, bottom=6),
+                            content=ft.Column(
+                                spacing=7,
+                                controls=[
+                                    self._control_resultado_busqueda(
+                                        resultado,
+                                        al_abrir=lambda r=resultado: abrir_resultado(r),
+                                    )
+                                    for resultado in grupo
+                                ],
                             ),
                         )
-                    )
-                    for resultado in grupo:
-                        lista.controls.append(
-                            self._control_resultado_busqueda(
-                                resultado,
-                                al_abrir=lambda r=resultado: abrir_resultado(r),
-                            )
+                        icono = ft.Icon(
+                            ft.Icons.KEYBOARD_ARROW_DOWN if abierto else ft.Icons.KEYBOARD_ARROW_RIGHT,
+                            color=VIOLETA_ACCENTO,
+                            size=20,
                         )
-            else:
-                for resultado in resultados:
-                    lista.controls.append(
+
+                        def alternar_grupo(ev, clave=clave_grupo, contenido=cuerpo, indicador=icono):
+                            nuevo_estado = not estado_resultados["libros_abiertos"].get(clave, True)
+                            estado_resultados["libros_abiertos"][clave] = nuevo_estado
+                            contenido.visible = nuevo_estado
+                            indicador.name = (
+                                ft.Icons.KEYBOARD_ARROW_DOWN
+                                if nuevo_estado
+                                else ft.Icons.KEYBOARD_ARROW_RIGHT
+                            )
+                            lista.update()
+
+                        lista.controls.extend([
+                            ft.GestureDetector(
+                                on_tap=alternar_grupo,
+                                content=ft.Container(
+                                    padding=ft.Padding(left=8, top=8, right=8, bottom=8),
+                                    border_radius=8,
+                                    bgcolor="#F7F0FA",
+                                    content=ft.Row(
+                                        spacing=6,
+                                        controls=[
+                                            icono,
+                                            ft.Text(
+                                                titulo,
+                                                size=12,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=VIOLETA_ACCENTO,
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ),
+                            cuerpo,
+                        ])
+                else:
+                    lista.controls.extend(
                         self._control_resultado_busqueda(
                             resultado,
                             al_abrir=lambda r=resultado: abrir_resultado(r),
                         )
+                        for resultado in visibles
                     )
+
+                resumen_resultados.value = (
+                    f"Mostrando {limite} de {len(resultados)} resultados."
+                )
+                if limite < len(resultados):
+                    lista.controls.append(
+                        ft.Container(
+                            alignment=ft.Alignment(0, 0),
+                            padding=ft.Padding(top=6, bottom=4),
+                            content=ft.OutlinedButton(
+                                "Ver 30 mas",
+                                icon=ft.Icons.ADD,
+                                on_click=lambda ev: cargar_mas(),
+                            ),
+                        )
+                    )
+                if lista.page:
+                    lista.update()
+
+            def cargar_mas():
+                estado_resultados["limite"] += 30
+                renderizar_resultados()
+
+            renderizar_resultados()
 
             contenido = ft.Column(
                 width=ancho,
                 tight=True,
                 spacing=10,
                 controls=[
-                    ft.Text(f"{len(resultados)} resultados encontrados.", size=12, color=TEXTO_SECUNDARIO),
+                    resumen_resultados,
                     ft.Text(
                         f"Libros: {libros_encontrados}",
                         size=11,
@@ -1612,6 +1692,9 @@ class BibliaView:
         self.page.update()
 
     def _barra_resaltado(self):
+        if self._solo_lectura():
+            return ft.Container()
+
         movil = self.responsive.is_mobile()
 
         def accion(icono, ayuda, color, callback):
@@ -1767,6 +1850,8 @@ class BibliaView:
         )
 
     def activar_color_directo(self):
+        if self._solo_lectura():
+            return
         if not self._objetivos_color_activos():
             self._snack("Seleccione primero el libro, capitulo o versiculo que desea colorear.")
             return
@@ -1774,6 +1859,8 @@ class BibliaView:
         self.seleccionar_color(self.color_actual)
 
     def accion_color_contextual(self):
+        if self._solo_lectura():
+            return
         objetivos = self._objetivos_color_activos()
 
         if not objetivos:
@@ -3108,6 +3195,8 @@ class BibliaView:
         self.router.refrescar()
 
     def seleccionar_color(self, nombre):
+        if self._solo_lectura():
+            return
         nombre = self._normalizar_color(nombre)
         self.color_actual = nombre
         objetivos = set(self._objetivos_color_activos())
@@ -3139,6 +3228,8 @@ class BibliaView:
         self.seleccionar_color(self.color_actual)
 
     def _quitar_colores_seleccionados(self, objetivos):
+        if self._solo_lectura():
+            return
         objetivos = set(objetivos)
         for objetivo in objetivos:
             clave, parte, indice = self._parsear_objetivo_color(objetivo)
@@ -4748,6 +4839,9 @@ class BibliaView:
         )
 
     def dialog_guardar_biblia(self):
+        if self._solo_lectura():
+            self._snack("El Nivel 1 permite solo lectura.")
+            return
         datos = self._datos_texto_biblia_actual()
 
         if not datos:

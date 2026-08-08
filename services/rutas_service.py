@@ -65,9 +65,18 @@ class RutasService:
         return ruta in cls.ORDEN_RUTAS
 
     @classmethod
-    def navigation_destinations(cls, icono_inicio=None):
+    def navigation_destinations(cls, icono_inicio=None, rutas_bloqueadas=None):
+        rutas_bloqueadas = set(rutas_bloqueadas or [])
         destinos = []
         for ruta in cls.ORDEN_RUTAS:
+            if ruta in rutas_bloqueadas:
+                destinos.append(
+                    ft.NavigationBarDestination(
+                        icon=ft.Icon(ft.Icons.BLOCK, color=ft.Colors.RED_400),
+                        label=cls.label(ruta),
+                    )
+                )
+                continue
             if ruta == "inicio" and icono_inicio is not None:
                 destinos.append(
                     ft.NavigationBarDestination(

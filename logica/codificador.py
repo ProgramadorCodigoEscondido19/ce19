@@ -17,12 +17,54 @@ def normalizar_letra(letra):
     return normalizar_texto_codificador(letra)
 
 
+def detalle_por_palabras(texto, valores):
+    """Agrupa los valores codificados sin separar la lectura por letras."""
+    palabras = str(texto or "").split()
+    detalle = []
+    indice = 0
+
+    for palabra in palabras:
+        tokens = []
+        mayusculas = palabra.upper()
+        posicion = 0
+        while posicion < len(mayusculas):
+            compuesto = mayusculas[posicion:posicion + 2]
+            if compuesto in ("CH", "LL"):
+                tokens.append(compuesto)
+                posicion += 2
+            elif mayusculas[posicion].isalpha():
+                tokens.append(mayusculas[posicion])
+                posicion += 1
+            else:
+                posicion += 1
+
+        cantidad = len(tokens)
+        valores_palabra = list(valores[indice:indice + cantidad])
+        indice += cantidad
+        detalle.append(
+            {
+                "palabra": palabra,
+                "valores": valores_palabra,
+                "subtotal": sum(valores_palabra),
+            }
+        )
+
+    return detalle
+
+
 class Codificador:
     def __init__(self, alfabeto):
         self.alfabeto = alfabeto
         self.diccionario = {}
 
     def crear_diccionario(self, usar_ch=False, usar_ll=False, **opciones):
+        if isinstance(self.alfabeto, dict):
+            self.diccionario = {
+                normalizar_letra(letra): int(numero)
+                for letra, numero in self.alfabeto.items()
+            }
+            return self.diccionario
+
         usar_enie = bool(
             opciones.get("usar_ñ")
             or opciones.get("usar_enie")
@@ -274,4 +316,5 @@ class Codificador:
             "valores": valores,
             "suma": texto,
             "resultado": suma,
+            "detalle_palabras": detalle_por_palabras(texto_limpio, valores),
         }

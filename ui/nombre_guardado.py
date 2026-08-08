@@ -1,6 +1,7 @@
 import flet as ft
 
 from ui.teclado import ocultar_teclado
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
 
 def _ancho_disponible(page):
@@ -47,8 +48,7 @@ def pedir_nombre_guardado(
     guardando = {"valor": False}
 
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        cerrar_dialogo(page, dialog)
 
     def confirmar(e=None):
         if guardando["valor"]:
@@ -89,9 +89,7 @@ def pedir_nombre_guardado(
         ],
     )
 
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    mostrar_dialogo(page, dialog)
 
 
 def pedir_nombre_y_carpeta_guardado(
@@ -225,8 +223,7 @@ def pedir_nombre_y_carpeta_guardado(
             pass
 
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        cerrar_dialogo(page, dialog)
 
     def confirmar(e=None):
         if guardando["valor"]:
@@ -278,7 +275,5 @@ def pedir_nombre_y_carpeta_guardado(
         ],
     )
 
-    page.overlay.append(dialog)
     renderizar_arbol()
-    dialog.open = True
-    page.update()
+    mostrar_dialogo(page, dialog)

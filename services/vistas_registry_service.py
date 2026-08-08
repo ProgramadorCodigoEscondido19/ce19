@@ -38,6 +38,10 @@ class VistasRegistryService:
             from vistas.guardados import GuardadosView
             return GuardadosView(page, router)
 
+        def crear_ajustes():
+            from vistas.ajustes import AjustesView
+            return AjustesView(page, router)
+
         fabricas = {
             "inicio": crear_inicio,
             "pizarra": crear_pizarra,
@@ -46,6 +50,7 @@ class VistasRegistryService:
             "tiempo": crear_tiempo,
             "calculadora": crear_calculadora,
             "guardados": crear_guardados,
+            "ajustes": crear_ajustes,
         }
 
         for ruta, fabrica in fabricas.items():

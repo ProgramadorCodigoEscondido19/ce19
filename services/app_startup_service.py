@@ -84,7 +84,10 @@ class AppStartupService:
             bgcolor=PERLA_PANEL,
             indicator_color=PERLA_VIOLETA,
             elevation=0,
-            destinations=RutasService.navigation_destinations(icono_inicio=icono_estrella),
+            destinations=RutasService.navigation_destinations(
+                icono_inicio=icono_estrella,
+                rutas_bloqueadas=router.rutas_bloqueadas(),
+            ),
         )
 
     @staticmethod

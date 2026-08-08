@@ -2,6 +2,8 @@
 import flet as ft
 
 from core.error_logger import registrar_error, ruta_log
+from services.app_config_service import AppConfigService
+from services.app_paths import AppPaths
 from services.rutas_service import RutasService
 
 from ui.tema import (
@@ -12,6 +14,7 @@ from ui.tema import (
     NARANJA,
     PERLA_BORDE,
     PERLA_VIOLETA,
+    ROJO,
     SUPERFICIE,
     TEXTO,
     TEXTO_MUTED,
@@ -28,16 +31,48 @@ from ui.tema import (
 
 
 class Router:
-    def __init__(self, page):
+    RUTAS_POR_NIVEL = {
+        1: {"inicio", "biblia"},
+        2: {"inicio", "biblia", "guardados", "calculadora"},
+        3: {"inicio", "biblia", "guardados", "calculadora", "colores"},
+        4: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados", "ajustes"},
+    }
+
+    def __init__(self, page, nivel=4):
         self.page = page
+        self.nivel = max(1, min(4, int(nivel or 4)))
         self.vistas = {}
         self.fabricas_vistas = {}
         self.root = None
+        self.on_cambiar_nivel = None
         self.ruta_actual = None
         self._refrescando = False
         self.menu_lateral_abierto = True
         self.orden_rutas = RutasService.orden()
         self.meta_rutas = {ruta: (RutasService.label(ruta), RutasService.icono(ruta)) for ruta in self.orden_rutas}
+        self.meta_rutas["ajustes"] = ("Ajustes", ft.Icons.SETTINGS)
+
+    def puede_acceder(self, ruta):
+        return ruta in self.RUTAS_POR_NIVEL.get(self.nivel, self.RUTAS_POR_NIVEL[4])
+
+    def rutas_bloqueadas(self):
+        return [ruta for ruta in self.orden_rutas if not self.puede_acceder(ruta)]
+
+    def cambiar_nivel(self, e=None):
+        if callable(self.on_cambiar_nivel):
+            self.on_cambiar_nivel()
+
+    def _avisar_bloqueo(self, ruta):
+        self.page.snack_bar = ft.SnackBar(
+            content=ft.Text(f"{RutasService.label(ruta)} requiere un nivel superior."),
+            behavior=ft.SnackBarBehavior.FLOATING,
+            show_close_icon=True,
+        )
+        self.page.snack_bar.open = True
+        try:
+            self.page.update()
+        except (RuntimeError, AssertionError):
+            pass
 
     def registrar(self, nombre, vista):
         self.vistas[nombre] = vista
@@ -78,6 +113,12 @@ class Router:
         self.cargar_vista(ruta)
 
     def navegar(self, ruta):
+        if not self.puede_acceder(ruta):
+            if self.page.navigation_bar and self.ruta_actual in self.orden_rutas:
+                self.page.navigation_bar.selected_index = self.orden_rutas.index(self.ruta_actual)
+            self._avisar_bloqueo(ruta)
+            return
+
         ruta_anterior = self.ruta_actual
         self.ruta_actual = ruta
 
@@ -193,6 +234,8 @@ class Router:
         self._actualizar_barra_inferior()
 
         es_movil = self._es_movil()
+        preferencias = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
+        mostrar_fondo = preferencias.get("fondo_decorativo", True) if isinstance(preferencias, dict) else True
         padding = 4 if es_movil else 10
         bottom_padding = 6 if es_movil else 10
         contenido_responsivo = contenido
@@ -218,6 +261,44 @@ class Router:
                 ],
             )
 
+        acciones_contextuales = []
+        if callable(self.on_cambiar_nivel):
+            acciones_contextuales.append(
+                ft.IconButton(
+                    icon=ft.Icons.ARROW_BACK,
+                    tooltip="Cambiar de nivel",
+                    icon_color=VIOLETA_IOS,
+                    on_click=self.cambiar_nivel,
+                )
+            )
+        if self.nivel == 4:
+            if acciones_contextuales:
+                acciones_contextuales.append(
+                    ft.Container(width=1, height=22, bgcolor=opacidad(0.7, PERLA_BORDE))
+                )
+            acciones_contextuales.append(
+                ft.IconButton(
+                    icon=ft.Icons.SETTINGS,
+                    tooltip="Ajustes",
+                    icon_color=VIOLETA_IOS,
+                    on_click=lambda e: self.navegar("ajustes"),
+                )
+            )
+
+        controles_flotantes = []
+        if acciones_contextuales:
+            controles_flotantes.append(
+                ft.Container(
+                    bottom=74 if es_movil else 16,
+                    right=12,
+                    bgcolor=opacidad(0.94, BLANCO),
+                    border=ft.Border.all(1, opacidad(0.72, PERLA_BORDE)),
+                    border_radius=14,
+                    shadow=sombra_suave(0.07, 12, 0, 3),
+                    content=ft.Row(tight=True, spacing=2, controls=acciones_contextuales),
+                )
+            )
+
         return ft.Container(
             expand=True,
             content=ft.Stack(
@@ -226,10 +307,12 @@ class Router:
                     ft.Container(
                         expand=True,
                         on_click=self._deseleccionar_vista_actual,
-                        image=ft.DecorationImage(
-                            src=FONDO_APP_IMAGEN,
-                            fit=ft.BoxFit.COVER,
+                        image=(
+                            ft.DecorationImage(src=FONDO_APP_IMAGEN, fit=ft.BoxFit.COVER)
+                            if mostrar_fondo
+                            else None
                         ),
+                        bgcolor=FONDO_APP,
                     ),
 
                     # Capa mínima para que el fondo sea fuerte,
@@ -254,6 +337,7 @@ class Router:
                             content=contenido_responsivo,
                         ),
                     ),
+                    *controles_flotantes,
                 ],
             ),
         )
@@ -301,6 +385,13 @@ class Router:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
                         self._encabezado_menu(compacto),
+                        ft.Text(
+                            f"Nivel {self.nivel}",
+                            size=11,
+                            color=VIOLETA_IOS,
+                            weight=ft.FontWeight.BOLD,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
                         ft.Divider(height=8, color=opacidad(0.65, PERLA_BORDE)),
                         ft.Column(spacing=4, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_rutas]),
                         ft.Container(expand=True),
@@ -343,6 +434,7 @@ class Router:
 
     def _item_menu(self, ruta, compacto=False):
         label, icono = self.meta_rutas[ruta]
+        bloqueado = not self.puede_acceder(ruta)
         seleccionado = ruta == self.ruta_actual
         fondo = PERLA_VIOLETA if seleccionado else ft.Colors.TRANSPARENT
         borde = opacidad(0.95, PERLA_BORDE) if seleccionado else ft.Colors.TRANSPARENT
@@ -360,8 +452,18 @@ class Router:
                 alignment=ft.MainAxisAlignment.CENTER if compacto else ft.MainAxisAlignment.START,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Icon(icono, size=20, color=VIOLETA_IOS if seleccionado else TEXTO_MUTED),
-                    ft.Text(label, visible=not compacto, size=13, weight=ft.FontWeight.BOLD if seleccionado else ft.FontWeight.NORMAL, color=VIOLETA_IOS if seleccionado else TEXTO),
+                    ft.Icon(
+                        ft.Icons.BLOCK if bloqueado else icono,
+                        size=20,
+                        color=ROJO if bloqueado else (VIOLETA_IOS if seleccionado else TEXTO_MUTED),
+                    ),
+                    ft.Text(
+                        label,
+                        visible=not compacto,
+                        size=13,
+                        weight=ft.FontWeight.BOLD if seleccionado else ft.FontWeight.NORMAL,
+                        color=ROJO if bloqueado else (VIOLETA_IOS if seleccionado else TEXTO),
+                    ),
                 ],
             ),
         )

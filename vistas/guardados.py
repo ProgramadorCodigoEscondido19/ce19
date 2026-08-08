@@ -5,12 +5,13 @@ import math
 import os
 import time
 from pathlib import Path
-from vistas.detalle import mostrar_detalle
+from vistas.detalle import mostrar_detalle, mostrar_detalle_comparacion
 from core.app_state import state
 from core.rutas import ruta_exportacion
 from services.mantenimiento_service import MantenimientoService
 
 from logica.exportar_excel import exportar_guardados_xlsx
+from logica.exportar_documentos import exportar_guardados_docx, exportar_guardados_pdf
 from logica.pizarra_imagen import renderizar_lienzo_exportable_base64
 from logica.tarjeta_biblica import datos_tarjeta_versiculo
 from ui.clipboard import copiar_al_portapapeles
@@ -170,9 +171,12 @@ class GuardadosView:
             tooltip="Seleccion multiple",
             on_click=self.toggle_modo_seleccion_multiple,
         )
-        self.boton_exportar_excel = ft.IconButton(
-            icon=ft.Icons.TABLE_CHART,
-            tooltip="Exportar Excel",
+        # Esta accion es intencionalmente textual: exportar no debe quedar
+        # escondido como un icono mas dentro de Guardados.
+        self.boton_exportar_excel = ft.OutlinedButton(
+            "Exportar",
+            icon=ft.Icons.FILE_DOWNLOAD,
+            tooltip="Exportar Excel, Word o PDF",
             on_click=self.dialog_exportar_excel,
         )
         self.boton_compartir_txt_filtrado = ft.IconButton(
@@ -827,6 +831,7 @@ class GuardadosView:
                 controls=[
                     buscador,
                     self.acciones_explorador,
+                    self.boton_exportar_excel,
                 ],
             )
         else:
@@ -837,6 +842,7 @@ class GuardadosView:
                 controls=[
                     ft.Container(width=420, content=buscador),
                     self.acciones_explorador,
+                    self.boton_exportar_excel,
                 ],
             )
 
@@ -1077,6 +1083,15 @@ class GuardadosView:
             scroll=ft.ScrollMode.AUTO,
             spacing=2,
         )
+        formato = ft.Dropdown(
+            label="Formato",
+            value="xlsx",
+            options=[
+                ft.dropdown.Option("xlsx", text="Excel (.xlsx)"),
+                ft.dropdown.Option("docx", text="Word (.docx)"),
+                ft.dropdown.Option("pdf", text="PDF (.pdf)"),
+            ],
+        )
 
         def cerrar(e=None):
             dialog.open = False
@@ -1191,16 +1206,26 @@ class GuardadosView:
                 self.page.update()
                 return
 
-            archivo = exportar_guardados_xlsx(registros)
+            if formato.value == "docx":
+                archivo = exportar_guardados_docx(registros)
+            elif formato.value == "pdf":
+                archivo = exportar_guardados_pdf(registros)
+            else:
+                nombres_carpetas = [
+                    carpeta["nombre"]
+                    for carpeta in self.carpetas.obtener()
+                    if carpeta["id"] in seleccionadas
+                ]
+                archivo = exportar_guardados_xlsx(registros, carpetas=nombres_carpetas)
             cerrar()
-            self.descargar_excel(archivo)
+            self.descargar_documento(archivo, formato.value)
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Exportar Excel"),
+            title=ft.Text("Exportar registros"),
             content=ft.Container(
                 width=420,
                 height=420,
-                content=lista,
+                content=ft.Column(controls=[formato, ft.Container(expand=True, content=lista)]),
             ),
             actions=[
                 ft.TextButton("Todas", on_click=marcar_todas),
@@ -1410,28 +1435,33 @@ class GuardadosView:
         return self.file_picker_excel
 
     def descargar_excel(self, archivo):
+        self.descargar_documento(archivo, "xlsx")
+
+    def descargar_documento(self, archivo, formato):
         if hasattr(self.page, "run_task"):
-            self.page.run_task(self._descargar_excel_async, archivo)
+            self.page.run_task(self._descargar_documento_async, archivo, formato)
             return
 
         compartir_archivo(
             self.page,
             archivo,
             "Guardados exportados",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/octet-stream",
         )
 
-    async def _descargar_excel_async(self, archivo):
+    async def _descargar_documento_async(self, archivo, formato):
         ruta = Path(archivo)
         datos = ruta.read_bytes()
         picker = self._obtener_file_picker_excel()
+        extensiones = {"xlsx": ["xlsx"], "docx": ["docx"], "pdf": ["pdf"]}
+        nombres = {"xlsx": "Excel", "docx": "Word", "pdf": "PDF"}
 
         try:
             destino = await picker.save_file(
-                dialog_title="Descargar Excel",
+                dialog_title=f"Descargar {nombres.get(formato, 'archivo')}",
                 file_name=ruta.name,
                 file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["xlsx"],
+                allowed_extensions=extensiones.get(formato, [formato]),
                 src_bytes=datos,
             )
         except Exception:
@@ -1444,8 +1474,9 @@ class GuardadosView:
             if not es_movil:
                 destino_path = Path(destino)
 
-                if destino_path.suffix.lower() != ".xlsx":
-                    destino_path = destino_path.with_suffix(".xlsx")
+                extension = "." + formato
+                if destino_path.suffix.lower() != extension:
+                    destino_path = destino_path.with_suffix(extension)
 
                 try:
                     destino_path.write_bytes(datos)
@@ -1455,7 +1486,7 @@ class GuardadosView:
 
             if destino:
                 self.page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Excel descargado: {destino}")
+                    content=ft.Text(f"{nombres.get(formato, 'Archivo')} descargado: {destino}")
                 )
                 self.page.snack_bar.open = True
                 self.page.update()
@@ -5261,6 +5292,10 @@ class GuardadosView:
     def abrir_detalle(self, registro):
         if registro.get("subtipo") == "tarjeta_versiculo":
             self._abrir_detalle_tarjeta_versiculo(registro)
+            return
+
+        if registro.get("comparacion"):
+            mostrar_detalle_comparacion(self.page, registro)
             return
 
         if registro.get("tipo", "tarjeta") == "tarjeta":

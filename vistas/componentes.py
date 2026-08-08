@@ -15,10 +15,15 @@ def tarjeta_resultado(
     funcion,
     funcion_compartir=None,
     modo_codificacion=None,
+    mostrar_guardar=True,
+    funcion_detalle=None,
 ):
     """Muestra una sola tarjeta compacta con las acciones del codificador."""
 
     def ver_detalle(e):
+        if callable(funcion_detalle):
+            funcion_detalle(e)
+            return
         mostrar_detalle(
             page=page,
             palabra=palabra,
@@ -100,7 +105,8 @@ def tarjeta_resultado(
     acciones = [accion("Detalle", ft.Icons.VISIBILITY, ver_detalle)]
     if funcion_compartir:
         acciones.append(accion("Compartir", ft.Icons.SHARE, funcion_compartir))
-    acciones.append(accion(texto_boton, ft.Icons.SAVE, funcion, principal=True))
+    if mostrar_guardar and callable(funcion):
+        acciones.append(accion(texto_boton, ft.Icons.SAVE, funcion, principal=True))
 
     if es_movil and len(acciones) == 3:
         acciones_control = ft.Column(

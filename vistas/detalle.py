@@ -4,6 +4,7 @@ import flet as ft
 
 from ui.clipboard import copiar_al_portapapeles
 from ui.tareas import ejecutar_demorado
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
 try:
     from ui.tema import (
@@ -214,23 +215,7 @@ def mostrar_detalle(
         ejecutar_demorado(page, 1.4, restaurar)
 
     def cerrar(e=None):
-        # Flet 0.85 administra los diálogos en una pila propia. Usar la API
-        # nativa evita que Android conserve la capa modal tras tocar Cerrar.
-        try:
-            page.pop_dialog()
-            return
-        except Exception:
-            pass
-
-        try:
-            dialog.open = False
-        except Exception:
-            pass
-
-        try:
-            page.update()
-        except Exception:
-            pass
+        cerrar_dialogo(page, dialog)
 
     boton_copiar = ft.IconButton(
         icon=ft.Icons.CONTENT_COPY,
@@ -287,10 +272,70 @@ def mostrar_detalle(
         ],
     )
 
-    try:
-        page.show_dialog(dialog)
-    except Exception:
-        # Compatibilidad con instalaciones de Flet anteriores.
-        page.overlay.append(dialog)
-        dialog.open = True
-        page.update()
+    mostrar_dialogo(page, dialog)
+
+
+def mostrar_detalle_comparacion(page: ft.Page, registro: dict):
+    """Muestra una tarjeta guardada con una sola fila por diccionario."""
+    comparacion = registro.get("comparacion") or []
+    ancho_page = getattr(page, "width", None)
+    if ancho_page is None and hasattr(page, "window"):
+        ancho_page = getattr(page.window, "width", None)
+    es_movil = (ancho_page or 1200) < 700
+
+    def cerrar(e=None):
+        cerrar_dialogo(page, dialog)
+
+    filas = ft.Column(spacing=7, scroll=ft.ScrollMode.AUTO)
+    for fila in comparacion:
+        detalle_texto = []
+        for detalle in fila.get("detalle_palabras", []):
+            valores = " + ".join(str(valor) for valor in detalle.get("valores", []))
+            detalle_texto.append(
+                f"{detalle.get('palabra', '')} ({valores} = {detalle.get('subtotal', 0)})"
+            )
+        filas.controls.append(
+            ft.Container(
+                padding=10,
+                border_radius=10,
+                bgcolor="#FFFFFF",
+                border=ft.Border.all(1, "#E4D8E8"),
+                content=ft.Column(
+                    tight=True,
+                    spacing=3,
+                    controls=[
+                        ft.Text(
+                            str(fila.get("alfabeto", "Diccionario")),
+                            weight=ft.FontWeight.BOLD,
+                            color="#6E2A8A",
+                        ),
+                        ft.Text(
+                            "  ".join(detalle_texto) or "Sin caracteres compatibles.",
+                            selectable=True,
+                        ),
+                        ft.Text(
+                            f"Resultado: {fila.get('resultado', '')}",
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    ],
+                ),
+            )
+        )
+
+    dialog = ft.AlertDialog(
+        modal=False,
+        title=ft.Text("Comparacion de diccionarios"),
+        content=ft.Container(
+            width=min(680, max(280, (ancho_page or 680) - 44)),
+            height=340 if es_movil else 430,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Text(f"Texto: {registro.get('palabra', '')}", selectable=True),
+                    ft.Container(expand=True, content=filas),
+                ],
+            ),
+        ),
+        actions=[ft.TextButton("Cerrar", on_click=cerrar)],
+    )
+    mostrar_dialogo(page, dialog)
