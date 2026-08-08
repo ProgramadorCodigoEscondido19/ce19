@@ -79,7 +79,7 @@ def _tokens_palabra(texto):
             tokens.append(par)
             i += 2
             continue
-        if palabra[i].isalpha():
+        if palabra[i].isalpha() or palabra[i].isdigit():
             tokens.append(palabra[i])
         i += 1
     return tokens

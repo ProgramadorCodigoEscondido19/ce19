@@ -32,7 +32,7 @@ def detalle_por_palabras(texto, valores):
             if compuesto in ("CH", "LL"):
                 tokens.append(compuesto)
                 posicion += 2
-            elif mayusculas[posicion].isalpha():
+            elif mayusculas[posicion].isalpha() or mayusculas[posicion].isdigit():
                 tokens.append(mayusculas[posicion])
                 posicion += 1
             else:
@@ -271,7 +271,7 @@ class Codificador:
         texto_limpio = "".join(
             caracter
             for caracter in palabra_limpia
-            if caracter.isalpha() or caracter.isspace()
+            if caracter.isalpha() or caracter.isdigit() or caracter.isspace()
         )
         texto_limpio = " ".join(texto_limpio.split())
         valores = []
@@ -298,6 +298,15 @@ class Codificador:
                 continue
 
             letra = palabra_limpia[i]
+
+            # Los numeros escritos junto al texto se conservan como digitos
+            # literales. Por ejemplo, 19 aporta 1 + 9; no se decodifica como
+            # una letra del alfabeto ni se interpreta como el valor diecinueve.
+            if letra.isdigit():
+                valores.append(int(letra))
+                letras.append(letra)
+                i += 1
+                continue
 
             if letra in self.diccionario:
                 valores.append(self.diccionario[letra])

@@ -87,7 +87,7 @@ def limpiar_texto(texto):
         for caracter in unicodedata.normalize("NFD", texto)
         if unicodedata.category(caracter) != "Mn"
     )
-    texto = re.sub(r"[^A-Z\s_]", " ", texto)
+    texto = re.sub(r"[^A-Z0-9\s_]", " ", texto)
     texto = texto.replace("__ENIE__", "Ñ")
     return re.sub(r"\s+", " ", texto).strip()
 
@@ -110,6 +110,13 @@ def tokenizar(texto):
             continue
 
         letra = limpio[i]
+
+        if letra.isdigit():
+            # Cada digito se analiza como un valor literal. Asi 19 se muestra
+            # y suma como 1 + 9, sin convertirse en una letra del alfabeto.
+            tokens.append(letra)
+            i += 1
+            continue
 
         if letra in VALORES:
             tokens.append(letra)
@@ -142,9 +149,10 @@ def analizar_colores(texto):
     detalle = []
 
     for letra in letras:
-        valor = VALORES[letra]
+        es_numero = letra.isdigit()
+        valor = int(letra) if es_numero else VALORES[letra]
         reducido = reducir_numero(valor)
-        color = COLORES[reducido]
+        color = DIGITO_COLORES[reducido]
         detalle.append(
             {
                 "letra": letra,
@@ -157,8 +165,8 @@ def analizar_colores(texto):
 
     conteo = Counter(item["color"] for item in detalle)
     conteo_ordenado = {
-        COLORES[numero]["nombre"]: conteo.get(COLORES[numero]["nombre"], 0)
-        for numero in COLORES
+        DIGITO_COLORES[numero]["nombre"]: conteo.get(DIGITO_COLORES[numero]["nombre"], 0)
+        for numero in DIGITO_COLORES
     }
 
     positivos = {
@@ -201,7 +209,8 @@ def analizar_codigo_visual(texto):
     total_codigo = 0
 
     for letra in letras:
-        valor = VALORES[letra]
+        es_numero = letra.isdigit()
+        valor = int(letra) if es_numero else VALORES[letra]
         reducido = reducir_numero(valor)
         digitos = [int(digito) for digito in str(valor)]
         color = DIGITO_COLORES[reducido]
