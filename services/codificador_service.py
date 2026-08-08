@@ -15,6 +15,13 @@ class CodificadorService:
         self.nombre_alfabeto = alfabeto["nombre"]
         return alfabeto
 
+    def usar_alfabeto_temporal(self, identificador):
+        """Carga un alfabeto sin cambiar la preferencia guardada del usuario."""
+        alfabeto = AlfabetosService.obtener(identificador)
+        self.motor = Codificador(alfabeto["valores"])
+        self.nombre_alfabeto = alfabeto["nombre"]
+        return alfabeto
+
     def codificar(self, texto, usar_ch=True, usar_ll=True, usar_enie=True, **opciones):
         for clave in ("usar_\u00f1", "usar_enie", "usar_\u00d1"):
             if clave in opciones:

@@ -33,9 +33,26 @@ from ui.tema import (
 class Router:
     RUTAS_POR_NIVEL = {
         1: {"inicio", "biblia"},
-        2: {"inicio", "biblia", "guardados", "calculadora"},
-        3: {"inicio", "biblia", "guardados", "calculadora", "colores"},
+        2: {"inicio", "biblia", "guardados", "calculadora", "tiempo"},
+        3: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados"},
         4: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados", "ajustes"},
+    }
+
+    # Las vistas consultan estas capacidades para proteger sus acciones, no solo
+    # para ocultar botones del menu.
+    CAPACIDADES_POR_NIVEL = {
+        "inicio_diccionarios": 4,
+        "inicio_comparar": 4,
+        "biblia_buscar": 2,
+        "biblia_editar": 3,
+        "biblia_color": 3,
+        "biblia_marcas": 3,
+        "biblia_cordero": 3,
+        "biblia_diccionario_hebreo": 4,
+        "biblia_aleatorio": 3,
+        "tiempo_consultar": 3,
+        "tiempo_guardar": 3,
+        "calculadora_suma_biblia": 3,
     }
 
     def __init__(self, page, nivel=4):
@@ -54,6 +71,10 @@ class Router:
 
     def puede_acceder(self, ruta):
         return ruta in self.RUTAS_POR_NIVEL.get(self.nivel, self.RUTAS_POR_NIVEL[4])
+
+    def tiene_capacidad(self, capacidad):
+        nivel_requerido = self.CAPACIDADES_POR_NIVEL.get(capacidad, 4)
+        return self.nivel >= nivel_requerido
 
     def rutas_bloqueadas(self):
         return [ruta for ruta in self.orden_rutas if not self.puede_acceder(ruta)]

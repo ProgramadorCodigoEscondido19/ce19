@@ -101,6 +101,10 @@ class CalculadoraView:
     def _on_resize(self, e):
         self.router.refrescar()
 
+    def _puede_sumar_biblia(self):
+        comprobar = getattr(self.router, "tiene_capacidad", None)
+        return bool(comprobar("calculadora_suma_biblia")) if callable(comprobar) else True
+
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
         self.page.on_keyboard_event = self._teclado_fisico
@@ -135,12 +139,12 @@ class CalculadoraView:
                 self._teclado(),
             ],
         )
-        sumador = self._sumador_biblico()
+        sumador = self._sumador_biblico() if self._puede_sumar_biblia() else None
         cuerpo = (
             ft.Column(
                 scroll=ft.ScrollMode.AUTO,
                 spacing=14,
-                controls=[calculadora, sumador],
+                controls=[calculadora] + ([sumador] if sumador else []),
             )
             if es_movil
             else ft.Row(
@@ -148,8 +152,7 @@ class CalculadoraView:
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=[
                     ft.Container(width=430, content=calculadora),
-                    ft.Container(expand=True, content=sumador),
-                ],
+                ] + ([ft.Container(expand=True, content=sumador)] if sumador else []),
             )
         )
 
@@ -354,6 +357,8 @@ class CalculadoraView:
             self._actualizar_control(control)
 
     def _calcular_suma_biblica(self, e=None):
+        if not self._puede_sumar_biblia():
+            return
         modo = self.modo_suma_biblia.value or "Versiculos"
 
         try:
@@ -394,6 +399,8 @@ class CalculadoraView:
         self._actualizar_control(self.boton_guardar_suma)
 
     def _guardar_suma_biblica(self, e=None):
+        if not self._puede_sumar_biblia():
+            return
         if not self.ultimo_resultado_suma:
             self._snack("Primero calcule una suma.")
             return

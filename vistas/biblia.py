@@ -297,6 +297,10 @@ class BibliaView:
     def _solo_lectura(self):
         return getattr(self.router, "nivel", 4) == 1
 
+    def _puede(self, capacidad):
+        comprobar = getattr(self.router, "tiene_capacidad", None)
+        return bool(comprobar(capacidad)) if callable(comprobar) else True
+
 
 
     def _cargar_ultima_lectura(self):
@@ -691,9 +695,38 @@ class BibliaView:
 
     def _contenido(self):
         lectura = self._panel_lectura()
-        busqueda = self._panel_busqueda()
+        puede_buscar = self._puede("biblia_buscar")
+        puede_azar = self._puede("biblia_aleatorio")
+        busqueda = self._panel_busqueda() if puede_buscar else None
 
         if not self.responsive.is_desktop():
+            if self.seccion_movil == "buscar" and not puede_buscar:
+                self.seccion_movil = "lectura"
+            if self.seccion_movil == "azar" and not puede_azar:
+                self.seccion_movil = "lectura"
+            secciones = [
+                ft.ElevatedButton(
+                    "Lectura",
+                    bgcolor=(PERLA_VIOLETA if self.seccion_movil == "lectura" else None),
+                    on_click=lambda e: self.cambiar_seccion_movil("lectura"),
+                )
+            ]
+            if puede_buscar:
+                secciones.append(
+                    ft.ElevatedButton(
+                        "Buscar",
+                        bgcolor=(PERLA_VIOLETA if self.seccion_movil == "buscar" else None),
+                        on_click=lambda e: self.cambiar_seccion_movil("buscar"),
+                    )
+                )
+            if puede_azar:
+                secciones.append(
+                    ft.ElevatedButton(
+                        "Aleatorio",
+                        bgcolor=(PERLA_VIOLETA if self.seccion_movil == "azar" else None),
+                        on_click=lambda e: self.cambiar_seccion_movil("azar"),
+                    )
+                )
             return ft.Column(
                 expand=True,
                 spacing=8,
@@ -702,23 +735,7 @@ class BibliaView:
                         wrap=True,
                         spacing=6,
                         run_spacing=6,
-                        controls=[
-                            ft.ElevatedButton(
-                                "Lectura",
-                                bgcolor=(PERLA_VIOLETA if self.seccion_movil == "lectura" else None),
-                                on_click=lambda e: self.cambiar_seccion_movil("lectura"),
-                            ),
-                            ft.ElevatedButton(
-                                "Buscar",
-                                bgcolor=(PERLA_VIOLETA if self.seccion_movil == "buscar" else None),
-                                on_click=lambda e: self.cambiar_seccion_movil("buscar"),
-                            ),
-                            ft.ElevatedButton(
-                                "Aleatorio",
-                                bgcolor=(PERLA_VIOLETA if self.seccion_movil == "azar" else None),
-                                on_click=lambda e: self.cambiar_seccion_movil("azar"),
-                            ),
-                        ],
+                        controls=secciones,
                     ),
                     ft.Container(
                         expand=True,
@@ -748,11 +765,9 @@ class BibliaView:
                         expand=True,
                         spacing=14,
                         scroll=ft.ScrollMode.AUTO,
-                        controls=[
-                            self._panel_ir_a_referencia(),
-                            busqueda,
-                            self._panel_versiculo_random(),
-                        ],
+                        controls=[self._panel_ir_a_referencia()]
+                        + ([busqueda] if puede_buscar else [])
+                        + ([self._panel_versiculo_random()] if puede_azar else []),
                     ),
                 ),
             ],
@@ -1173,6 +1188,9 @@ class BibliaView:
         Evitar mutar controles dentro de un AlertDialog abierto previene que Flet
         conserve una superficie vacia de ListView antes de una busqueda.
         """
+        if not self._puede("biblia_buscar"):
+            self._snack("La busqueda requiere el Nivel 2.")
+            return
         ancho = 350 if self.responsive.is_mobile() else 560
         campo = ft.TextField(
             label="Buscar en toda la Biblia",
@@ -1469,6 +1487,9 @@ class BibliaView:
         self.page.update()
 
     def dialog_palabras_cordero(self, e=None):
+        if not self._puede("biblia_cordero"):
+            self._snack("Las palabras del Cordero requieren el Nivel 3.")
+            return
         resultados = self._versiculos_palabras_cordero()
         libros_disponibles = []
 
@@ -1696,6 +1717,10 @@ class BibliaView:
             return ft.Container()
 
         movil = self.responsive.is_mobile()
+        puede_color = self._puede("biblia_color")
+        puede_marcas = self._puede("biblia_marcas")
+        puede_cordero = self._puede("biblia_cordero")
+        puede_diccionario = self._puede("biblia_diccionario_hebreo")
 
         def accion(icono, ayuda, color, callback):
             return ft.IconButton(
@@ -1720,37 +1745,21 @@ class BibliaView:
             ]
 
         def crear_menu_extra():
+            items = [
+                ft.PopupMenuItem(content="Compartir", icon=ft.Icons.SHARE, on_click=lambda e: self.dialog_compartir_biblia()),
+                ft.PopupMenuItem(content="Descargar Biblia codificada", icon=ft.Icons.DOWNLOAD, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
+            ]
+            if puede_diccionario:
+                items.append(ft.PopupMenuItem(content="Diccionario hebreo", icon=ft.Icons.MENU_BOOK, on_click=lambda e: self.dialog_diccionario_hebreo()))
+            if puede_cordero:
+                items.append(ft.PopupMenuItem(content="Palabras del Cordero", icon=ft.Icons.RECORD_VOICE_OVER, on_click=lambda e: self.dialog_palabras_cordero()))
+            if puede_marcas:
+                items.append(ft.PopupMenuItem(content="Ver marcados por color", icon=ft.Icons.FILTER_ALT, on_click=lambda e: self.dialog_versiculos_por_color()))
             return ft.PopupMenuButton(
                 icon=ft.Icons.MORE_VERT,
                 icon_color=TEXTO_SECUNDARIO,
                 tooltip="Mas acciones",
-                items=[
-                    ft.PopupMenuItem(
-                        content="Compartir",
-                        icon=ft.Icons.SHARE,
-                        on_click=lambda e: self.dialog_compartir_biblia(),
-                    ),
-                    ft.PopupMenuItem(
-                        content="Descargar Biblia codificada",
-                        icon=ft.Icons.DOWNLOAD,
-                        on_click=lambda e: self.dialog_exportar_biblia_codificada(),
-                    ),
-                    ft.PopupMenuItem(
-                        content="Diccionario hebreo",
-                        icon=ft.Icons.MENU_BOOK,
-                        on_click=lambda e: self.dialog_diccionario_hebreo(),
-                    ),
-                    ft.PopupMenuItem(
-                        content="Palabras del Cordero",
-                        icon=ft.Icons.RECORD_VOICE_OVER,
-                        on_click=lambda e: self.dialog_palabras_cordero(),
-                    ),
-                    ft.PopupMenuItem(
-                        content="Ver marcados por color",
-                        icon=ft.Icons.FILTER_ALT,
-                        on_click=lambda e: self.dialog_versiculos_por_color(),
-                    ),
-                ],
+                items=items,
             )
 
         color_hex = self._hex_color(self.color_actual, ft.Colors.WHITE)
@@ -1789,7 +1798,7 @@ class BibliaView:
                 indicador_color,
                 boton_color,
                 contador_color,
-            ],
+            ] if puede_color else [],
         )
 
         if movil:
@@ -1818,23 +1827,21 @@ class BibliaView:
                 content=ft.Column(
                     tight=True,
                     spacing=5,
-                    controls=[
-                        encabezado,
-                        ft.Row(
-                            tight=True,
-                            spacing=2,
-                            controls=acciones_movil,
-                        ),
+                    controls=([encabezado] if puede_color else []) + [
+                        ft.Row(tight=True, spacing=2, controls=acciones_movil),
                     ],
                 ),
             )
 
         acciones = crear_acciones_principales() + [
             accion(ft.Icons.DOWNLOAD, "Descargar Biblia codificada (PDF/TXT)", VIOLETA_ACCENTO, self.dialog_exportar_biblia_codificada),
-            accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", VIOLETA_ACCENTO, self.dialog_diccionario_hebreo),
-            accion(ft.Icons.RECORD_VOICE_OVER, "Ver palabras del Cordero", COLOR_PALABRAS_CORDERO, self.dialog_palabras_cordero),
-            accion(ft.Icons.FILTER_ALT, "Ver marcados por color", VERDE_ACCENTO, self.dialog_versiculos_por_color),
         ]
+        if puede_diccionario:
+            acciones.append(accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", VIOLETA_ACCENTO, self.dialog_diccionario_hebreo))
+        if puede_cordero:
+            acciones.append(accion(ft.Icons.RECORD_VOICE_OVER, "Ver palabras del Cordero", COLOR_PALABRAS_CORDERO, self.dialog_palabras_cordero))
+        if puede_marcas:
+            acciones.append(accion(ft.Icons.FILTER_ALT, "Ver marcados por color", VERDE_ACCENTO, self.dialog_versiculos_por_color))
         return ft.Container(
             padding=ft.Padding(left=12, top=10, right=12, bottom=10),
             bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.WHITE),
@@ -1845,12 +1852,12 @@ class BibliaView:
                 spacing=8,
                 run_spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[encabezado] + acciones,
+                controls=([encabezado] if puede_color else []) + acciones,
             ),
         )
 
     def activar_color_directo(self):
-        if self._solo_lectura():
+        if self._solo_lectura() or not self._puede("biblia_color"):
             return
         if not self._objetivos_color_activos():
             self._snack("Seleccione primero el libro, capitulo o versiculo que desea colorear.")
@@ -1859,7 +1866,7 @@ class BibliaView:
         self.seleccionar_color(self.color_actual)
 
     def accion_color_contextual(self):
-        if self._solo_lectura():
+        if self._solo_lectura() or not self._puede("biblia_color"):
             return
         objetivos = self._objetivos_color_activos()
 
@@ -2558,7 +2565,12 @@ class BibliaView:
         spans = []
         tiene_palabras_diccionario = False
 
-        for fragmento, entrada, inicio, _fin in fragmentos_con_diccionario(texto):
+        fragmentos = (
+            fragmentos_con_diccionario(texto)
+            if self._puede("biblia_diccionario_hebreo")
+            else [(texto, None, 0, len(texto))]
+        )
+        for fragmento, entrada, inicio, _fin in fragmentos:
             es_palabra_cordero = inicio_rojo is not None and inicio >= inicio_rojo
             color_fragmento = COLOR_PALABRAS_CORDERO if es_palabra_cordero else color_base
 
@@ -2707,6 +2719,9 @@ class BibliaView:
         )
 
     def dialog_diccionario_hebreo(self, e=None):
+        if not self._puede("biblia_diccionario_hebreo"):
+            self._snack("El diccionario hebreo requiere el Nivel 4.")
+            return
         def cerrar(ev=None):
             dialog.open = False
             self.page.update()
@@ -2900,6 +2915,8 @@ class BibliaView:
         return self._datos_versiculo_activo()
 
     def toggle_modo_compartir_multiple(self):
+        if self._solo_lectura():
+            return
         activar = not (self.modo_compartir_multiple or bool(self.versos_compartir))
         self.modo_compartir_multiple = activar
 
@@ -3195,7 +3212,7 @@ class BibliaView:
         self.router.refrescar()
 
     def seleccionar_color(self, nombre):
-        if self._solo_lectura():
+        if self._solo_lectura() or not self._puede("biblia_color"):
             return
         nombre = self._normalizar_color(nombre)
         self.color_actual = nombre
@@ -3228,7 +3245,7 @@ class BibliaView:
         self.seleccionar_color(self.color_actual)
 
     def _quitar_colores_seleccionados(self, objetivos):
-        if self._solo_lectura():
+        if self._solo_lectura() or not self._puede("biblia_color"):
             return
         objetivos = set(objetivos)
         for objetivo in objetivos:
@@ -3743,6 +3760,9 @@ class BibliaView:
         self._snack("Resaltado quitado.")
 
     def dialog_versiculos_por_color(self):
+        if not self._puede("biblia_marcas"):
+            self._snack("Los marcados por color requieren el Nivel 3.")
+            return
         color_inicial = self.color_actual if self.color_actual in COLORES_RESALTADO else "Amarillo"
         selector = ft.Dropdown(
             label="Color",
@@ -4407,6 +4427,9 @@ class BibliaView:
         return []
 
     def dialog_exportar_biblia_codificada(self, e=None):
+        if self._solo_lectura():
+            self._snack("El Nivel 1 permite solo lectura.")
+            return
         opciones_alcance = self._opciones_exportacion_codificada()
 
         if not opciones_alcance:
@@ -4879,6 +4902,9 @@ class BibliaView:
         self.page.update()
 
     def dialog_compartir_biblia(self):
+        if self._solo_lectura():
+            self._snack("El Nivel 1 permite solo lectura.")
+            return
         datos = self._datos_tarjeta_biblia_actual()
         versos = self._versos_ordenados_para_compartir()
 
@@ -5443,6 +5469,9 @@ class BibliaView:
         return "Copiar libro actual"
 
     def copiar_contexto_lectura(self):
+        if self._solo_lectura():
+            self._snack("El Nivel 1 permite solo lectura.")
+            return
         if self.modo_vista == "Versiculos":
             self.copiar_seleccion()
             return

@@ -128,6 +128,10 @@ class TiempoView:
     def _on_resize(self, e):
         self.router.refrescar()
 
+    def _puede(self, capacidad):
+        comprobar = getattr(self.router, "tiene_capacidad", None)
+        return bool(comprobar(capacidad)) if callable(comprobar) else True
+
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
         self._actualizar_textos()
@@ -143,16 +147,14 @@ class TiempoView:
         self.hora.size = 50 if es_movil else 66 if bajo else 86 if es_tablet else 104
         self.dia_anio.size = 14 if es_movil else 16
         self.fecha_real.size = 12 if es_movil else 14
+        puede_consultar = self._puede("tiempo_consultar")
 
         if es_movil:
             contenido = ft.Column(
                 expand=True,
                 spacing=12,
                 scroll=ft.ScrollMode.AUTO,
-                controls=[
-                    self._panel_reloj(es_movil),
-                    self._panel_consulta(es_movil),
-                ],
+                controls=[self._panel_reloj(es_movil)] + ([self._panel_consulta(es_movil)] if puede_consultar else []),
             )
         else:
             contenido = ft.Row(
@@ -161,14 +163,12 @@ class TiempoView:
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=[
                     ft.Container(
-                        expand=3,
+                        expand=3 if puede_consultar else True,
                         content=self._panel_reloj(es_movil),
                     ),
-                    ft.Container(
-                        expand=2,
-                        content=self._panel_consulta(es_movil),
-                    ),
-                ],
+                ] + ([
+                    ft.Container(expand=2, content=self._panel_consulta(es_movil)),
+                ] if puede_consultar else []),
             )
 
         return ft.Container(
@@ -215,13 +215,15 @@ class TiempoView:
                         weight=ft.FontWeight.BOLD,
                     ),
                     self.fecha_real,
-                    ft.ElevatedButton(
-                        "Guardar tiempo actual",
-                        icon=ft.Icons.SAVE_ALT,
-                        bgcolor=DORADO,
-                        color=ft.Colors.BLACK,
-                        on_click=lambda e: self.guardar_tiempo(self.datos_actuales),
-                    ),
+                    *([
+                        ft.ElevatedButton(
+                            "Guardar tiempo actual",
+                            icon=ft.Icons.SAVE_ALT,
+                            bgcolor=DORADO,
+                            color=ft.Colors.BLACK,
+                            on_click=lambda e: self.guardar_tiempo(self.datos_actuales),
+                        ),
+                    ] if self._puede("tiempo_guardar") else []),
                 ],
             ),
         )
@@ -354,6 +356,8 @@ class TiempoView:
         self._timer_activo = False
 
     def calcular_consulta(self, e=None):
+        if not self._puede("tiempo_consultar"):
+            return
         if e is not None:
             ocultar_teclado(self.page, e.control)
         try:
@@ -378,6 +382,8 @@ class TiempoView:
         self.calcular_consulta()
 
     def aplicar_base(self, e=None):
+        if not self._puede("tiempo_consultar"):
+            return
         if e is not None:
             ocultar_teclado(self.page, e.control)
         try:
@@ -397,6 +403,8 @@ class TiempoView:
         self.page.update()
 
     def restaurar_base(self, e=None):
+        if not self._puede("tiempo_consultar"):
+            return
         self.base_real = fecha_extendida_desde_datetime(datetime(2029, 4, 13, 0, 0, 0))
         guardar_base_calendario(self.base_real)
         self.base_input.value = self._texto_input_fecha(self.base_real)
@@ -410,6 +418,8 @@ class TiempoView:
         self.page.update()
 
     def guardar_tiempo(self, datos):
+        if not self._puede("tiempo_guardar"):
+            return
         if not datos:
             datos = calcular_calendario_360(base_real=self.base_real)
 

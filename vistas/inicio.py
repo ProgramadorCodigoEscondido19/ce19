@@ -376,17 +376,26 @@ class InicioView:
         es_movil = self.responsive.is_mobile()
         es_tablet = self.responsive.is_tablet()
         solo_texto_a_numeros = getattr(self.router, "nivel", 4) == 1
+        puede_elegir_alfabeto = self.router.tiene_capacidad("inicio_diccionarios")
+        puede_comparar = self.router.tiene_capacidad("inicio_comparar")
 
         self.titulo.size = 22 if es_movil else 26 if es_tablet else 30
         self.boton.width = None if es_movil else 220 if es_tablet else 250
         self.palabra_input.max_lines = 4 if es_movil else 2
+        self.alfabeto_selector.visible = puede_elegir_alfabeto
         self.modo_codificacion.visible = not solo_texto_a_numeros
+        if not puede_elegir_alfabeto:
+            self.alfabeto_selector.value = AlfabetosService.ID_BASE
+            self.codificador_service.usar_alfabeto_temporal(AlfabetosService.ID_BASE)
+            self.motor = self.codificador_service.motor
         if solo_texto_a_numeros:
             self.modo_codificacion.value = "texto_a_numeros"
             self.palabra_input.label = "Ingrese texto"
             self.palabra_input.hint_text = "Ej: Hola"
             self.boton.text = "CODIFICAR"
-        self.boton_comparar.visible = self.modo_codificacion.value == "texto_a_numeros"
+        self.boton_comparar.visible = (
+            puede_comparar and self.modo_codificacion.value == "texto_a_numeros"
+        )
 
         acciones = ft.Row(
             wrap=True,
@@ -507,7 +516,7 @@ class InicioView:
             self.palabra_input.hint_text = "Ej: Hola"
             self.ayuda_modo.value = "Texto normal: Hola → 9 + 18 + 13 + 1"
             self.boton.text = "CODIFICAR"
-            self.boton_comparar.visible = True
+            self.boton_comparar.visible = self.router.tiene_capacidad("inicio_comparar")
 
         self.page.update()
 
@@ -530,6 +539,12 @@ class InicioView:
         self.page.update()
 
     def abrir_comparacion(self, e=None):
+        if not self.router.tiene_capacidad("inicio_comparar"):
+            self.mensaje_error.value = "La comparacion de diccionarios requiere el Nivel 4."
+            self.mensaje_error.visible = True
+            self.page.update()
+            return
+
         texto = (self.palabra_input.value or "").strip()
         if not texto:
             self.mensaje_error.value = "Ingrese primero el texto que desea comparar."
@@ -651,6 +666,9 @@ class InicioView:
             ocultar_teclado(self.page)
         if getattr(self.router, "nivel", 4) == 1:
             self.modo_codificacion.value = "texto_a_numeros"
+        if not self.router.tiene_capacidad("inicio_diccionarios"):
+            self.codificador_service.usar_alfabeto_temporal(AlfabetosService.ID_BASE)
+            self.motor = self.codificador_service.motor
         texto = self.palabra_input.value.strip()
 
         if not texto:

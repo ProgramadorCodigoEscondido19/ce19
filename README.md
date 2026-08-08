@@ -13,6 +13,13 @@
 - Se agregaron niveles de acceso locales y claves iniciales protegidas mediante hash.
 - La exportacion de Guardados en Excel ahora crea una hoja por carpeta, con columnas ajustadas y comparaciones en varias lineas.
 
+### Accesos por nivel
+
+- **Nivel 1:** Inicio con el ABC BÃ­blico de 29 letras para convertir texto a nÃºmeros y Biblia en modo lectura.
+- **Nivel 2:** suma Guardados, Calculadora simple, reloj de solo visualizaciÃ³n y, en Biblia, bÃºsqueda, copiar, selecciÃ³n mÃºltiple, descarga, guardado y compartir.
+- **Nivel 3:** suma Pizarra, Colores, Tiempo y Calculadora completos. En Biblia habilita resaltados, marcados por color, palabras del Cordero y las demÃ¡s herramientas, excepto el diccionario hebreo.
+- **Nivel 4:** acceso total, incluidos Ajustes, diccionarios configurables, comparaciÃ³n y diccionario hebreo.
+
 ### Cambios anteriores
 
 - Se mejoro el buscador biblico en celular: los botones Guardar y Cerrar quedan visibles antes de la lista de resultados.
