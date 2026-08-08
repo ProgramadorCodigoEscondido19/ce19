@@ -24,12 +24,28 @@ class PermisosService:
 
     @classmethod
     def _hash_clave(cls, clave):
-        return hashlib.pbkdf2_hmac(
-            "sha256",
-            str(clave).encode("utf-8"),
-            cls._SAL,
-            cls._ITERACIONES,
-        ).hex()
+        contraseña = str(clave).encode("utf-8")
+        funcion_nativa = getattr(hashlib, "pbkdf2_hmac", None)
+        if callable(funcion_nativa):
+            return funcion_nativa(
+                "sha256",
+                contraseña,
+                cls._SAL,
+                cls._ITERACIONES,
+            ).hex()
+        return cls._pbkdf2_compatible_web(contraseña).hex()
+
+    @classmethod
+    def _pbkdf2_compatible_web(cls, contraseña):
+        """Alternativa para la version web, donde hashlib no incluye PBKDF2."""
+        bloque = hmac.new(contraseña, cls._SAL + b"\x00\x00\x00\x01", hashlib.sha256).digest()
+        resultado = bytearray(bloque)
+        anterior = bloque
+        for _ in range(1, cls._ITERACIONES):
+            anterior = hmac.new(contraseña, anterior, hashlib.sha256).digest()
+            for indice, valor in enumerate(anterior):
+                resultado[indice] ^= valor
+        return bytes(resultado)
 
     @classmethod
     def validar_clave(cls, nivel, clave):
