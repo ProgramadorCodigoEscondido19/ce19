@@ -5,7 +5,6 @@ from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
 from services.app_startup_service import AppStartupService
 from services.permisos_service import PermisosService
-from services.registro_usuarios_service import RegistroUsuariosService
 from ui.intro import construir_intro
 from ui.tema import APP_NAME, APP_VERSION, DORADO, PERLA_PANEL, PURPURA_INICIAL, VIOLETA_IOS, icono_estrella
 
@@ -175,12 +174,10 @@ def main(page: ft.Page):
     page.add(root)
 
     # Los archivos locales no sobreviven a una recarga de GitHub Pages. Estas
-    # preferencias mantienen el acceso recordado y el registro inicial en el
-    # navegador, sin afectar el respaldo existente para escritorio.
+    # preferencias mantienen el acceso por nivel recordado en el navegador.
     preferencias_web = ft.SharedPreferences()
     page.services.append(preferencias_web)
     CLAVE_WEB_NIVELES = "ce19.niveles_autorizados.v1"
-    CLAVE_WEB_REGISTRO = "ce19.registro_finalizado.v1"
 
     app_iniciada = {"valor": False}
     selector_niveles_activo = {"valor": False}
@@ -189,10 +186,8 @@ def main(page: ft.Page):
     region_guardada = configuracion_region.get("region", {})
     idioma_seleccionado = {"valor": region_guardada.get("idioma", "")}
     continente_seleccionado = {"valor": None}
-    resumen_registros = {"valor": RegistroUsuariosService.obtener_resumen()}
 
     PermisosService.establecer_niveles_sesion(PermisosService.niveles_autorizados())
-    RegistroUsuariosService.establecer_estado_sesion(RegistroUsuariosService.esta_finalizado())
 
     async def cargar_preferencias_web():
         """Carga los datos persistentes del navegador al iniciar la app web."""
@@ -201,9 +196,6 @@ def main(page: ft.Page):
             if isinstance(niveles, list):
                 PermisosService.establecer_niveles_sesion(niveles)
 
-            registro_finalizado = await preferencias_web.get(CLAVE_WEB_REGISTRO)
-            if isinstance(registro_finalizado, bool):
-                RegistroUsuariosService.establecer_estado_sesion(registro_finalizado)
         except Exception:
             # La app sigue funcionando con el respaldo local en plataformas
             # que no ofrezcan preferencias persistentes.
@@ -216,12 +208,6 @@ def main(page: ft.Page):
         try:
             niveles = [str(nivel) for nivel in sorted(PermisosService.niveles_autorizados())]
             await preferencias_web.set(CLAVE_WEB_NIVELES, niveles)
-        except Exception:
-            pass
-
-    async def guardar_registro_web():
-        try:
-            await preferencias_web.set(CLAVE_WEB_REGISTRO, True)
         except Exception:
             pass
 
@@ -275,104 +261,6 @@ def main(page: ft.Page):
 
         page.update()
 
-    def mostrar_registro_inicial(al_continuar):
-        """Solicita una vez los datos minimos tras validar el nivel elegido."""
-        if RegistroUsuariosService.esta_finalizado():
-            al_continuar()
-            return
-
-        ancho = getattr(page, "width", None) or 900
-        es_movil = ancho < 700
-        nombre = ft.TextField(
-            label="Nombre",
-            hint_text="Ingrese su nombre",
-            autofocus=True,
-        )
-        pais = ft.Dropdown(
-            label="Pais",
-            hint_text="Seleccione su pais",
-            options=[
-                ft.dropdown.Option(valor)
-                for valor in (
-                    "Argentina", "Bolivia", "Chile", "Colombia", "Costa Rica", "Cuba",
-                    "Ecuador", "El Salvador", "Espana", "Guatemala", "Guinea Ecuatorial",
-                    "Honduras", "Mexico", "Nicaragua", "Panama", "Paraguay", "Peru",
-                    "Republica Dominicana", "Uruguay", "Venezuela", "Otro",
-                )
-            ],
-        )
-        mensaje = ft.Text("", size=12, color="#B3261E", visible=False)
-
-        def continuar_sin_registro(e=None):
-            RegistroUsuariosService.ya_registrado()
-            page.run_task(guardar_registro_web)
-            al_continuar()
-
-        def registrar(e=None):
-            try:
-                RegistroUsuariosService.registrar(nombre.value, pais.value, APP_VERSION)
-            except ValueError as error:
-                mensaje.value = str(error)
-                mensaje.visible = True
-                page.update()
-                return
-            page.run_task(guardar_registro_web)
-            al_continuar()
-
-        panel = ft.Container(
-            width=None if es_movil else 460,
-            padding=22 if es_movil else 30,
-            bgcolor=PERLA_PANEL,
-            border_radius=26,
-            border=ft.Border.all(1, MARRON_BORDE),
-            shadow=ft.BoxShadow(blur_radius=28, color="#2B102744", offset=ft.Offset(0, 12)),
-            content=ft.Column(
-                tight=True,
-                spacing=14,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    icono_estrella(60),
-                    ft.Text("Registro inicial", size=25, weight=ft.FontWeight.BOLD),
-                    ft.Text(
-                        "Registre su nombre y pais una sola vez. Estos datos se usan solo para estadisticas de la aplicacion.",
-                        size=12,
-                        color="#6E6374",
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                    nombre,
-                    pais,
-                    mensaje,
-                    ft.ElevatedButton(
-                        "Registrarme y continuar",
-                        icon=ft.Icons.CHECK,
-                        bgcolor=MARRON_ACENTO,
-                        color=ft.Colors.WHITE,
-                        on_click=registrar,
-                    ),
-                    ft.TextButton(
-                        "Ya estoy registrado",
-                        icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
-                        on_click=continuar_sin_registro,
-                    ),
-                ],
-            ),
-        )
-        root.content = ft.Container(
-            expand=True,
-            bgcolor=FONDO_REGION_MARRON,
-            content=ft.ListView(
-                expand=True,
-                padding=18 if es_movil else 34,
-                controls=[
-                    ft.Row(
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        controls=[panel],
-                    )
-                ],
-            ),
-        )
-        page.update()
-
     def mostrar_selector_pais(e=None):
         """Configura la region inicial sin cambiar la Biblia ni los datos locales."""
         selector_niveles_activo["valor"] = True
@@ -401,12 +289,9 @@ def main(page: ft.Page):
             alto_mapa = alto_maximo_mapa
             ancho_mapa = int(alto_mapa * proporcion_mapa)
 
-        def actualizar_registros(evento=None):
-            resumen_registros["valor"] = RegistroUsuariosService.obtener_resumen(actualizar=True)
-            construir_pantalla()
-
         def cantidad_pais(nombre):
-            paises = resumen_registros["valor"].get("paises", {})
+            return 0
+            paises = {}
             alternativas = {
                 nombre,
                 NOMBRES_PAISES.get(nombre, nombre),
@@ -422,6 +307,7 @@ def main(page: ft.Page):
             return 0
 
         def marcador_registro(nombre, posicion_x, posicion_y, vista):
+            return None
             cantidad = cantidad_pais(nombre)
             if cantidad <= 0:
                 return None
@@ -608,28 +494,11 @@ def main(page: ft.Page):
             continente = continente_seleccionado["valor"]
             vista_mapa = VISTAS_MAPA_CONTINENTE.get(continente)
             src_mapa = vista_mapa["src"] if vista_mapa else "mapa_mundo_hispano.png"
-            paises_visibles = (
-                CONTINENTES_DISPONIBLES.get(continente, {}).get("paises", set())
-                if continente
-                else set()
-            )
-            marcadores = [
-                marcador_registro(nombre, x, y, vista_mapa)
-                for nombre, x, y in PAISES_HISPANOS
-                if nombre in paises_visibles
-            ]
-            mapa_base = ft.Stack(
+            mapa_base = ft.Image(
+                src=src_mapa,
                 width=ancho_mapa,
                 height=alto_mapa,
-                controls=[
-                    ft.Image(
-                        src=src_mapa,
-                        width=ancho_mapa,
-                        height=alto_mapa,
-                        fit=ft.BoxFit.FILL,
-                    ),
-                    *[marcador for marcador in marcadores if marcador is not None],
-                ],
+                fit=ft.BoxFit.FILL,
             )
             # InteractiveViewer deja el mapa en gris en algunos equipos. El
             # mapa se muestra a su tamano natural y el ListView principal
@@ -690,26 +559,6 @@ def main(page: ft.Page):
                         ),
                     ],
                 ),
-            )
-
-            resumen_visible = ft.Row(
-                tight=True,
-                spacing=8,
-                alignment=ft.MainAxisAlignment.CENTER,
-                controls=[
-                    ft.Icon(ft.Icons.GROUP_OUTLINED, size=18, color=MARRON_ACENTO),
-                    ft.Text(
-                        f"Total de registros: {resumen_registros['valor'].get('total', 0)}",
-                        size=12 if es_movil else 13,
-                        weight=ft.FontWeight.W_500,
-                    ),
-                    ft.IconButton(
-                        icon=ft.Icons.REFRESH,
-                        tooltip="Actualizar registros",
-                        icon_color=MARRON_ACENTO,
-                        on_click=actualizar_registros,
-                    ),
-                ],
             )
 
             if continente:
@@ -779,7 +628,7 @@ def main(page: ft.Page):
                     tight=True,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=8,
-                    controls=[resumen_visible, seleccion],
+                    controls=[seleccion],
                 )
                 if es_movil
                 else ft.Row(
@@ -787,7 +636,7 @@ def main(page: ft.Page):
                     alignment=ft.MainAxisAlignment.CENTER,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=16,
-                    controls=[resumen_visible, seleccion],
+                    controls=[seleccion],
                 )
             )
 
@@ -970,7 +819,7 @@ def main(page: ft.Page):
                     else:
                         PermisosService.revocar(nivel)
                     page.run_task(guardar_niveles_web)
-                    mostrar_registro_inicial(lambda: iniciar_app(nivel))
+                    iniciar_app(nivel)
                     return
                 error.value = "La clave no es correcta."
                 error.visible = True
@@ -1012,7 +861,7 @@ def main(page: ft.Page):
 
         def elegir_nivel(nivel):
             if PermisosService.esta_autorizado(nivel):
-                mostrar_registro_inicial(lambda: iniciar_app(nivel))
+                iniciar_app(nivel)
             else:
                 pedir_clave(nivel)
 

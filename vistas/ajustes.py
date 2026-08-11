@@ -3,7 +3,6 @@ import flet as ft
 from services.alfabetos_service import AlfabetosService
 from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
-from services.registro_usuarios_service import RegistroUsuariosService
 from ui.tema import PERLA_BORDE, PERLA_PANEL, VIOLETA_IOS
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
@@ -303,43 +302,6 @@ class AjustesView:
             ]),
         )
 
-    def _registro_estadistico(self):
-        datos = self._config()
-        endpoint = ft.TextField(
-            label="Direccion de la tabla estadistica",
-            value=datos.get(RegistroUsuariosService.CLAVE_ENDPOINT, ""),
-            hint_text="Pegue aqui la direccion de Google Apps Script",
-            expand=True,
-        )
-
-        def guardar(e=None):
-            RegistroUsuariosService.guardar_endpoint(endpoint.value)
-            self._snack("Direccion de registro estadistico actualizada.")
-
-        return ft.Container(
-            padding=16,
-            border_radius=16,
-            bgcolor=PERLA_PANEL,
-            border=ft.Border.all(1, PERLA_BORDE),
-            content=ft.Column(spacing=9, controls=[
-                ft.Text("Registro estadistico", size=18, weight=ft.FontWeight.BOLD),
-                ft.Text(
-                    "Los datos iniciales de nombre y pais se enviaran una sola vez a la tabla indicada.",
-                    size=12,
-                    color="#6E6374",
-                ),
-                ft.Row(wrap=True, spacing=8, controls=[
-                    endpoint,
-                    ft.ElevatedButton(
-                        "Guardar direccion",
-                        icon=ft.Icons.SAVE,
-                        bgcolor=VIOLETA_IOS,
-                        color=ft.Colors.WHITE,
-                        on_click=guardar,
-                    ),
-                ]),
-            ]),
-        )
     def obtener_vista(self):
         self._recargar()
         return ft.Container(
@@ -368,7 +330,6 @@ class AjustesView:
                         ),
                     ),
                     self._preferencias(),
-                    self._registro_estadistico(),
                     ft.Container(
                         padding=16,
                         border_radius=16,
