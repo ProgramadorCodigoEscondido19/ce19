@@ -5,8 +5,15 @@ from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
 from services.app_startup_service import AppStartupService
 from services.permisos_service import PermisosService
+from services.registro_usuarios_service import RegistroUsuariosService
 from ui.intro import construir_intro
-from ui.tema import APP_NAME, DORADO, PERLA_PANEL, PURPURA_INICIAL, VIOLETA_IOS, icono_estrella
+from ui.tema import APP_NAME, APP_VERSION, DORADO, PERLA_PANEL, PURPURA_INICIAL, VIOLETA_IOS, icono_estrella
+
+
+FONDO_REGION_MARRON = "#5F3A2C"
+MARRON_ACENTO = "#87543D"
+MARRON_CLARO = "#F4E4D8"
+MARRON_BORDE = "#E6CCBC"
 
 
 PAISES_HISPANOS = [
@@ -174,6 +181,7 @@ def main(page: ft.Page):
     region_guardada = configuracion_region.get("region", {})
     idioma_seleccionado = {"valor": region_guardada.get("idioma", "")}
     continente_seleccionado = {"valor": None}
+    resumen_registros = {"valor": RegistroUsuariosService.obtener_resumen()}
 
     def iniciar_app(nivel=4):
         if app_iniciada["valor"]:
@@ -225,6 +233,102 @@ def main(page: ft.Page):
 
         page.update()
 
+    def mostrar_registro_inicial(al_continuar):
+        """Solicita una vez los datos minimos para las estadisticas."""
+        if RegistroUsuariosService.esta_finalizado():
+            al_continuar()
+            return
+
+        ancho = getattr(page, "width", None) or 900
+        es_movil = ancho < 700
+        nombre = ft.TextField(
+            label="Nombre",
+            hint_text="Ingrese su nombre",
+            autofocus=True,
+        )
+        pais = ft.Dropdown(
+            label="Pais",
+            hint_text="Seleccione su pais",
+            options=[
+                ft.dropdown.Option(valor)
+                for valor in (
+                    "Argentina", "Bolivia", "Chile", "Colombia", "Costa Rica", "Cuba",
+                    "Ecuador", "El Salvador", "Espana", "Guatemala", "Guinea Ecuatorial",
+                    "Honduras", "Mexico", "Nicaragua", "Panama", "Paraguay", "Peru",
+                    "Republica Dominicana", "Uruguay", "Venezuela", "Otro",
+                )
+            ],
+        )
+        mensaje = ft.Text("", size=12, color="#B3261E", visible=False)
+
+        def continuar_sin_registro(e=None):
+            RegistroUsuariosService.ya_registrado()
+            al_continuar()
+
+        def registrar(e=None):
+            try:
+                RegistroUsuariosService.registrar(nombre.value, pais.value, APP_VERSION)
+            except ValueError as error:
+                mensaje.value = str(error)
+                mensaje.visible = True
+                page.update()
+                return
+            al_continuar()
+
+        panel = ft.Container(
+            width=None if es_movil else 460,
+            padding=22 if es_movil else 30,
+            bgcolor=PERLA_PANEL,
+            border_radius=26,
+            border=ft.Border.all(1, MARRON_BORDE),
+            shadow=ft.BoxShadow(blur_radius=28, color="#2B102744", offset=ft.Offset(0, 12)),
+            content=ft.Column(
+                tight=True,
+                spacing=14,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    icono_estrella(60),
+                    ft.Text("Antes de continuar", size=25, weight=ft.FontWeight.BOLD),
+                    ft.Text(
+                        "Registre su nombre y pais una sola vez. Estos datos se usan solo para estadisticas de la aplicacion.",
+                        size=12,
+                        color="#6E6374",
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    nombre,
+                    pais,
+                    mensaje,
+                    ft.ElevatedButton(
+                        "Registrarme y continuar",
+                        icon=ft.Icons.CHECK,
+                        bgcolor=MARRON_ACENTO,
+                        color=ft.Colors.WHITE,
+                        on_click=registrar,
+                    ),
+                    ft.TextButton(
+                        "Ya estoy registrado",
+                        icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                        on_click=continuar_sin_registro,
+                    ),
+                ],
+            ),
+        )
+        root.content = ft.Container(
+            expand=True,
+            bgcolor=FONDO_REGION_MARRON,
+            content=ft.ListView(
+                expand=True,
+                padding=18 if es_movil else 34,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        controls=[panel],
+                    )
+                ],
+            ),
+        )
+        page.update()
+
     def mostrar_selector_pais(e=None):
         """Configura la region inicial sin cambiar la Biblia ni los datos locales."""
         selector_niveles_activo["valor"] = True
@@ -245,6 +349,57 @@ def main(page: ft.Page):
         # para que no se estiren al mostrar un continente ampliado.
         proporcion_mapa = VISTAS_MAPA_CONTINENTE.get(continente_actual, {}).get("proporcion", 2)
         alto_mapa = max(125, int(ancho_mapa / proporcion_mapa))
+
+        def actualizar_registros(evento=None):
+            resumen_registros["valor"] = RegistroUsuariosService.obtener_resumen(actualizar=True)
+            construir_pantalla()
+
+        def cantidad_pais(nombre):
+            paises = resumen_registros["valor"].get("paises", {})
+            alternativas = {
+                nombre,
+                NOMBRES_PAISES.get(nombre, nombre),
+                nombre.replace("Espana", "España"),
+                nombre.replace("Mexico", "México"),
+                nombre.replace("Panama", "Panamá"),
+                nombre.replace("Peru", "Perú"),
+                nombre.replace("Republica", "República"),
+            }
+            for alternativa in alternativas:
+                if alternativa in paises:
+                    return int(paises.get(alternativa, 0) or 0)
+            return 0
+
+        def marcador_registro(nombre, posicion_x, posicion_y, vista):
+            cantidad = cantidad_pais(nombre)
+            if cantidad <= 0:
+                return None
+            marco = vista.get("marco") if vista else None
+            if marco:
+                x1, x2, y1, y2 = marco
+                proporcion_x = (posicion_x - x1) / (x2 - x1)
+                proporcion_y = (posicion_y - y1) / (y2 - y1)
+            else:
+                proporcion_x, proporcion_y = posicion_x, posicion_y
+            if not (0 <= proporcion_x <= 1 and 0 <= proporcion_y <= 1):
+                return None
+            return ft.Container(
+                left=max(3, min(ancho_mapa - 48, int(proporcion_x * ancho_mapa) - 18)),
+                top=max(3, min(alto_mapa - 29, int(proporcion_y * alto_mapa) - 14)),
+                padding=ft.Padding(left=5, top=3, right=5, bottom=3),
+                border_radius=10,
+                bgcolor="#5F3A2C",
+                border=ft.Border.all(1, "#FFF9EF"),
+                tooltip=f"{NOMBRES_PAISES.get(nombre, nombre)}: {cantidad} registro(s)",
+                content=ft.Row(
+                    tight=True,
+                    spacing=3,
+                    controls=[
+                        bandera_pais(nombre, ancho=15, alto=10),
+                        ft.Text(str(cantidad), size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+                    ],
+                ),
+            )
 
         def adaptar_selector_pais(evento=None):
             if selector_niveles_activo["valor"]:
@@ -329,7 +484,7 @@ def main(page: ft.Page):
                 "biblia": "Reina Valera 1960",
             }
             AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
-            mostrar_selector_niveles()
+            mostrar_registro_inicial(mostrar_selector_niveles)
 
         def ficha_continente(nombre, disponible=True):
             datos = CONTINENTES_DISPONIBLES.get(nombre, {})
@@ -402,6 +557,16 @@ def main(page: ft.Page):
             continente = continente_seleccionado["valor"]
             vista_mapa = VISTAS_MAPA_CONTINENTE.get(continente)
             src_mapa = vista_mapa["src"] if vista_mapa else "mapa_mundo_hispano.png"
+            paises_visibles = (
+                CONTINENTES_DISPONIBLES.get(continente, {}).get("paises", set())
+                if continente
+                else set()
+            )
+            marcadores = [
+                marcador_registro(nombre, x, y, vista_mapa)
+                for nombre, x, y in PAISES_HISPANOS
+                if nombre in paises_visibles
+            ]
             mapa_base = ft.Stack(
                 width=ancho_mapa,
                 height=alto_mapa,
@@ -412,6 +577,7 @@ def main(page: ft.Page):
                         height=alto_mapa,
                         fit=ft.BoxFit.FILL,
                     ),
+                    *[marcador for marcador in marcadores if marcador is not None],
                 ],
             )
             # InteractiveViewer deja el mapa en gris en algunos equipos. El
@@ -473,6 +639,26 @@ def main(page: ft.Page):
                         ),
                     ],
                 ),
+            )
+
+            resumen_visible = ft.Row(
+                tight=True,
+                spacing=8,
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(ft.Icons.GROUP_OUTLINED, size=18, color=MARRON_ACENTO),
+                    ft.Text(
+                        f"Total de registros: {resumen_registros['valor'].get('total', 0)}",
+                        size=12 if es_movil else 13,
+                        weight=ft.FontWeight.W_500,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.REFRESH,
+                        tooltip="Actualizar registros",
+                        icon_color=MARRON_ACENTO,
+                        on_click=actualizar_registros,
+                    ),
+                ],
             )
 
             if continente:
@@ -550,6 +736,7 @@ def main(page: ft.Page):
                     controls=[
                         encabezado,
                         contenido_etapa,
+                        resumen_visible,
                         seleccion,
                         *([
                             ft.ElevatedButton(
@@ -566,7 +753,7 @@ def main(page: ft.Page):
 
             root.content = ft.Container(
                 expand=True,
-                bgcolor=PURPURA_INICIAL,
+                bgcolor=FONDO_REGION_MARRON,
                 content=ft.ListView(
                     expand=True,
                     padding=10 if es_movil else 16,
@@ -604,8 +791,8 @@ def main(page: ft.Page):
                 width=16,
                 height=16,
                 border_radius=4,
-                border=ft.Border.all(1.5, VIOLETA_IOS if autorizado else "#8B778F"),
-                bgcolor=VIOLETA_IOS if autorizado else ft.Colors.TRANSPARENT,
+                border=ft.Border.all(1.5, MARRON_ACENTO if autorizado else "#8B778F"),
+                bgcolor=MARRON_ACENTO if autorizado else ft.Colors.TRANSPARENT,
                 alignment=ft.Alignment(0, 0),
                 content=ft.Icon(ft.Icons.CHECK, size=12, color=ft.Colors.WHITE) if autorizado else None,
             )
@@ -635,7 +822,7 @@ def main(page: ft.Page):
                 padding=10,
                 border_radius=16,
                 bgcolor=PERLA_PANEL,
-                border=ft.Border.all(1, "#E5D7EB"),
+                border=ft.Border.all(1, MARRON_BORDE),
                 content=ft.Column(
                     expand=True,
                     horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -656,9 +843,9 @@ def main(page: ft.Page):
                                         width=40,
                                         height=40,
                                         border_radius=14,
-                                        bgcolor="#F0E3F7",
+                                        bgcolor=MARRON_CLARO,
                                         alignment=ft.Alignment(0, 0),
-                                        content=ft.Text(str(nivel), size=21, weight=ft.FontWeight.BOLD, color=VIOLETA_IOS),
+                                        content=ft.Text(str(nivel), size=21, weight=ft.FontWeight.BOLD, color=MARRON_ACENTO),
                                     ),
                                     ft.Text(f"Nivel {nivel}", size=15, weight=ft.FontWeight.BOLD),
                                     estado_acceso,
@@ -720,7 +907,7 @@ def main(page: ft.Page):
             root.content = ft.Container(
                 expand=True,
                 alignment=ft.Alignment(0, 0),
-                bgcolor=PURPURA_INICIAL,
+                bgcolor=FONDO_REGION_MARRON,
                 padding=20,
                 content=ft.Container(
                     width=390,
@@ -742,7 +929,7 @@ def main(page: ft.Page):
                                 alignment=ft.MainAxisAlignment.END,
                                 controls=[
                                     ft.TextButton("Volver", on_click=volver_niveles),
-                                    ft.ElevatedButton("Ingresar", icon=ft.Icons.LOCK_OPEN, bgcolor=VIOLETA_IOS, color=ft.Colors.WHITE, on_click=confirmar_clave),
+                                    ft.ElevatedButton("Ingresar", icon=ft.Icons.LOCK_OPEN, bgcolor=MARRON_ACENTO, color=ft.Colors.WHITE, on_click=confirmar_clave),
                                 ],
                             ),
                         ],
@@ -760,7 +947,7 @@ def main(page: ft.Page):
         root.content = ft.Container(
             expand=True,
             alignment=ft.Alignment(0, 0),
-            bgcolor=PURPURA_INICIAL,
+            bgcolor=FONDO_REGION_MARRON,
             padding=10 if es_movil else 20,
             content=ft.Container(
                 width=None if es_movil else 640,

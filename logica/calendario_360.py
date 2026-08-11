@@ -9,6 +9,9 @@ from core.rutas import ruta_datos
 
 BASE_REAL = datetime(2029, 4, 13, 0, 0, 0)
 BASE_ANIO = 2000
+# La cronologia biblica se presenta con 4.000 anios previos ya cumplidos.
+# Es un desplazamiento de etiqueta del anio: no altera meses, dias ni horas.
+ANIOS_BIBLICOS_PREVIOS = 4000
 SEGUNDOS_DIA = 24 * 60 * 60
 DIAS_ANIO = 360
 DIAS_MES = 30
@@ -254,7 +257,7 @@ def calcular_calendario_360(fecha_real=None, base_real=None):
         "fecha_real_texto": formatear_fecha_real(fecha_real),
         "base_real": base_real,
         "base_real_texto": formatear_fecha_real(base_real),
-        "anio": BASE_ANIO + bloque_anios,
+        "anio": BASE_ANIO + ANIOS_BIBLICOS_PREVIOS + bloque_anios,
         "mes_numero": mes_indice + 1,
         "mes": MESES_360[mes_indice],
         "dia_mes": dia_mes,
@@ -276,5 +279,5 @@ def texto_calendario_360(datos):
         f"Día del año: {datos['dia_anio']}/360\n"
         f"Hora calendario: {datos['hora_texto']}\n"
         f"Fecha real usada: {datos['fecha_real_texto']}\n"
-        f"Base del año 2000: {datos['base_real_texto']}"
+        f"Base del año {BASE_ANIO + ANIOS_BIBLICOS_PREVIOS}: {datos['base_real_texto']}"
     )

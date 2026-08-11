@@ -33,13 +33,10 @@ from ui.compartir import compartir_archivo, compartir_texto, descargar_archivo
 from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.tema import (
-    PERLA_BORDE,
     PERLA_PANEL,
-    PERLA_VIOLETA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL as TEMA_TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO as TEMA_TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
     sombra_suave,
 )
 from ui.teclado import ocultar_teclado
@@ -47,6 +44,9 @@ from ui.teclado import ocultar_teclado
 
 COLOR_BLANCO_BORDE = "Blanco borde"
 BORDER_MARRON = "#B97852"
+MARRON_ACENTO = "#9A5D43"
+MARRON_PERLA = "#F8EEE8"
+MARRON_BORDE = "#E8D0C3"
 
 COLORES_RESALTADO = {
     "Negro": "#000000",
@@ -84,13 +84,13 @@ DIGITO_A_COLOR = {
 # ===== ESTILO MODERNO LIMPIO PARA BIBLIA =====
 FONDO_BIBLIA_MODERNO = ft.Colors.TRANSPARENT
 TARJETA_BLANCA = SUPERFICIE_PERLADA
-BORDE_SUAVE = PERLA_BORDE
+BORDE_SUAVE = MARRON_BORDE
 TEXTO_PRINCIPAL = TEMA_TEXTO_PRINCIPAL
 TEXTO_SECUNDARIO = TEMA_TEXTO_SECUNDARIO
 ROJO_ACCENTO = "#FF2D55"
 NARANJA_ACCENTO = "#FF9500"
 AZUL_ACCENTO = "#0A84FF"
-VIOLETA_ACCENTO = "#7C3AED"
+VIOLETA_ACCENTO = MARRON_ACENTO
 VERDE_ACCENTO = "#34C759"
 GRIS_SUAVE = "#F8F3FA"
 ULTIMA_LECTURA_ARCHIVO = Path("datos/ultima_lectura_biblia.json")
@@ -707,7 +707,7 @@ class BibliaView:
             secciones = [
                 ft.ElevatedButton(
                     "Lectura",
-                    bgcolor=(PERLA_VIOLETA if self.seccion_movil == "lectura" else None),
+                    bgcolor=(MARRON_PERLA if self.seccion_movil == "lectura" else None),
                     on_click=lambda e: self.cambiar_seccion_movil("lectura"),
                 )
             ]
@@ -715,7 +715,7 @@ class BibliaView:
                 secciones.append(
                     ft.ElevatedButton(
                         "Buscar",
-                        bgcolor=(PERLA_VIOLETA if self.seccion_movil == "buscar" else None),
+                        bgcolor=(MARRON_PERLA if self.seccion_movil == "buscar" else None),
                         on_click=lambda e: self.cambiar_seccion_movil("buscar"),
                     )
                 )
@@ -723,7 +723,7 @@ class BibliaView:
                 secciones.append(
                     ft.ElevatedButton(
                         "Aleatorio",
-                        bgcolor=(PERLA_VIOLETA if self.seccion_movil == "azar" else None),
+                        bgcolor=(MARRON_PERLA if self.seccion_movil == "azar" else None),
                         on_click=lambda e: self.cambiar_seccion_movil("azar"),
                     )
                 )
@@ -1439,14 +1439,24 @@ class BibliaView:
             if not termino:
                 self._snack("Escriba una palabra para buscar.")
                 return
+
+            try:
+                resultados = buscar_texto(self.libros or [], termino)
+            except Exception:
+                self._snack("No se pudo realizar la busqueda. Intente nuevamente.")
+                return
+
             ocultar_teclado(self.page, campo)
             self.ultima_busqueda_texto = termino
-            self.ultimos_resultados_busqueda = buscar_texto(self.libros, termino)
+            self.ultimos_resultados_busqueda = resultados
             cerrar_busqueda()
             if not self.ultimos_resultados_busqueda:
                 self._snack("No se encontraron resultados para esta busqueda.")
                 return
-            abrir_resultados(self.ultimos_resultados_busqueda, modo.value)
+            abrir_resultados(
+                self.ultimos_resultados_busqueda,
+                modo.value or "Por libros",
+            )
 
         campo.on_submit = ejecutar_busqueda
         contenido_busqueda = ft.Column(
@@ -2167,7 +2177,7 @@ class BibliaView:
         return ft.Icon(
             ft.Icons.BOOKMARK_ADDED,
             size=size,
-            color=VIOLETA_IOS,
+            color=MARRON_ACENTO,
             visible=visible,
         )
 
@@ -2256,7 +2266,7 @@ class BibliaView:
         if isinstance(resaltado, dict):
             digitos = list(resaltado.get("digitos", []))
             borde = (
-                ft.Border.all(2, VIOLETA_IOS)
+                ft.Border.all(2, MARRON_ACENTO)
                 if seleccionado
                 else ft.Border.all(1, ft.Colors.GREY_400)
             )
@@ -2324,12 +2334,12 @@ class BibliaView:
             bgcolor=(
                 self._hex_color(color)
                 if color
-                else PERLA_VIOLETA
+                else MARRON_PERLA
                 if seleccionado
                 else ft.Colors.TRANSPARENT
             ),
             border=(
-                ft.Border.all(2, VIOLETA_IOS)
+                ft.Border.all(2, MARRON_ACENTO)
                 if seleccionado
                 else self._borde_por_color(color, default=ft.Colors.GREY_400)
                 if color
@@ -2459,7 +2469,7 @@ class BibliaView:
         seleccionado = self._esta_marcado_para_color(clave)
 
         borde = (
-            ft.Border.all(2, VIOLETA_IOS)
+            ft.Border.all(2, MARRON_ACENTO)
             if seleccionado
             else self._borde_por_color(
                 color,
@@ -2954,7 +2964,7 @@ class BibliaView:
                 if resaltado
                 else "#FFF7D6"
                 if seleccionado_multiple
-                else PERLA_VIOLETA
+                else MARRON_PERLA
                 if seleccionado or verso_marcado
                 else ft.Colors.WHITE
             )
@@ -2962,7 +2972,7 @@ class BibliaView:
                 2 if seleccionado or verso_marcado or seleccionado_multiple else 1,
                 NARANJA_ACCENTO
                 if seleccionado_multiple
-                else VIOLETA_IOS
+                else MARRON_ACENTO
                 if seleccionado or verso_marcado
                 else BORDER_MARRON
                 if self._es_blanco_borde(resaltado)
@@ -3050,13 +3060,13 @@ class BibliaView:
                     if resaltado
                     else "#FFF7D6"
                     if seleccionado_multiple
-                    else PERLA_VIOLETA if seleccionado or verso_marcado else ft.Colors.WHITE
+                    else MARRON_PERLA if seleccionado or verso_marcado else ft.Colors.WHITE
                 ),
                 border=ft.Border.all(
                     2 if seleccionado or verso_marcado or seleccionado_multiple else 1,
                     NARANJA_ACCENTO
                     if seleccionado_multiple
-                    else VIOLETA_IOS
+                    else MARRON_ACENTO
                     if seleccionado or verso_marcado
                     else BORDER_MARRON
                     if self._es_blanco_borde(resaltado)
@@ -3288,13 +3298,13 @@ class BibliaView:
             if resaltado
             else "#FFF7D6"
             if seleccionado_multiple
-            else PERLA_VIOLETA if seleccionado or marcado else ft.Colors.WHITE
+            else MARRON_PERLA if seleccionado or marcado else ft.Colors.WHITE
         )
         control.border = ft.Border.all(
             2 if seleccionado or marcado or seleccionado_multiple else 1,
             NARANJA_ACCENTO
             if seleccionado_multiple
-            else VIOLETA_IOS
+            else MARRON_ACENTO
             if seleccionado or marcado
             else BORDER_MARRON
             if self._es_blanco_borde(resaltado)
@@ -3403,10 +3413,10 @@ class BibliaView:
             or self._texto_capitulo_resaltado(libro, capitulo)
             or ft.Colors.BLACK
         )
-        control.bgcolor = PERLA_VIOLETA if seleccionado else color_fondo
+        control.bgcolor = MARRON_PERLA if seleccionado else color_fondo
         control.border = ft.Border.all(
             2 if seleccionado else 1,
-            VIOLETA_IOS
+            MARRON_ACENTO
             if seleccionado
             else BORDER_MARRON
             if self._es_blanco_borde(color)
@@ -5150,7 +5160,7 @@ class BibliaView:
                         renderizar()
 
                     return ft.Container(
-                        bgcolor=PERLA_VIOLETA if seleccionada else None,
+                        bgcolor=MARRON_PERLA if seleccionada else None,
                         border_radius=8,
                         padding=ft.Padding(left=4 + nivel * 18, top=3, right=4, bottom=3),
                         content=ft.Row(
@@ -5260,7 +5270,7 @@ class BibliaView:
                         destino_dialogo,
                         ft.Container(
                             expand=True,
-                            border=ft.Border.all(1, PERLA_BORDE),
+                            border=ft.Border.all(1, MARRON_BORDE),
                             border_radius=10,
                             padding=6,
                             content=lista,

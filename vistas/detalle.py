@@ -22,7 +22,7 @@ except Exception:
     BLANCO = "#FFFFFF"
     FONDO_APP = "#F7F4FB"
     PERLA_BORDE = "#E7DCEB"
-    VIOLETA_IOS = "#6E2A8A"
+    VIOLETA_IOS = "#A64B57"
     DORADO_IOS = "#D8B45A"
     TEXTO_PRINCIPAL = "#201A23"
     TEXTO_SECUNDARIO = "#6F6476"
@@ -307,7 +307,7 @@ def mostrar_detalle_comparacion(page: ft.Page, registro: dict):
                         ft.Text(
                             str(fila.get("alfabeto", "Diccionario")),
                             weight=ft.FontWeight.BOLD,
-                            color="#6E2A8A",
+                            color=VIOLETA_IOS,
                         ),
                         ft.Text(
                             "  ".join(detalle_texto) or "Sin caracteres compatibles.",

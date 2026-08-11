@@ -5,6 +5,8 @@ import flet as ft
 
 from core.app_state import state
 from logica.calendario_360 import (
+    ANIOS_BIBLICOS_PREVIOS,
+    BASE_ANIO,
     calcular_calendario_360,
     cargar_base_calendario,
     fecha_extendida_desde_datetime,
@@ -18,18 +20,32 @@ from ui.responsive import Responsive
 from ui.tema import (
     BLANCO,
     DORADO,
+    MARRON,
     PERLA_BORDE,
     PERLA_PANEL,
-    PURPURA_INICIAL,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
     panel_moderno,
-    sombra_suave,
     swatches_colores,
 )
 from ui.teclado import ocultar_teclado
+
+
+MARRON_RELOJ = "#5A3023"
+MARRON_RELOJ_MEDIO = "#7D4937"
+COLORES_DIGITOS = {
+    "0": "#171717",
+    "1": "#B97852",
+    "2": "#F01824",
+    "3": "#FF7A24",
+    "4": "#FFF300",
+    "5": "#24AE52",
+    "6": "#4448C8",
+    "7": "#A44BA8",
+    "8": "#C9C9C9",
+    "9": "#FFFFFF",
+}
 
 
 class TiempoView:
@@ -41,37 +57,50 @@ class TiempoView:
         self.base_real = cargar_base_calendario()
         self.datos_actuales = calcular_calendario_360(base_real=self.base_real)
         self.datos_consulta = None
+        self._pulso_reloj = False
+        self._tamano_anio = 48
+        self._tamano_hora = 104
+        self._tamano_fecha = 20
 
-        self.anio = ft.Text(
-            "",
-            color=ft.Colors.WHITE,
-            text_align=ft.TextAlign.CENTER,
-            weight=ft.FontWeight.BOLD,
+        self.anio = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=7,
         )
-        self.mes_dia = ft.Text(
-            "",
-            color=ft.Colors.WHITE,
-            text_align=ft.TextAlign.CENTER,
-            weight=ft.FontWeight.BOLD,
+        self.mes_dia = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=4,
+            wrap=True,
         )
-        self.hora = ft.Text(
-            "",
-            color=DORADO,
-            text_align=ft.TextAlign.CENTER,
-            weight=ft.FontWeight.BOLD,
+        self.hora = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=5,
         )
-        self.dia_anio = ft.Text(
-            "",
-            color=ft.Colors.WHITE70,
-            text_align=ft.TextAlign.CENTER,
+        self.dia_anio = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=3,
+            wrap=True,
         )
-        self.fecha_real = ft.Text(
-            "",
-            color=ft.Colors.WHITE70,
-            text_align=ft.TextAlign.CENTER,
+        self.fecha_real = ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=2,
+            wrap=True,
+        )
+        self.reloj_icono = ft.Container(
+            width=66,
+            height=66,
+            border_radius=20,
+            bgcolor=ft.Colors.with_opacity(0.18, DORADO),
+            alignment=ft.Alignment(0, 0),
+            animate_scale=ft.Animation(500, ft.AnimationCurve.EASE_IN_OUT),
+            content=ft.Icon(ft.Icons.HOURGLASS_BOTTOM, color=DORADO, size=42),
         )
         self.base_input = ft.TextField(
-            label="Día base del año 2000",
+            label=f"Día base del año {BASE_ANIO + ANIOS_BIBLICOS_PREVIOS}",
             hint_text="DD/MM/AAAA HH:MM:SS",
             value=self._texto_input_fecha(self.base_real),
             on_submit=self.aplicar_base,
@@ -128,6 +157,43 @@ class TiempoView:
     def _on_resize(self, e):
         self.router.refrescar()
 
+    def _digito(self, valor, tamano, destacado=True):
+        color = COLORES_DIGITOS.get(str(valor), BLANCO)
+        borde = ft.Border.all(1, MARRON) if str(valor) == "9" else None
+        return ft.Container(
+            padding=ft.Padding(left=2, top=0, right=2, bottom=0),
+            border=borde,
+            border_radius=4,
+            content=ft.Text(
+                str(valor),
+                size=tamano,
+                color=color,
+                weight=ft.FontWeight.BOLD if destacado else ft.FontWeight.W_500,
+            ),
+        )
+
+    def _texto_numerico(self, texto, tamano, color_texto=ft.Colors.WHITE, destacado=True):
+        controles = []
+        for caracter in str(texto):
+            if caracter.isdigit():
+                controles.append(self._digito(caracter, tamano, destacado))
+            else:
+                controles.append(
+                    ft.Text(
+                        caracter,
+                        size=tamano,
+                        color=color_texto,
+                        weight=ft.FontWeight.BOLD if destacado else ft.FontWeight.W_500,
+                    )
+                )
+        return controles
+
+    def _texto_y_numero(self, etiqueta, numero, tamano_texto, tamano_numero):
+        return [
+            ft.Text(etiqueta, size=tamano_texto, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            *self._texto_numerico(numero, tamano_numero),
+        ]
+
     def _puede(self, capacidad):
         comprobar = getattr(self.router, "tiene_capacidad", None)
         return bool(comprobar(capacidad)) if callable(comprobar) else True
@@ -142,11 +208,10 @@ class TiempoView:
         alto = self.page.window.height or 720
         bajo = alto < 680
 
-        self.anio.size = 28 if es_movil else 34 if bajo else 42 if es_tablet else 48
-        self.mes_dia.size = 16 if es_movil else 20 if bajo else 24
-        self.hora.size = 50 if es_movil else 66 if bajo else 86 if es_tablet else 104
-        self.dia_anio.size = 14 if es_movil else 16
-        self.fecha_real.size = 12 if es_movil else 14
+        self._tamano_anio = 28 if es_movil else 34 if bajo else 42 if es_tablet else 48
+        self._tamano_hora = 50 if es_movil else 66 if bajo else 86 if es_tablet else 104
+        self._tamano_fecha = 14 if es_movil else 16
+        self._actualizar_textos()
         puede_consultar = self._puede("tiempo_consultar")
 
         if es_movil:
@@ -179,12 +244,21 @@ class TiempoView:
         )
 
     def _panel_reloj(self, es_movil):
+        tamano_icono = 58 if es_movil else 66
+        self.reloj_icono.width = tamano_icono
+        self.reloj_icono.height = tamano_icono
+        self.reloj_icono.content.size = 34 if es_movil else 42
         return ft.Container(
             expand=not es_movil,
             border_radius=20,
-            bgcolor=PURPURA_INICIAL,
+            bgcolor=MARRON_RELOJ,
             padding=16 if es_movil else 20,
-            shadow=sombra_suave(0.075, 20, 0, 7),
+            shadow=ft.BoxShadow(
+                blur_radius=26,
+                spread_radius=0,
+                color=ft.Colors.with_opacity(0.24, MARRON_RELOJ_MEDIO),
+                offset=ft.Offset(0, 10),
+            ),
             content=ft.Column(
                 expand=not es_movil,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -192,23 +266,12 @@ class TiempoView:
                 spacing=8 if es_movil else 10,
                 controls=[
                     swatches_colores(14 if es_movil else 18),
-                    ft.Container(
-                        width=58 if es_movil else 66,
-                        height=58 if es_movil else 66,
-                        border_radius=20,
-                        bgcolor=ft.Colors.with_opacity(0.14, ft.Colors.WHITE),
-                        alignment=ft.Alignment(0, 0),
-                        content=ft.Icon(
-                            ft.Icons.HOURGLASS_BOTTOM,
-                            color=DORADO,
-                            size=34 if es_movil else 42,
-                        ),
-                    ),
+                    self.reloj_icono,
                     self.anio,
                     self.mes_dia,
                     self.hora,
                     self.dia_anio,
-                    ft.Divider(color=ft.Colors.WHITE24, height=18),
+                    ft.Divider(color=ft.Colors.with_opacity(0.30, DORADO), height=18),
                     ft.Text(
                         "Fecha real de referencia",
                         color=ft.Colors.WHITE,
@@ -220,7 +283,7 @@ class TiempoView:
                             "Guardar tiempo actual",
                             icon=ft.Icons.SAVE_ALT,
                             bgcolor=DORADO,
-                            color=ft.Colors.BLACK,
+                            color=MARRON_RELOJ,
                             on_click=lambda e: self.guardar_tiempo(self.datos_actuales),
                         ),
                     ] if self._puede("tiempo_guardar") else []),
@@ -267,7 +330,7 @@ class TiempoView:
                         ft.ElevatedButton(
                             "Calcular",
                             icon=ft.Icons.SCHEDULE,
-                            bgcolor=VIOLETA_IOS,
+                            bgcolor=MARRON_RELOJ_MEDIO,
                             color=BLANCO,
                             on_click=self.calcular_consulta,
                         ),
@@ -288,7 +351,7 @@ class TiempoView:
                     weight=ft.FontWeight.BOLD,
                 ),
                 ft.Text(
-                    "La fecha elegida será Año 2000, Mes 1, Día 1, 00:00:00.",
+                    f"La fecha elegida será Año {BASE_ANIO + ANIOS_BIBLICOS_PREVIOS}, Mes 1, Día 1, 00:00:00.",
                     color=TEXTO_SECUNDARIO,
                     size=12,
                 ),
@@ -301,7 +364,7 @@ class TiempoView:
                         ft.ElevatedButton(
                             "Aplicar base",
                             icon=ft.Icons.CHECK,
-                            bgcolor=VIOLETA_IOS,
+                            bgcolor=MARRON_RELOJ_MEDIO,
                             color=BLANCO,
                             on_click=self.aplicar_base,
                         ),
@@ -324,14 +387,30 @@ class TiempoView:
     def _actualizar_textos(self):
         self.datos_actuales = calcular_calendario_360(base_real=self.base_real)
         datos = self.datos_actuales
-        self.anio.value = f"AÑO {datos['anio']}"
-        self.mes_dia.value = (
-            f"{datos['mes']} - día {datos['dia_mes']}/30 "
-            f"(mes {datos['mes_numero']}/12)"
+        self.anio.controls = self._texto_y_numero(
+            "AÑO",
+            datos["anio"],
+            max(18, self._tamano_anio - 8),
+            self._tamano_anio,
         )
-        self.hora.value = datos["hora_texto"]
-        self.dia_anio.value = f"Día del año {datos['dia_anio']}/360"
-        self.fecha_real.value = datos["fecha_real_texto"]
+        self.mes_dia.controls = [
+            ft.Text(datos["mes"], size=self._tamano_fecha + 4, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            ft.Text("- día", size=self._tamano_fecha + 4, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            *self._texto_numerico(f"{datos['dia_mes']}/30", self._tamano_fecha + 4),
+            ft.Text("(mes", size=self._tamano_fecha + 4, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            *self._texto_numerico(f"{datos['mes_numero']}/12)", self._tamano_fecha + 4),
+        ]
+        self.hora.controls = self._texto_numerico(datos["hora_texto"], self._tamano_hora)
+        self.dia_anio.controls = [
+            ft.Text("Día del año", size=self._tamano_fecha, color=ft.Colors.WHITE70),
+            *self._texto_numerico(f"{datos['dia_anio']}/360", self._tamano_fecha, ft.Colors.WHITE70, False),
+        ]
+        self.fecha_real.controls = self._texto_numerico(
+            datos["fecha_real_texto"],
+            max(11, self._tamano_fecha - 2),
+            ft.Colors.WHITE70,
+            False,
+        )
 
     def _iniciar_timer(self):
         if self._timer_activo:
@@ -343,12 +422,15 @@ class TiempoView:
     async def _ciclo_reloj(self):
         while self.router.activo == "tiempo":
             self._actualizar_textos()
+            self._pulso_reloj = not self._pulso_reloj
+            self.reloj_icono.scale = ft.Scale(1.08 if self._pulso_reloj else 1.0)
             try:
                 self.anio.update()
                 self.mes_dia.update()
                 self.hora.update()
                 self.dia_anio.update()
                 self.fecha_real.update()
+                self.reloj_icono.update()
             except (RuntimeError, AssertionError):
                 self._timer_activo = False
                 return

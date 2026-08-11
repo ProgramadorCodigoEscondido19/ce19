@@ -206,7 +206,7 @@ def verso_id(libro, capitulo, versiculo):
 
 
 def normalizar_busqueda(texto):
-    texto = unicodedata.normalize("NFD", texto or "")
+    texto = unicodedata.normalize("NFD", str(texto or ""))
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     texto = re.sub(r"[^a-zA-Z0-9]+", " ", texto)
     return re.sub(r"\s+", " ", texto).strip().lower()
@@ -277,14 +277,37 @@ def buscar_texto(libros, consulta):
 
 def _buscar_por_alternativas(libros, consultas):
     resultados = []
+    referencias_vistas = set()
 
-    for libro in libros:
-        nombre_libro = libro["nombre"]
-        for capitulo_indice, capitulo in enumerate(libro["capitulos"], start=1):
+    consultas_validas = [
+        normalizar_busqueda(consulta)
+        for consulta in consultas
+        if normalizar_busqueda(consulta)
+    ]
+
+    if not consultas_validas:
+        return resultados
+
+    for libro in libros or []:
+        if not isinstance(libro, dict):
+            continue
+
+        nombre_libro = str(libro.get("nombre") or "").strip()
+        if not nombre_libro:
+            continue
+
+        for capitulo_indice, capitulo in enumerate(libro.get("capitulos") or [], start=1):
+            if not isinstance(capitulo, (list, tuple)):
+                continue
+
             for versiculo_indice, texto in enumerate(capitulo, start=1):
                 texto_normalizado = normalizar_busqueda(texto)
 
-                if any(c in texto_normalizado for c in consultas):
+                if any(consulta in texto_normalizado for consulta in consultas_validas):
+                    referencia = (nombre_libro, capitulo_indice, versiculo_indice)
+                    if referencia in referencias_vistas:
+                        continue
+                    referencias_vistas.add(referencia)
                     resultados.append(
                         {
                             "tipo": "versiculo",

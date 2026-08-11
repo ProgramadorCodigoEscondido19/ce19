@@ -2,6 +2,7 @@ import flet as ft
 
 from ui.clipboard import copiar_al_portapapeles
 from ui.tareas import ejecutar_demorado
+from ui.tema import PERLA_BORDE, PERLA_VIOLETA, VIOLETA_IOS
 from vistas.detalle import mostrar_detalle
 
 
@@ -77,8 +78,8 @@ def tarjeta_resultado(
             height=42,
             padding=ft.Padding(left=8, top=0, right=8, bottom=0),
             alignment=ft.Alignment(0, 0),
-            bgcolor="#6E2A8A" if principal else "#F7EDF9",
-            border=ft.Border.all(1, "#6E2A8A" if principal else "#DCC8E4"),
+            bgcolor=VIOLETA_IOS if principal else PERLA_VIOLETA,
+            border=ft.Border.all(1, VIOLETA_IOS if principal else PERLA_BORDE),
             border_radius=14,
             ink=True,
             on_click=on_click,
@@ -90,13 +91,13 @@ def tarjeta_resultado(
                     ft.Icon(
                         icono,
                         size=18,
-                        color="#FFFFFF" if principal else "#6E2A8A",
+                        color="#FFFFFF" if principal else VIOLETA_IOS,
                     ),
                     ft.Text(
                         texto,
                         size=13,
                         weight=ft.FontWeight.BOLD,
-                        color="#FFFFFF" if principal else "#6E2A8A",
+                        color="#FFFFFF" if principal else VIOLETA_IOS,
                     ),
                 ],
             ),

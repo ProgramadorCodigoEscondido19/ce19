@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-label="Mapa mundial de disponibilidad en español">
+  <defs>
+    <linearGradient id="ocean" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F9F2FB"/>
+      <stop offset="1" stop-color="#EEE2F3"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#6E2A8A" flood-opacity=".13"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="620" rx="32" fill="url(#ocean)"/>
+  <g fill="#D7D0DA" stroke="#BFB2C5" stroke-width="2" filter="url(#shadow)">
+    <path d="M86 120 L153 84 L235 101 L277 142 L253 177 L216 170 L191 208 L151 201 L125 240 L92 220 L61 177 Z"/>
+    <path d="M211 240 L261 265 L285 317 L274 373 L301 430 L268 516 L225 481 L214 401 L183 340 L187 282 Z"/>
+    <path d="M449 123 L500 93 L579 105 L631 130 L697 127 L754 155 L738 190 L672 187 L642 224 L565 217 L529 252 L479 225 L447 184 Z"/>
+    <path d="M555 239 L614 261 L660 318 L635 374 L667 438 L638 526 L585 491 L571 420 L535 363 L510 300 Z"/>
+    <path d="M728 238 L807 220 L889 245 L933 299 L909 366 L843 382 L784 344 L746 300 Z"/>
+    <path d="M883 421 L946 438 L975 492 L942 531 L893 504 Z"/>
+    <path d="M971 345 L1041 329 L1087 370 L1065 438 L1006 435 L980 400 Z"/>
+  </g>
+  <g fill="none" stroke="#C8B7CF" stroke-width="1.5" opacity=".8">
+    <path d="M119 145 L207 134 L239 161 M123 185 L189 171 L213 203 M225 273 L255 300 L242 348 L267 398 M480 146 L557 138 L610 162 L679 153 M548 270 L591 301 L623 352 L605 405 M755 258 L810 275 L861 267 L900 319 M992 370 L1030 387 L1022 423"/>
+  </g>
+  <g fill="#FFFFFF" opacity=".55">
+    <circle cx="74" cy="92" r="4"/><circle cx="333" cy="156" r="4"/><circle cx="380" cy="420" r="3"/><circle cx="805" cy="102" r="4"/><circle cx="1088" cy="166" r="3"/><circle cx="1092" cy="511" r="4"/><circle cx="86" cy="515" r="3"/>
+  </g>
+</svg>

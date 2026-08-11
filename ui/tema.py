@@ -16,25 +16,28 @@ VIOLETA = "#A44BA8"
 GRIS = "#C9C9C9"
 BLANCO = "#FFFFFF"
 
-# Matices modernos para usar la misma paleta sin ensuciar la UI
+# Matices modernos para usar la misma paleta sin ensuciar la UI.
+# El violeta se conserva como color semantico del numero 7. La interfaz usa
+# acentos rojo bajo para que no se confunda con ese significado numerologico.
 MARRON_SUAVE = "#F4E7DF"
 ROJO_SUAVE = "#FFECEF"
 NARANJA_SUAVE = "#FFF0E5"
 AMARILLO_SUAVE = "#FFFAD1"
 VERDE_SUAVE = "#EAF8EF"
 AZUL_SUAVE = "#EEF2FF"
-VIOLETA_SUAVE = "#F6ECFA"
+VIOLETA_SUAVE_SEMANTICO = "#F6ECFA"
+VIOLETA_SUAVE = "#FBECEF"
 GRIS_SUAVE = "#F4F4F6"
 NEGRO_SUAVE = "#242128"
 
 PURPURA_INICIAL = "#71106F"
 DORADO = "#F4C95D"
-VIOLETA_IOS = "#6E2A8A"
+VIOLETA_IOS = "#A64B57"
 DORADO_IOS = "#D8B45A"
 PERLA = "#FCFAFF"
 PERLA_PANEL = "#FFFEFC"
-PERLA_VIOLETA = "#F5EDF8"
-PERLA_BORDE = "#E9DFEE"
+PERLA_VIOLETA = "#FBEDEF"
+PERLA_BORDE = "#EFD7DB"
 FONDO_APP = "#FCFAFF"
 
 # =====================================================
@@ -53,11 +56,11 @@ TEXTO_PRINCIPAL = "#17131D"
 TEXTO_SECUNDARIO = "#6F6677"
 TEXTO_MUTED = TEXTO_SECUNDARIO
 TEXTO = TEXTO_PRINCIPAL
-BORDE_SUAVE = "#ECE3F0"
-BORDE_COLORIDO = "#EADAF2"
+BORDE_SUAVE = "#EEE0E3"
+BORDE_COLORIDO = "#EFD2D7"
 
 PALETA_ARCOIRIS = [NEGRO, MARRON, ROJO, NARANJA, AMARILLO, VERDE, AZUL, VIOLETA, GRIS, BLANCO]
-PALETA_SUAVE = [NEGRO_SUAVE, MARRON_SUAVE, ROJO_SUAVE, NARANJA_SUAVE, AMARILLO_SUAVE, VERDE_SUAVE, AZUL_SUAVE, VIOLETA_SUAVE, GRIS_SUAVE, BLANCO]
+PALETA_SUAVE = [NEGRO_SUAVE, MARRON_SUAVE, ROJO_SUAVE, NARANJA_SUAVE, AMARILLO_SUAVE, VERDE_SUAVE, AZUL_SUAVE, VIOLETA_SUAVE_SEMANTICO, GRIS_SUAVE, BLANCO]
 
 
 def opacidad(valor, color):
@@ -76,7 +79,7 @@ def sombra_suave(opacity=0.065, blur=22, spread=0, y=7):
     )
 
 
-def sombra_color(color=VIOLETA, opacity=0.16, blur=34, y=12):
+def sombra_color(color=VIOLETA_IOS, opacity=0.16, blur=34, y=12):
     return ft.BoxShadow(
         blur_radius=blur,
         spread_radius=0,
