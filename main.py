@@ -234,7 +234,7 @@ def main(page: ft.Page):
         page.update()
 
     def mostrar_registro_inicial(al_continuar):
-        """Solicita una vez los datos minimos para las estadisticas."""
+        """Solicita una vez los datos minimos tras validar el nivel elegido."""
         if RegistroUsuariosService.esta_finalizado():
             al_continuar()
             return
@@ -288,7 +288,7 @@ def main(page: ft.Page):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
                     icono_estrella(60),
-                    ft.Text("Antes de continuar", size=25, weight=ft.FontWeight.BOLD),
+                    ft.Text("Registro inicial", size=25, weight=ft.FontWeight.BOLD),
                     ft.Text(
                         "Registre su nombre y pais una sola vez. Estos datos se usan solo para estadisticas de la aplicacion.",
                         size=12,
@@ -349,6 +349,13 @@ def main(page: ft.Page):
         # para que no se estiren al mostrar un continente ampliado.
         proporcion_mapa = VISTAS_MAPA_CONTINENTE.get(continente_actual, {}).get("proporcion", 2)
         alto_mapa = max(125, int(ancho_mapa / proporcion_mapa))
+        # El selector debe dejar siempre a la vista la accion final. Si la
+        # ventana es baja, reducimos el mapa sin alterar su proporcion.
+        alto_pantalla = getattr(page, "height", None) or 720
+        alto_maximo_mapa = max(180 if es_movil else 250, int(alto_pantalla) - (390 if es_movil else 360))
+        if alto_mapa > alto_maximo_mapa:
+            alto_mapa = alto_maximo_mapa
+            ancho_mapa = int(alto_mapa * proporcion_mapa)
 
         def actualizar_registros(evento=None):
             resumen_registros["valor"] = RegistroUsuariosService.obtener_resumen(actualizar=True)
@@ -484,7 +491,7 @@ def main(page: ft.Page):
                 "biblia": "Reina Valera 1960",
             }
             AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
-            mostrar_registro_inicial(mostrar_selector_niveles)
+            mostrar_selector_niveles()
 
         def ficha_continente(nombre, disponible=True):
             datos = CONTINENTES_DISPONIBLES.get(nombre, {})
@@ -723,9 +730,26 @@ def main(page: ft.Page):
                 )
             )
 
+            estado_final = (
+                ft.Column(
+                    tight=True,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=8,
+                    controls=[resumen_visible, seleccion],
+                )
+                if es_movil
+                else ft.Row(
+                    tight=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=16,
+                    controls=[resumen_visible, seleccion],
+                )
+            )
+
             panel = ft.Container(
                 width=max(280, int(ancho_pantalla) - 20) if es_movil else (950 if continente else 900),
-                padding=12 if es_movil else 24,
+                padding=12 if es_movil else 18,
                 bgcolor=PERLA_PANEL,
                 border_radius=26,
                 border=ft.Border.all(1, "#E7DBEB"),
@@ -736,8 +760,7 @@ def main(page: ft.Page):
                     controls=[
                         encabezado,
                         contenido_etapa,
-                        resumen_visible,
-                        seleccion,
+                        estado_final,
                         *([
                             ft.ElevatedButton(
                                 "Continuar",
@@ -898,7 +921,7 @@ def main(page: ft.Page):
             def confirmar_clave(ev=None):
                 if PermisosService.validar_clave(nivel, clave.value or ""):
                     PermisosService.autorizar(nivel, guardar=bool(guardar_clave.value))
-                    iniciar_app(nivel)
+                    mostrar_registro_inicial(lambda: iniciar_app(nivel))
                     return
                 error.value = "La clave no es correcta."
                 error.visible = True
@@ -940,7 +963,7 @@ def main(page: ft.Page):
 
         def elegir_nivel(nivel):
             if PermisosService.esta_autorizado(nivel):
-                iniciar_app(nivel)
+                mostrar_registro_inicial(lambda: iniciar_app(nivel))
             else:
                 pedir_clave(nivel)
 
