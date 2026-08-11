@@ -19,6 +19,11 @@ from services.app_paths import AppPaths
 
 
 class RegistroUsuariosService:
+    # Endpoint publico del registro estadistico de CE19. Se mantiene como
+    # respaldo para que las instalaciones web no dependan de un ajuste local.
+    ENDPOINT_PUBLICO = (
+        "https://script.google.com/macros/s/AKfycbzseFzy3_Zs3pXTua-T0afj7DRBUxOLV9iBve8_6KR7fm8x8ga4nmcNp-XpZ-S59AJk/exec"
+    )
     CLAVE_ESTADO = "registro_estadistico"
     CLAVE_ENDPOINT = "registro_estadistico_url"
     CLAVE_PENDIENTES = "registros_estadisticos_pendientes"
@@ -68,7 +73,9 @@ class RegistroUsuariosService:
     @classmethod
     def _endpoint(cls, datos):
         return cls._limpiar(
-            os.getenv("CE19_REGISTRO_URL") or datos.get(cls.CLAVE_ENDPOINT),
+            os.getenv("CE19_REGISTRO_URL")
+            or datos.get(cls.CLAVE_ENDPOINT)
+            or cls.ENDPOINT_PUBLICO,
             maximo=500,
         )
 
