@@ -21,6 +21,30 @@ class PermisosService:
         3: "35842d344a99a71b6d0e8c0df27f134a2307cbe06eeba752044f121b50eb6ace",
         4: "d19104c01263800c8b238e9500514839fba4868eb0cd36101880183f7e1fa7fa",
     }
+    _niveles_sesion = None
+
+    @classmethod
+    def establecer_niveles_sesion(cls, niveles):
+        """Sincroniza los niveles recordados por la plataforma actual.
+
+        En escritorio se conserva el archivo local y en la web este valor se
+        carga desde las preferencias persistentes del navegador.
+        """
+        if not isinstance(niveles, (list, tuple, set)):
+            niveles = []
+        cls._niveles_sesion = {
+            int(nivel)
+            for nivel in niveles
+            if str(nivel).isdigit() and 1 <= int(nivel) <= 4
+        }
+
+    @classmethod
+    def _niveles_archivo(cls):
+        datos = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
+        if not isinstance(datos, dict) or datos.get(cls.CLAVE_VERSION_CONFIG) != cls.VERSION_CREDENCIALES:
+            return set()
+        niveles = datos.get(cls.CLAVE_CONFIG, [])
+        return {int(nivel) for nivel in niveles if str(nivel).isdigit() and 1 <= int(nivel) <= 4}
 
     @classmethod
     def _hash_clave(cls, clave):
@@ -57,11 +81,9 @@ class PermisosService:
 
     @classmethod
     def niveles_autorizados(cls):
-        datos = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
-        if not isinstance(datos, dict) or datos.get(cls.CLAVE_VERSION_CONFIG) != cls.VERSION_CREDENCIALES:
-            return set()
-        niveles = datos.get(cls.CLAVE_CONFIG, []) if isinstance(datos, dict) else []
-        return {int(nivel) for nivel in niveles if str(nivel).isdigit() and 1 <= int(nivel) <= 4}
+        if cls._niveles_sesion is not None:
+            return set(cls._niveles_sesion)
+        return cls._niveles_archivo()
 
     @classmethod
     def esta_autorizado(cls, nivel):
@@ -77,6 +99,7 @@ class PermisosService:
             datos = {}
         niveles = cls.niveles_autorizados()
         niveles.add(nivel)
+        cls._niveles_sesion = set(niveles)
         datos[cls.CLAVE_CONFIG] = sorted(niveles)
         datos[cls.CLAVE_VERSION_CONFIG] = cls.VERSION_CREDENCIALES
         AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
@@ -91,6 +114,7 @@ class PermisosService:
             datos = {}
         niveles = cls.niveles_autorizados()
         niveles.discard(nivel)
+        cls._niveles_sesion = set(niveles)
         datos[cls.CLAVE_CONFIG] = sorted(niveles)
         datos[cls.CLAVE_VERSION_CONFIG] = cls.VERSION_CREDENCIALES
         AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)

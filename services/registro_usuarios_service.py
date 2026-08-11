@@ -23,6 +23,12 @@ class RegistroUsuariosService:
     CLAVE_ENDPOINT = "registro_estadistico_url"
     CLAVE_PENDIENTES = "registros_estadisticos_pendientes"
     CLAVE_RESUMEN = "registro_estadistico_resumen"
+    _registro_finalizado_sesion = None
+
+    @classmethod
+    def establecer_estado_sesion(cls, finalizado):
+        """Recuerda el registro en la plataforma que esta usando la app."""
+        cls._registro_finalizado_sesion = bool(finalizado)
 
     @classmethod
     def _config(cls):
@@ -39,6 +45,8 @@ class RegistroUsuariosService:
 
     @classmethod
     def esta_finalizado(cls):
+        if cls._registro_finalizado_sesion is not None:
+            return cls._registro_finalizado_sesion
         estado = cls._config().get(cls.CLAVE_ESTADO, {})
         return bool(isinstance(estado, dict) and estado.get("finalizado"))
 
@@ -51,6 +59,7 @@ class RegistroUsuariosService:
             "fecha": cls._fecha(),
         }
         cls._guardar(datos)
+        cls._registro_finalizado_sesion = True
 
     @staticmethod
     def _fecha():
@@ -62,6 +71,10 @@ class RegistroUsuariosService:
             os.getenv("CE19_REGISTRO_URL") or datos.get(cls.CLAVE_ENDPOINT),
             maximo=500,
         )
+
+    @classmethod
+    def endpoint_configurado(cls):
+        return bool(cls._endpoint(cls._config()))
 
     @classmethod
     def _enviar(cls, endpoint, registro):
@@ -111,7 +124,12 @@ class RegistroUsuariosService:
             pendientes.append(registro)
             datos[cls.CLAVE_PENDIENTES] = pendientes[-20:]
         cls._guardar(datos)
-        return {"enviado": enviado, "pendiente": not enviado}
+        cls._registro_finalizado_sesion = True
+        return {
+            "enviado": enviado,
+            "pendiente": not enviado,
+            "endpoint_configurado": bool(endpoint),
+        }
 
     @classmethod
     def guardar_endpoint(cls, endpoint):

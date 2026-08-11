@@ -174,6 +174,14 @@ def main(page: ft.Page):
     root = ft.Container(expand=True)
     page.add(root)
 
+    # Los archivos locales no sobreviven a una recarga de GitHub Pages. Estas
+    # preferencias mantienen el acceso recordado y el registro inicial en el
+    # navegador, sin afectar el respaldo existente para escritorio.
+    preferencias_web = ft.SharedPreferences()
+    page.services.append(preferencias_web)
+    CLAVE_WEB_NIVELES = "ce19.niveles_autorizados.v1"
+    CLAVE_WEB_REGISTRO = "ce19.registro_finalizado.v1"
+
     app_iniciada = {"valor": False}
     selector_niveles_activo = {"valor": False}
     router_actual = {"valor": None}
@@ -182,6 +190,40 @@ def main(page: ft.Page):
     idioma_seleccionado = {"valor": region_guardada.get("idioma", "")}
     continente_seleccionado = {"valor": None}
     resumen_registros = {"valor": RegistroUsuariosService.obtener_resumen()}
+
+    PermisosService.establecer_niveles_sesion(PermisosService.niveles_autorizados())
+    RegistroUsuariosService.establecer_estado_sesion(RegistroUsuariosService.esta_finalizado())
+
+    async def cargar_preferencias_web():
+        """Carga los datos persistentes del navegador al iniciar la app web."""
+        try:
+            niveles = await preferencias_web.get(CLAVE_WEB_NIVELES)
+            if isinstance(niveles, list):
+                PermisosService.establecer_niveles_sesion(niveles)
+
+            registro_finalizado = await preferencias_web.get(CLAVE_WEB_REGISTRO)
+            if isinstance(registro_finalizado, bool):
+                RegistroUsuariosService.establecer_estado_sesion(registro_finalizado)
+        except Exception:
+            # La app sigue funcionando con el respaldo local en plataformas
+            # que no ofrezcan preferencias persistentes.
+            return
+
+        if selector_niveles_activo["valor"]:
+            mostrar_selector_niveles()
+
+    async def guardar_niveles_web():
+        try:
+            niveles = [str(nivel) for nivel in sorted(PermisosService.niveles_autorizados())]
+            await preferencias_web.set(CLAVE_WEB_NIVELES, niveles)
+        except Exception:
+            pass
+
+    async def guardar_registro_web():
+        try:
+            await preferencias_web.set(CLAVE_WEB_REGISTRO, True)
+        except Exception:
+            pass
 
     def iniciar_app(nivel=4):
         if app_iniciada["valor"]:
@@ -263,6 +305,7 @@ def main(page: ft.Page):
 
         def continuar_sin_registro(e=None):
             RegistroUsuariosService.ya_registrado()
+            page.run_task(guardar_registro_web)
             al_continuar()
 
         def registrar(e=None):
@@ -273,6 +316,7 @@ def main(page: ft.Page):
                 mensaje.visible = True
                 page.update()
                 return
+            page.run_task(guardar_registro_web)
             al_continuar()
 
         panel = ft.Container(
@@ -830,6 +874,7 @@ def main(page: ft.Page):
             def alternar_guardar_acceso(ev=None):
                 if PermisosService.esta_autorizado(nivel):
                     PermisosService.revocar(nivel)
+                    page.run_task(guardar_niveles_web)
                     casilla.bgcolor = ft.Colors.TRANSPARENT
                     casilla.border = ft.Border.all(1.5, "#8B778F")
                     casilla.content = None
@@ -920,7 +965,11 @@ def main(page: ft.Page):
 
             def confirmar_clave(ev=None):
                 if PermisosService.validar_clave(nivel, clave.value or ""):
-                    PermisosService.autorizar(nivel, guardar=bool(guardar_clave.value))
+                    if guardar_clave.value:
+                        PermisosService.autorizar(nivel, guardar=True)
+                    else:
+                        PermisosService.revocar(nivel)
+                    page.run_task(guardar_niveles_web)
                     mostrar_registro_inicial(lambda: iniciar_app(nivel))
                     return
                 error.value = "La clave no es correcta."
@@ -1010,6 +1059,7 @@ def main(page: ft.Page):
         page.update()
 
     try:
+        page.run_task(cargar_preferencias_web)
         intro, iniciar_animacion = construir_intro(page, mostrar_selector_pais)
         root.content = intro
         page.update()
