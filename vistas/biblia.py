@@ -1390,8 +1390,6 @@ class BibliaView:
                 estado_resultados["limite"] += 30
                 renderizar_resultados()
 
-            renderizar_resultados()
-
             contenido = ft.Column(
                 width=ancho,
                 tight=True,
@@ -1433,6 +1431,10 @@ class BibliaView:
             dialogo_resultados_ref["control"] = dialogo_resultados
             self.page.overlay.append(dialogo_resultados)
             self.page.update()
+            # La lista debe pertenecer primero al flotante y a la pagina. En
+            # Flet Web, actualizarla antes de este punto provoca el error
+            # "Control must be added to the page first".
+            renderizar_resultados()
 
         def ejecutar_busqueda(ev=None):
             termino = (campo.value or "").strip()
