@@ -5,17 +5,21 @@ import flet as ft
 
 from core.app_state import state
 from logica.calendario_360 import (
-    ANIOS_BIBLICOS_PREVIOS,
     BASE_ANIO,
     calcular_calendario_360,
     cargar_base_calendario,
-    fecha_extendida_desde_datetime,
+    fecha_gregoriana_desde_biblica,
     formatear_fecha_real,
-    guardar_base_calendario,
     parsear_fecha_consulta,
     texto_calendario_360,
 )
+from logica.exportar_calendario import (
+    exportar_convertidor_calendario_xlsx,
+    exportar_almanaque_pdf,
+    exportar_almanaque_xlsx,
+)
 from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.responsive import Responsive
 from ui.tema import (
     BLANCO,
@@ -30,6 +34,8 @@ from ui.tema import (
     swatches_colores,
 )
 from ui.teclado import ocultar_teclado
+from ui.compartir import descargar_archivo
+from ui.clipboard import copiar_al_portapapeles
 
 
 MARRON_RELOJ = "#5A3023"
@@ -61,6 +67,7 @@ class TiempoView:
         self._tamano_anio = 48
         self._tamano_hora = 104
         self._tamano_fecha = 20
+        self._anio_almanaque = BASE_ANIO
 
         self.anio = ft.Row(
             alignment=ft.MainAxisAlignment.CENTER,
@@ -99,22 +106,6 @@ class TiempoView:
             animate_scale=ft.Animation(500, ft.AnimationCurve.EASE_IN_OUT),
             content=ft.Icon(ft.Icons.HOURGLASS_BOTTOM, color=DORADO, size=42),
         )
-        self.base_input = ft.TextField(
-            label=f"Día base del año {BASE_ANIO + ANIOS_BIBLICOS_PREVIOS}",
-            hint_text="DD/MM/AAAA HH:MM:SS",
-            value=self._texto_input_fecha(self.base_real),
-            on_submit=self.aplicar_base,
-            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
-        )
-        self.base_era = ft.Dropdown(
-            label="Era",
-            value=self.base_real.era,
-            width=96,
-            options=[
-                ft.dropdown.Option("DC"),
-                ft.dropdown.Option("AC"),
-            ],
-        )
         self.consulta_input = ft.TextField(
             label="Consultar fecha real",
             hint_text="DD/MM/AAAA HH:MM:SS",
@@ -144,18 +135,186 @@ class TiempoView:
             border_radius=16,
             content=self.consulta_resultado,
         )
-
-    def _texto_input_fecha(self, fecha):
-        if isinstance(fecha, datetime):
-            fecha = fecha_extendida_desde_datetime(fecha)
-
-        return (
-            f"{fecha.dia:02d}/{fecha.mes:02d}/{fecha.anio:04d} "
-            f"{fecha.hora:02d}:{fecha.minuto:02d}:{fecha.segundo:02d}"
+        self.acciones_consulta = ft.Row(
+            visible=False,
+            controls=[
+                ft.IconButton(
+                    icon=ft.Icons.CONTENT_COPY,
+                    tooltip="Copiar resultado",
+                    on_click=lambda e: copiar_al_portapapeles(
+                        self.page, self.consulta_resultado.value
+                    ),
+                ),
+            ],
+        )
+        self.biblica_anio_input = ft.TextField(
+            label="Año bíblico",
+            value=str(BASE_ANIO),
+            width=150,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_submit=self.calcular_fecha_gregoriana,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        self.biblica_mes_input = ft.TextField(
+            label="Mes (1-12)",
+            value="1",
+            width=130,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_submit=self.calcular_fecha_gregoriana,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        self.biblica_dia_input = ft.TextField(
+            label="Día (1-30)",
+            value="1",
+            width=130,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_submit=self.calcular_fecha_gregoriana,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        self.biblica_resultado = ft.Text(
+            "",
+            selectable=True,
+            color=ft.Colors.BLACK,
+        )
+        self.biblica_resultado_panel = ft.Container(
+            visible=False,
+            padding=14,
+            bgcolor=SUPERFICIE_PERLADA,
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=16,
+            content=self.biblica_resultado,
+        )
+        self.acciones_biblica = ft.Row(
+            visible=False,
+            controls=[
+                ft.IconButton(
+                    icon=ft.Icons.CONTENT_COPY,
+                    tooltip="Copiar resultado",
+                    on_click=lambda e: copiar_al_portapapeles(
+                        self.page, self.biblica_resultado.value
+                    ),
+                ),
+            ],
         )
 
     def _on_resize(self, e):
         self.router.refrescar()
+
+    def _crear_almanaque(self, es_movil, anio=None, contenedor=None):
+        """Construye los doce meses biblicos sin alterar la regla de 360 dias."""
+        anio = self._anio_almanaque if anio is None else anio
+        contenedor = contenedor or ft.Column(spacing=8)
+        contenedor.controls.clear()
+
+        meses = (
+            "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre",
+            "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo",
+        )
+        tarjetas = []
+        for indice, mes in enumerate(meses, start=1):
+            dias = []
+            for dia in range(1, 31):
+                fecha_gregoriana = fecha_gregoriana_desde_biblica(anio, indice, dia)
+                es_hoy = (
+                    anio == self.datos_actuales["anio"]
+                    and indice == self.datos_actuales["mes_numero"]
+                    and dia == self.datos_actuales["dia_mes"]
+                )
+                dias.append(
+                    ft.Container(
+                        width=20 if es_movil else 24,
+                        height=20 if es_movil else 24,
+                        alignment=ft.Alignment(0, 0),
+                        border_radius=4,
+                        bgcolor=DORADO if es_hoy else "#8B5A44",
+                        border=ft.Border.all(
+                            1,
+                            DORADO if es_hoy else "#B98262",
+                        ),
+                        tooltip=(
+                            "Calendario gregoriano: "
+                            f"{formatear_fecha_real(fecha_gregoriana)}"
+                        ),
+                        content=ft.Text(
+                            str(dia),
+                            size=9 if es_movil else 10,
+                            color=MARRON_RELOJ if es_hoy else COLORES_DIGITOS[str(dia)[-1]],
+                            weight=ft.FontWeight.BOLD if es_hoy else ft.FontWeight.W_500,
+                        ),
+                    )
+                )
+            tarjetas.append(
+                ft.Container(
+                    width=154 if es_movil else 190,
+                    padding=7,
+                    border_radius=12,
+                    bgcolor="#6D402F",
+                    border=ft.Border.all(1, "#B98262"),
+                    content=ft.Column(
+                        spacing=5,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(mes, color=DORADO, size=11 if es_movil else 13, weight=ft.FontWeight.BOLD),
+                            ft.Row(
+                                wrap=True,
+                                spacing=3,
+                                run_spacing=3,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                controls=dias,
+                            ),
+                        ],
+                    ),
+                )
+            )
+        columnas = 2 if es_movil else 3
+        for inicio in range(0, len(tarjetas), columnas):
+            contenedor.controls.append(
+                ft.Row(
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    controls=tarjetas[inicio:inicio + columnas],
+                )
+            )
+        return contenedor
+
+    def _seccion_almanaque(self, es_movil, anio):
+        """Devuelve un año completo con su referencia gregoriana directa."""
+        meses = ft.Column(spacing=8)
+        self._crear_almanaque(es_movil, anio, meses)
+        inicio = formatear_fecha_real(fecha_gregoriana_desde_biblica(anio, 1, 1))
+        fin = formatear_fecha_real(fecha_gregoriana_desde_biblica(anio, 12, 30))
+
+        return ft.Container(
+            padding=10 if es_movil else 14,
+            border_radius=14,
+            bgcolor=ft.Colors.with_opacity(0.10, BLANCO),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.28, DORADO)),
+            content=ft.Column(
+                spacing=8,
+                controls=[
+                    ft.Row(
+                        wrap=True,
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(
+                                f"Año bíblico {anio}",
+                                color=DORADO,
+                                size=16 if es_movil else 18,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text(
+                                f"Gregoriano: {inicio} a {fin}",
+                                color=ft.Colors.WHITE70,
+                                size=10 if es_movil else 11,
+                            ),
+                        ],
+                    ),
+                    ft.Divider(height=1, color=ft.Colors.with_opacity(0.28, DORADO)),
+                    meses,
+                ],
+            ),
+        )
 
     def _digito(self, valor, tamano, destacado=True):
         color = COLORES_DIGITOS.get(str(valor), BLANCO)
@@ -261,6 +420,7 @@ class TiempoView:
             ),
             content=ft.Column(
                 expand=not es_movil,
+                scroll=ft.ScrollMode.AUTO,
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8 if es_movil else 10,
@@ -278,6 +438,13 @@ class TiempoView:
                         weight=ft.FontWeight.BOLD,
                     ),
                     self.fecha_real,
+                    ft.Divider(color=ft.Colors.with_opacity(0.30, DORADO), height=14),
+                    ft.OutlinedButton(
+                        "Ver almanaque bíblico",
+                        icon=ft.Icons.CALENDAR_MONTH,
+                        icon_color=DORADO,
+                        on_click=self.abrir_almanaque,
+                    ),
                     *([
                         ft.ElevatedButton(
                             "Guardar tiempo actual",
@@ -344,45 +511,74 @@ class TiempoView:
                     ],
                 ),
                 self.consulta_resultado_panel,
+                self.acciones_consulta,
                 ft.Divider(height=10),
                 ft.Text(
-                    "Base del calendario",
+                    "Consultar fecha bíblica",
                     color=TEXTO_PRINCIPAL,
                     weight=ft.FontWeight.BOLD,
                 ),
                 ft.Text(
-                    f"La fecha elegida será Año {BASE_ANIO + ANIOS_BIBLICOS_PREVIOS}, Mes 1, Día 1, 00:00:00.",
-                    color=TEXTO_SECUNDARIO,
+                    "Ingresá una fecha del calendario bíblico para conocer su equivalencia gregoriana.",
                     size=12,
+                    color=TEXTO_SECUNDARIO,
                 ),
-                self.base_input,
-                self.base_era,
                 ft.Row(
                     wrap=True,
                     spacing=8,
+                    run_spacing=8,
                     controls=[
-                        ft.ElevatedButton(
-                            "Aplicar base",
-                            icon=ft.Icons.CHECK,
-                            bgcolor=MARRON_RELOJ_MEDIO,
-                            color=BLANCO,
-                            on_click=self.aplicar_base,
-                        ),
-                        ft.OutlinedButton(
-                            "Base original",
-                            icon=ft.Icons.RESTART_ALT,
-                            on_click=self.restaurar_base,
-                        ),
+                        self.biblica_anio_input,
+                        self.biblica_mes_input,
+                        self.biblica_dia_input,
                     ],
+                ),
+                ft.ElevatedButton(
+                    "Convertir a gregoriano",
+                    icon=ft.Icons.CALENDAR_TODAY,
+                    bgcolor=MARRON_RELOJ_MEDIO,
+                    color=BLANCO,
+                    on_click=self.calcular_fecha_gregoriana,
+                ),
+                self.biblica_resultado_panel,
+                self.acciones_biblica,
+                ft.OutlinedButton(
+                    "Descargar convertidor Excel",
+                    icon=ft.Icons.TABLE_CHART,
+                    on_click=self.descargar_convertidor_excel,
+                ),
+                ft.Divider(height=10),
+                ft.Text(
+                    "Base fija del calendario",
+                    color=TEXTO_PRINCIPAL,
+                    weight=ft.FontWeight.BOLD,
+                ),
+                ft.Text(
+                    f"11/04/2029 00:00:00 = Año {BASE_ANIO}, Abril, día 1. Las consultas comparan días reales sin corrección solar.",
+                    color=TEXTO_SECUNDARIO,
+                    size=12,
                 ),
             ],
         )
         return panel_moderno(contenido, padding=18 if es_movil else 20, expand=True)
 
     def _actualizar_resultado_consulta_visible(self):
-        self.consulta_resultado_panel.visible = bool(
-            (self.consulta_resultado.value or "").strip()
+        visible = bool((self.consulta_resultado.value or "").strip())
+        self.consulta_resultado_panel.visible = visible
+        self.acciones_consulta.visible = visible
+
+    def _actualizar_resultado_biblico_visible(self):
+        visible = bool((self.biblica_resultado.value or "").strip())
+        self.biblica_resultado_panel.visible = visible
+        self.acciones_biblica.visible = visible
+
+    def _avisar_conversion(self):
+        self.page.snack_bar = ft.SnackBar(
+            content=ft.Text("Conversión realizada correctamente"),
+            duration=1800,
+            behavior=ft.SnackBarBehavior.FLOATING,
         )
+        self.page.snack_bar.open = True
 
     def _actualizar_textos(self):
         self.datos_actuales = calcular_calendario_360(base_real=self.base_real)
@@ -456,6 +652,7 @@ class TiempoView:
             self.datos_consulta = None
             self.consulta_resultado.value = str(error)
         self._actualizar_resultado_consulta_visible()
+        self._avisar_conversion()
         self.page.update()
 
     def usar_ahora(self):
@@ -463,41 +660,208 @@ class TiempoView:
         self.consulta_era.value = "DC"
         self.calcular_consulta()
 
-    def aplicar_base(self, e=None):
+    def calcular_fecha_gregoriana(self, e=None):
+        """Convierte directamente una fecha biblica de 360 dias a gregoriana."""
         if not self._puede("tiempo_consultar"):
             return
         if e is not None:
             ocultar_teclado(self.page, e.control)
         try:
-            self.base_real = parsear_fecha_consulta(
-                self.base_input.value,
-                self.base_era.value,
+            anio = int((self.biblica_anio_input.value or "").strip())
+            mes = int((self.biblica_mes_input.value or "").strip())
+            dia = int((self.biblica_dia_input.value or "").strip())
+            fecha = fecha_gregoriana_desde_biblica(anio, mes, dia)
+            self.biblica_resultado.value = (
+                f"Fecha gregoriana equivalente: {formatear_fecha_real(fecha)}\n"
+                f"Referencia: Año {BASE_ANIO}, mes 1, día 1 = "
+                "11/04/2029 00:00:00 DC."
             )
-            guardar_base_calendario(self.base_real)
-            self.datos_consulta = None
-            self.consulta_resultado.value = (
-                f"Base actualizada: {formatear_fecha_real(self.base_real)}"
+        except ValueError:
+            self.biblica_resultado.value = (
+                "Ingresá valores numéricos válidos. El mes debe estar entre 1 y 12 "
+                "y el día entre 1 y 30."
             )
-            self._actualizar_textos()
-        except ValueError as error:
-            self.consulta_resultado.value = str(error)
-        self._actualizar_resultado_consulta_visible()
+        self._actualizar_resultado_biblico_visible()
+        self._avisar_conversion()
         self.page.update()
 
-    def restaurar_base(self, e=None):
-        if not self._puede("tiempo_consultar"):
+    def descargar_convertidor_excel(self, e=None):
+        try:
+            archivo = exportar_convertidor_calendario_xlsx()
+        except OSError:
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("No se pudo crear el convertidor Excel."))
+            self.page.snack_bar.open = True
+            self.page.update()
             return
-        self.base_real = fecha_extendida_desde_datetime(datetime(2029, 4, 13, 0, 0, 0))
-        guardar_base_calendario(self.base_real)
-        self.base_input.value = self._texto_input_fecha(self.base_real)
-        self.base_era.value = "DC"
-        self.datos_consulta = None
-        self.consulta_resultado.value = (
-            f"Base restaurada: {formatear_fecha_real(self.base_real)}"
+        descargar_archivo(self.page, archivo, "Guardar convertidor de calendario Excel")
+
+    def abrir_almanaque(self, e=None):
+        """Muestra un solo año por vez para conservar legible la equivalencia."""
+        es_movil = self.responsive.is_mobile()
+        self._anio_almanaque = BASE_ANIO
+        meses = ft.Column(spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        titulo = ft.Text(
+            f"Almanaque bíblico: año {self._anio_almanaque}",
+            size=20,
+            color=DORADO,
+            weight=ft.FontWeight.BOLD,
         )
-        self._actualizar_textos()
-        self._actualizar_resultado_consulta_visible()
-        self.page.update()
+        referencia = ft.Text(
+            "", size=11 if es_movil else 12, color=ft.Colors.WHITE70, text_align=ft.TextAlign.CENTER
+        )
+        panel_desplazable = ft.Column(
+            scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=10,
+            controls=[referencia, meses],
+        )
+
+        anterior = ft.IconButton(
+            icon=ft.Icons.KEYBOARD_ARROW_UP,
+            tooltip="Ver año anterior",
+        )
+        siguiente = ft.IconButton(
+            icon=ft.Icons.KEYBOARD_ARROW_DOWN,
+            tooltip="Volver al año siguiente",
+            disabled=True,
+        )
+
+        def texto_rango():
+            inicio = formatear_fecha_real(
+                fecha_gregoriana_desde_biblica(self._anio_almanaque, 1, 1)
+            )
+            fin = formatear_fecha_real(
+                fecha_gregoriana_desde_biblica(self._anio_almanaque, 12, 30)
+            )
+            return (
+                f"Mes 1, día 1: {inicio}. "
+                f"Fin del año: {fin}. Cada mes tiene 30 días."
+            )
+
+        def refrescar_anio(ev=None):
+            self._crear_almanaque(es_movil, self._anio_almanaque, meses)
+            titulo.value = f"Almanaque bíblico: año {self._anio_almanaque}"
+            referencia.value = texto_rango()
+            siguiente.disabled = self._anio_almanaque >= BASE_ANIO
+            self.page.update()
+            panel_desplazable.scroll_to(offset=0)
+
+        def ir_anterior(ev=None):
+            self._anio_almanaque -= 1
+            refrescar_anio()
+
+        def ir_siguiente(ev=None):
+            if self._anio_almanaque < BASE_ANIO:
+                self._anio_almanaque += 1
+                refrescar_anio()
+
+        anterior.on_click = ir_anterior
+        siguiente.on_click = ir_siguiente
+        self._crear_almanaque(es_movil, self._anio_almanaque, meses)
+        referencia.value = texto_rango()
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                tight=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                controls=[anterior, titulo, siguiente],
+            ),
+            content=ft.Container(
+                width=700 if not es_movil else None,
+                height=560 if not es_movil else 490,
+                bgcolor=MARRON_RELOJ,
+                border_radius=14,
+                padding=12 if es_movil else 16,
+                content=panel_desplazable,
+            ),
+            actions=[
+                ft.OutlinedButton(
+                    "Exportar",
+                    icon=ft.Icons.DOWNLOAD,
+                    on_click=lambda ev: self.abrir_exportacion_almanaque(ev, dialog),
+                ),
+                ft.TextButton("Cerrar", on_click=cerrar),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        # El gestor monta el dialogo antes de abrirlo. Esto evita que Flet
+        # intente actualizar un control aun ajeno a la pagina.
+        mostrar_dialogo(self.page, dialog)
+
+    def abrir_exportacion_almanaque(self, e=None, dialogo_padre=None):
+        anio_actual = str(self._anio_almanaque)
+        desde = ft.TextField(
+            label="Desde el año bíblico",
+            value=anio_actual,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            width=210,
+        )
+        hasta = ft.TextField(
+            label="Hasta el año bíblico",
+            value=anio_actual,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            width=210,
+        )
+        aviso = ft.Text("", color=ft.Colors.RED, size=12)
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        def exportar(formato):
+            try:
+                inicio = int((desde.value or "").strip())
+                fin = int((hasta.value or "").strip())
+                if formato == "xlsx":
+                    archivo = exportar_almanaque_xlsx(inicio, fin)
+                    titulo = "Guardar almanaque Excel"
+                else:
+                    archivo = exportar_almanaque_pdf(inicio, fin)
+                    titulo = "Guardar almanaque PDF"
+            except (ValueError, OSError) as error:
+                aviso.value = str(error)
+                self.page.update()
+                return
+
+            cerrar()
+            if dialogo_padre is not None:
+                cerrar_dialogo(self.page, dialogo_padre)
+            descargar_archivo(self.page, archivo, titulo)
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Exportar almanaque"),
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Text(
+                        "Elija un segmento de años. Excel crea una hoja por año y PDF una página por año.",
+                        size=13,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    ft.Row(wrap=True, spacing=10, controls=[desde, hasta]),
+                    aviso,
+                ],
+            ),
+            actions=[
+                ft.ElevatedButton(
+                    "Excel",
+                    icon=ft.Icons.TABLE_CHART,
+                    bgcolor=MARRON_RELOJ_MEDIO,
+                    color=BLANCO,
+                    on_click=lambda ev: exportar("xlsx"),
+                ),
+                ft.OutlinedButton(
+                    "PDF",
+                    icon=ft.Icons.PICTURE_AS_PDF,
+                    on_click=lambda ev: exportar("pdf"),
+                ),
+                ft.TextButton("Cancelar", on_click=cerrar),
+            ],
+        )
+        mostrar_dialogo(self.page, dialog)
 
     def guardar_tiempo(self, datos):
         if not self._puede("tiempo_guardar"):
@@ -557,8 +921,7 @@ class TiempoView:
 
     def _confirmacion(self, mensaje):
         def cerrar(e=None):
-            dialog.open = False
-            self.page.update()
+            cerrar_dialogo(self.page, dialog)
 
         dialog = ft.AlertDialog(
             title=ft.Text("Guardado correctamente"),
@@ -568,6 +931,4 @@ class TiempoView:
             ],
         )
 
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()
+        mostrar_dialogo(self.page, dialog)

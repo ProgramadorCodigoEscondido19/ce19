@@ -7,11 +7,12 @@ from datetime import datetime
 from core.rutas import ruta_datos
 
 
-BASE_REAL = datetime(2029, 4, 13, 0, 0, 0)
-BASE_ANIO = 2000
-# La cronologia biblica se presenta con 4.000 anios previos ya cumplidos.
-# Es un desplazamiento de etiqueta del anio: no altera meses, dias ni horas.
-ANIOS_BIBLICOS_PREVIOS = 4000
+# Regla fija del calendario biblico: el 11/04/2029 del calendario gregoriano
+# corresponde al primer dia del anio 6000. Los 360 dias del calendario se
+# cuentan como dias reales transcurridos, sin aplicar correcciones solares.
+BASE_REAL = datetime(2029, 4, 11, 0, 0, 0)
+BASE_ANIO = 6000
+ANIOS_BIBLICOS_PREVIOS = 0
 SEGUNDOS_DIA = 24 * 60 * 60
 DIAS_ANIO = 360
 DIAS_MES = 30
@@ -105,6 +106,21 @@ def _dias_desde_civil(anio, mes, dia):
     return era * 146097 + doe - 719468
 
 
+def _civil_desde_dias(dias):
+    """Inverso de _dias_desde_civil para fechas gregorianas prolepticas."""
+    z = dias + 719468
+    era = z // 146097 if z >= 0 else (z - 146096) // 146097
+    doe = z - era * 146097
+    yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+    anio = yoe + era * 400
+    dia_anio = doe - (365 * yoe + yoe // 4 - yoe // 100)
+    mes_previo = (5 * dia_anio + 2) // 153
+    dia = dia_anio - (153 * mes_previo + 2) // 5 + 1
+    mes = mes_previo + 3 if mes_previo < 10 else mes_previo - 9
+    anio += 1 if mes <= 2 else 0
+    return anio, mes, dia
+
+
 def _segundos_absolutos(fecha):
     if isinstance(fecha, datetime):
         fecha = fecha_extendida_desde_datetime(fecha)
@@ -126,6 +142,24 @@ def formatear_fecha_real(fecha):
         f"{fecha.dia:02d}/{fecha.mes:02d}/{fecha.anio:04d} "
         f"{fecha.hora:02d}:{fecha.minuto:02d}:{fecha.segundo:02d} {fecha.era}"
     )
+
+
+def fecha_gregoriana_desde_biblica(anio, mes=1, dia=1):
+    """Devuelve la fecha gregoriana equivalente sin correccion solar.
+
+    Cada dia biblico se compara contra un dia real a partir de la base fija.
+    Esto permite exportar consultas incluso en anos anteriores a Cristo.
+    """
+    if mes < 1 or mes > 12 or dia < 1 or dia > 30:
+        raise ValueError("El calendario biblico usa meses del 1 al 12 y dias del 1 al 30.")
+
+    indice_biblico = ((anio - BASE_ANIO) * DIAS_ANIO) + ((mes - 1) * DIAS_MES) + (dia - 1)
+    base = fecha_extendida_desde_datetime(BASE_REAL)
+    dias_base = _dias_desde_civil(base.anio_astronomico, base.mes, base.dia)
+    anio_astronomico, mes_real, dia_real = _civil_desde_dias(dias_base + indice_biblico)
+    era = "DC" if anio_astronomico >= 1 else "AC"
+    anio_real = anio_astronomico if era == "DC" else 1 - anio_astronomico
+    return FechaExtendida(anio_real, mes_real, dia_real, era=era)
 
 
 def parsear_fecha_consulta(texto, era="DC"):
@@ -194,24 +228,9 @@ def _validar_fecha(anio, mes, dia, hora, minuto, segundo, era):
 
 
 def cargar_base_calendario():
-    if not os.path.exists(CONFIG_ARCHIVO):
-        return fecha_extendida_desde_datetime(BASE_REAL)
-
-    try:
-        with open(CONFIG_ARCHIVO, "r", encoding="utf-8") as archivo:
-            datos = json.load(archivo)
-
-        return FechaExtendida(
-            int(datos.get("anio", BASE_REAL.year)),
-            int(datos.get("mes", BASE_REAL.month)),
-            int(datos.get("dia", BASE_REAL.day)),
-            int(datos.get("hora", 0)),
-            int(datos.get("minuto", 0)),
-            int(datos.get("segundo", 0)),
-            _normalizar_era(datos.get("era", "DC")),
-        )
-    except Exception:
-        return fecha_extendida_desde_datetime(BASE_REAL)
+    # La base no es configurable: evita que consultas previas cambien el
+    # resultado de todo el calendario.
+    return fecha_extendida_desde_datetime(BASE_REAL)
 
 
 def guardar_base_calendario(fecha):
