@@ -59,6 +59,17 @@ def _celda_formula(fila, columna, formula, estilo=0, valor=0):
     return f'<c r="{referencia}" s="{estilo}"><f>{formula}</f><v>{valor}</v></c>'
 
 
+def _celda_formula_texto(fila, columna, formula, estilo=0, valor=""):
+    """Crea una formula cuyo resultado es texto, incluso antes de 1900."""
+    referencia = f"{_columna_excel(columna)}{fila}"
+    formula = escape(str(formula).lstrip("="))
+    contenido = escape(str(valor))
+    return (
+        f'<c r="{referencia}" s="{estilo}" t="str">'
+        f'<f>{formula}</f><v>{contenido}</v></c>'
+    )
+
+
 def _celda_numero(fila, columna, valor, estilo=0):
     """Crea una celda numérica editable para los campos del convertidor."""
     referencia = f"{_columna_excel(columna)}{fila}"
@@ -127,6 +138,22 @@ def _archivo_convertidor(archivo=None):
 def _hoja_convertidor():
     """Genera un formulario guiado de conversiones para usar sin fórmulas."""
     meses = '"Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo"'
+    # Excel no puede mostrar sus fechas numéricas anteriores a 1900. Esta
+    # formula calcula el calendario gregoriano y devuelve una fecha legible.
+    formula_biblica = (
+        "LET(z,21650+(A14-6000)*360+(B14-1)*30+C14-1,"
+        "q,z+719468,"
+        "era,IF(q>=0,QUOTIENT(q,146097),QUOTIENT(q-146096,146097)),"
+        "doe,q-era*146097,"
+        "yoe,QUOTIENT(doe-QUOTIENT(doe,1460)+QUOTIENT(doe,36524)-QUOTIENT(doe,146096),365),"
+        "y,yoe+era*400,"
+        "doy,doe-(365*yoe+QUOTIENT(yoe,4)-QUOTIENT(yoe,100)),"
+        "mp,QUOTIENT(5*doy+2,153),"
+        "d,doy-QUOTIENT(153*mp+2,5)+1,"
+        "m,IF(mp<10,mp+3,mp-9),"
+        "yy,y+IF(m<=2,1,0),"
+        "TEXT(d,\"00\")&\"/\"&TEXT(m,\"00\")&\"/\"&TEXT(IF(yy>=1,yy,1-yy),\"0000\")&IF(yy>=1,\" DC\",\" AC\"))"
+    )
     filas = [
         _fila_xml(1, ["CONVERTIDOR DE CALENDARIO BÍBLICO"], [1], alto=28),
         _fila_xml(2, ["Base: 11/04/2029 = año bíblico 6000, mes 1, día 1. No se aplica corrección solar."], [2], alto=22),
@@ -154,7 +181,7 @@ def _hoja_convertidor():
         + _celda_numero(14, 0, 6000, 6)
         + _celda_numero(14, 1, 1, 6)
         + _celda_numero(14, 2, 1, 6)
-        + _celda_formula(14, 3, "DATE(2029,4,11)+(A14-6000)*360+(B14-1)*30+C14-1", 5, 47219)
+        + _celda_formula_texto(14, 3, formula_biblica, 7, "11/04/2029 DC")
         + '</row>',
         _fila_xml(17, ["GUÍA RÁPIDA"], [1], alto=24),
         _fila_xml(18, ["1. Solo modificá las casillas marrones.  2. Las casillas crema se calculan solas."], [2], alto=22),
