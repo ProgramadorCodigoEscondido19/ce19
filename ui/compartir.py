@@ -8,6 +8,8 @@ from urllib.parse import quote
 import flet as ft
 from flet.controls.services.url_launcher import LaunchMode
 
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
+
 
 def _snack(page, mensaje):
     try:
@@ -160,8 +162,7 @@ def _servicio_compartir_texto(page, texto, titulo):
 
 def _mostrar_dialogo_compartir_texto(page, texto, titulo, urls):
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        cerrar_dialogo(page, dialog)
 
     def abrir(url, modo):
         cerrar()
@@ -207,9 +208,7 @@ def _mostrar_dialogo_compartir_texto(page, texto, titulo, urls):
         ],
     )
 
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    mostrar_dialogo(page, dialog)
     return True
 
 
@@ -229,8 +228,7 @@ def _mostrar_exportado(page, ruta, titulo="Archivo listo"):
     ruta = Path(ruta)
 
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        cerrar_dialogo(page, dialog)
 
     def abrir_archivo(e=None):
         cerrar()
@@ -260,9 +258,7 @@ def _mostrar_exportado(page, ruta, titulo="Archivo listo"):
         ],
     )
 
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    mostrar_dialogo(page, dialog)
     return True
 
 
@@ -406,8 +402,7 @@ def _mostrar_dialogo_compartir_archivo(
     ruta = Path(archivo)
 
     def cerrar(e=None):
-        dialog.open = False
-        page.update()
+        cerrar_dialogo(page, dialog)
 
     def compartir_sistema(e=None):
         cerrar()
@@ -476,9 +471,7 @@ def _mostrar_dialogo_compartir_archivo(
         ],
     )
 
-    page.overlay.append(dialog)
-    dialog.open = True
-    page.update()
+    mostrar_dialogo(page, dialog)
     return True
 
 

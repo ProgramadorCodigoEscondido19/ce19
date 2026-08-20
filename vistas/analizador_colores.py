@@ -11,6 +11,7 @@ from logica.analizador_colores import (
 from services.biblia_service import BibliaService
 from ui.clipboard import copiar_al_portapapeles
 from ui.compartir import compartir_texto
+from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.teclado import ocultar_teclado
@@ -66,6 +67,8 @@ class AnalizadorColoresView:
         self.responsive = Responsive(page)
         self.resultado = None
         self.ultimo_archivo_tarjeta = None
+        self.escala_vista = 0.86
+        self.dialogo_importar = None
 
         self.libros = BibliaService.nombres_libros()
         libro_inicial = self.libros[0] if self.libros else ""
@@ -139,7 +142,12 @@ class AnalizadorColoresView:
             options=[],
         )
 
-        self.panel_resultado = ft.Column(expand=True, spacing=10, scroll=ft.ScrollMode.AUTO)
+        self.panel_resultado = ft.Column(
+            expand=True,
+            spacing=10,
+            scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
         self._actualizar_importador()
 
     def _on_resize(self, e):
@@ -188,80 +196,149 @@ class AnalizadorColoresView:
         if self.responsive.is_mobile():
             return ft.Column(
                 expand=True,
-                scroll=ft.ScrollMode.AUTO,
-                spacing=10,
+                spacing=6,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[entrada, salida],
             )
 
-        return ft.Row(
+        if self.responsive.is_desktop():
+            return ft.Column(
+                expand=True,
+                spacing=6,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[
+                    entrada,
+                    ft.Container(expand=True, content=salida),
+                ],
+            )
+
+        return ft.Column(
             expand=True,
-            spacing=10,
-            vertical_alignment=ft.CrossAxisAlignment.START,
+            spacing=6,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             controls=[
-                ft.Container(width=430 if not self.responsive.is_tablet() else 360, content=entrada),
+                entrada,
                 ft.Container(expand=True, content=salida),
             ],
         )
 
     def _panel_entrada(self):
+        controles = ft.Row(
+            wrap=True,
+            spacing=8,
+            run_spacing=8,
+            alignment=ft.MainAxisAlignment.END,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.ElevatedButton("Texto", icon=ft.Icons.TEXT_FIELDS, on_click=self.abrir_texto),
+                ft.OutlinedButton("Importar", icon=ft.Icons.DOWNLOAD, on_click=self.abrir_importar),
+                ft.ElevatedButton("Analizar", icon=ft.Icons.PLAY_ARROW, on_click=self.analizar),
+                ft.IconButton(icon=ft.Icons.CLEAR, tooltip="Limpiar analisis", on_click=self.limpiar),
+                ft.IconButton(icon=ft.Icons.ZOOM_OUT, tooltip="Achicar vista", on_click=lambda e: self._cambiar_escala(-0.08)),
+                ft.Text(f"{int(self.escala_vista * 100)}%", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                ft.IconButton(icon=ft.Icons.ZOOM_IN, tooltip="Agrandar vista", on_click=lambda e: self._cambiar_escala(0.08)),
+            ],
+        )
+
         return self._card(
-            ft.Column(
+            ft.Row(
+                wrap=True,
                 spacing=12,
+                run_spacing=8,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
                     ft.Row(
+                        tight=True,
                         spacing=10,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
                             ft.Container(
-                                width=46,
-                                height=46,
-                                border_radius=16,
+                                width=40,
+                                height=40,
+                                border_radius=14,
                                 bgcolor=PERLA_VIOLETA,
                                 alignment=ft.Alignment(0, 0),
-                                content=ft.Icon(ft.Icons.COLOR_LENS, color=VIOLETA_IOS, size=26),
+                                content=ft.Icon(ft.Icons.COLOR_LENS, color=VIOLETA_IOS, size=22),
                             ),
-                            ft.Column(
-                                tight=True,
-                                spacing=2,
-                                controls=[
-                                    ft.Text("Colores", size=26, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                                    ft.Text("Codigo visual por caracter", size=12, color=TEXTO_SECUNDARIO),
-                                ],
-                            ),
+                            ft.Text("Colores", size=24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
                         ],
                     ),
-                    self._panel_suave(
-                        ft.Column(
-                            tight=True,
-                            spacing=8,
-                            controls=[
-                                ft.Row(
-                                    spacing=8,
-                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                                    controls=[
-                                        ft.Icon(ft.Icons.TEXT_FIELDS, size=18, color=VIOLETA_IOS),
-                                        ft.Text("Texto a analizar", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                                    ],
-                                ),
-                                self.texto,
-                            ],
-                        )
-                    ),
-                    self._panel_importar_biblia(),
-                    ft.Row(
-                        wrap=True,
-                        spacing=8,
-                        run_spacing=8,
-                        controls=[
-                            ft.ElevatedButton("Analizar", icon=ft.Icons.PLAY_ARROW, on_click=self.analizar),
-                            ft.OutlinedButton("Limpiar", icon=ft.Icons.CLEAR, on_click=self.limpiar),
-                        ],
-                    ),
-                    self._leyenda_colores(),
+                    controles,
                 ],
             ),
-            expand=not self.responsive.is_mobile(),
+            padding=10,
+            expand=False,
         )
+
+    def abrir_texto(self, e=None):
+        ancho = min(760, max(320, int((self.responsive.width() or 760) * 0.72)))
+        alto = 360 if self.responsive.is_mobile() else 420
+        entrada = ft.TextField(
+            label="Texto",
+            value=self.texto.value or "",
+            multiline=True,
+            min_lines=10,
+            max_lines=18,
+            border_radius=14,
+            filled=True,
+            autofocus=True,
+            bgcolor="#FCFAFF",
+            border_color=PERLA_BORDE,
+            focused_border_color=VIOLETA_IOS,
+        )
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        def aceptar(ev=None):
+            self.texto.value = entrada.value or ""
+            self.texto.label = "Texto"
+            cerrar()
+            self.analizar()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Texto a analizar"),
+            content=ft.Container(width=ancho, height=alto, content=entrada),
+            actions=[
+                ft.TextButton("Cancelar", on_click=cerrar),
+                ft.ElevatedButton("Aceptar", icon=ft.Icons.CHECK, on_click=aceptar),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        mostrar_dialogo(self.page, dialog, cerrar_al_tocar_fuera=False)
+
+    def abrir_importar(self, e=None):
+        ancho = min(860, max(330, int((self.responsive.width() or 860) * 0.78)))
+
+        def cerrar(ev=None):
+            self.dialogo_importar = None
+            cerrar_dialogo(self.page, dialog)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Importar segmentos de Biblia"),
+            content=ft.Container(width=ancho, content=self._panel_importar_biblia()),
+            actions=[ft.TextButton("Cerrar", on_click=cerrar)],
+            actions_alignment=ft.MainAxisAlignment.END,
+            scrollable=True,
+        )
+        self.dialogo_importar = dialog
+        mostrar_dialogo(self.page, dialog, cerrar_al_tocar_fuera=False)
+
+    def _cambiar_escala(self, delta):
+        self.escala_vista = max(0.42, min(1.18, self.escala_vista + delta))
+        if self.resultado:
+            self._render_resultado()
+        else:
+            self.router.refrescar()
+
+    def _tam(self, valor, minimo=None):
+        ajustado = int(round(valor * self.escala_vista))
+        if minimo is not None:
+            return max(minimo, ajustado)
+        return ajustado
 
     def _panel_importar_biblia(self):
         controles = [
@@ -308,7 +385,14 @@ class AnalizadorColoresView:
                 )
             ]
 
-        return self._card(self.panel_resultado, expand=True)
+        return ft.Container(
+            expand=True,
+            padding=4,
+            bgcolor=ft.Colors.with_opacity(0.93, BLANCO),
+            border=ft.Border.all(1, PERLA_BORDE),
+            border_radius=10,
+            content=self.panel_resultado,
+        )
 
     def _leyenda_colores(self):
         return ft.Row(
@@ -438,6 +522,10 @@ class AnalizadorColoresView:
 
         self.texto.value = texto
         self.texto.label = referencia
+        if self.dialogo_importar:
+            dialogo = self.dialogo_importar
+            self.dialogo_importar = None
+            cerrar_dialogo(self.page, dialogo)
         self.page.update()
         self.analizar()
 
@@ -490,6 +578,8 @@ class AnalizadorColoresView:
 
     def _render_resultado(self):
         self.panel_resultado.controls.clear()
+        self.panel_resultado.spacing = self._tam(10, 5)
+        self.panel_resultado.horizontal_alignment = ft.CrossAxisAlignment.STRETCH
         if not self.resultado:
             self.page.update()
             return
@@ -508,49 +598,50 @@ class AnalizadorColoresView:
         texto_limpio = self.resultado.get("texto_limpio", "")
         vista = texto_limpio if len(texto_limpio) <= 220 else texto_limpio[:217] + "..."
         return ft.Container(
-            padding=12,
+            padding=self._tam(12, 7),
             bgcolor=PERLA_PANEL,
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=16,
+            border_radius=12,
             content=ft.Column(
                 tight=True,
-                spacing=6,
+                spacing=self._tam(6, 3),
                 controls=[
-                    ft.Text("Texto", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                    ft.Text(vista or "Sin texto", size=18, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, selectable=True),
+                    ft.Text("Texto", size=self._tam(13, 10), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                    ft.Text(vista or "Sin texto", size=self._tam(18, 12), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, selectable=True),
                 ],
             ),
         )
 
     def _bloques_caracteres(self):
         detalle = self.resultado.get("detalle_visual", [])
-        limite = 90 if self.responsive.is_mobile() else 180
+        limite_base = 90 if self.responsive.is_mobile() else 220 if self.responsive.is_tablet() else 420
+        limite = int(limite_base / max(0.62, self.escala_vista))
         grupos, cantidad_visible = self._grupos_palabras_visibles(detalle, limite)
         controles = [self._bloque_palabra(palabra, items) for palabra, items in grupos]
 
         if cantidad_visible < len(detalle):
             controles.append(
                 ft.Container(
-                    padding=12,
+                    padding=self._tam(12, 7),
                     border_radius=12,
                     bgcolor=PERLA_VIOLETA,
                     content=ft.Text(
                         f"Vista resumida: se muestran {cantidad_visible} de {len(detalle)} caracteres. El total se calcula completo.",
-                        size=12,
+                        size=self._tam(12, 9),
                         color=TEXTO_SECUNDARIO,
                     ),
                 )
             )
 
         return ft.Container(
-            padding=10,
+            padding=self._tam(10, 6),
             bgcolor="#FFFFFF",
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=16,
+            border_radius=10,
             content=ft.Row(
                 wrap=True,
-                spacing=8,
-                run_spacing=10,
+                spacing=self._tam(8, 4),
+                run_spacing=self._tam(10, 5),
                 vertical_alignment=ft.CrossAxisAlignment.START,
                 controls=controles,
             ),
@@ -589,25 +680,26 @@ class AnalizadorColoresView:
 
     def _bloque_palabra(self, palabra, items):
         es_movil = self.responsive.is_mobile()
-        ancho_caracter = 74 if es_movil else 84
-        separacion = 8
-        ancho_maximo = 310 if es_movil else 500
+        ancho_caracter = self._tam(74 if es_movil else 84, 48)
+        separacion = self._tam(8, 4)
+        ancho_maximo_base = 310 if es_movil else 620 if self.responsive.is_tablet() else 980
+        ancho_maximo = ancho_maximo_base
         ancho_contenido = len(items) * ancho_caracter + max(0, len(items) - 1) * separacion + 18
-        ancho_grupo = min(ancho_maximo, max(112, ancho_contenido))
+        ancho_grupo = min(ancho_maximo, max(self._tam(112, 84), ancho_contenido))
 
         return ft.Container(
             width=ancho_grupo,
-            padding=8,
+            padding=self._tam(8, 5),
             bgcolor="#FCFAFF",
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=12,
+            border_radius=10,
             content=ft.Column(
                 tight=True,
-                spacing=7,
+                spacing=self._tam(7, 3),
                 controls=[
                     ft.Text(
                         palabra,
-                        size=13,
+                        size=self._tam(13, 9),
                         weight=ft.FontWeight.BOLD,
                         color=VIOLETA_IOS,
                         no_wrap=True,
@@ -615,7 +707,7 @@ class AnalizadorColoresView:
                         tooltip=palabra,
                     ),
                     ft.Container(
-                        height=142,
+                        height=self._tam(142, 92),
                         content=ft.Row(
                             tight=True,
                             scroll=ft.ScrollMode.AUTO,
@@ -633,33 +725,34 @@ class AnalizadorColoresView:
         reducido = item.get("reducido", "")
         digitos = item.get("digitos_colores", [])
         tiene_reduccion = len(digitos) > 1
+        ancho = self._tam(74 if self.responsive.is_mobile() else 84, 48)
 
         return ft.Container(
-            width=74 if self.responsive.is_mobile() else 84,
-            padding=5,
+            width=ancho,
+            padding=self._tam(5, 3),
             bgcolor="#FCFAFF",
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=10,
+            border_radius=8,
             content=ft.Column(
                 tight=True,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=3,
+                spacing=self._tam(3, 1),
                 controls=[
                     ft.Container(
-                        width=50,
-                        height=34,
+                        width=self._tam(50, 32),
+                        height=self._tam(34, 23),
                         alignment=ft.Alignment(0, 0),
                         bgcolor=color_hex,
                         border=ft.Border.all(1.5, MARRON) if reducido == 9 else ft.Border.all(1, ft.Colors.WHITE),
-                        border_radius=6,
-                        content=ft.Text(item.get("letra", ""), size=15, weight=ft.FontWeight.BOLD, color=self._texto_contraste(color_hex)),
+                        border_radius=5,
+                        content=ft.Text(item.get("letra", ""), size=self._tam(15, 10), weight=ft.FontWeight.BOLD, color=self._texto_contraste(color_hex)),
                     ),
-                    ft.Text(str(item.get("valor", "")), size=12, weight=ft.FontWeight.BOLD),
+                    ft.Text(str(item.get("valor", "")), size=self._tam(12, 8), weight=ft.FontWeight.BOLD),
                     ft.Row(
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=2,
                         controls=[
-                            ft.Text(str(d["digito"]), size=11, weight=ft.FontWeight.BOLD)
+                            ft.Text(str(d["digito"]), size=self._tam(11, 8), weight=ft.FontWeight.BOLD)
                             for d in digitos
                         ],
                     ),
@@ -668,8 +761,8 @@ class AnalizadorColoresView:
                         spacing=2,
                         controls=[
                             ft.Container(
-                                width=19,
-                                height=19,
+                                width=self._tam(19, 12),
+                                height=self._tam(19, 12),
                                 bgcolor=d["hex"],
                                 border=ft.Border.all(1.4, MARRON) if d["digito"] == 9 else ft.Border.all(1, ft.Colors.GREY_400),
                             )
@@ -677,13 +770,13 @@ class AnalizadorColoresView:
                         ],
                     ),
                     ft.Container(
-                        width=28,
-                        height=24,
+                        width=self._tam(28, 18),
+                        height=self._tam(24, 16),
                         visible=tiene_reduccion,
                         alignment=ft.Alignment(0, 0),
                         bgcolor=color_hex,
                         border=ft.Border.all(1.4, MARRON) if reducido == 9 else ft.Border.all(1, ft.Colors.GREY_400),
-                        content=ft.Text(str(reducido), size=12, weight=ft.FontWeight.BOLD, color=self._texto_contraste(color_hex)),
+                        content=ft.Text(str(reducido), size=self._tam(12, 8), weight=ft.FontWeight.BOLD, color=self._texto_contraste(color_hex)),
                     ),
                 ],
             ),
@@ -694,40 +787,163 @@ class AnalizadorColoresView:
         pasos = self.resultado.get("pasos_reduccion", [])
         final = self.resultado.get("resultado_final", 0)
         final_hex = self.resultado.get("hex_final", "#FFFFFF")
-        partes = []
-
-        if pasos:
-            partes.append(self._cuadro_numero(pasos[0], self._color_reduccion(pasos[0])))
-            for paso in pasos[1:]:
-                partes.append(ft.Text("=", size=20, weight=ft.FontWeight.BOLD))
-                partes.append(self._cuadro_numero(paso, self._color_reduccion(paso)))
+        sumas_intermedias = pasos[1:] if len(pasos) > 1 else pasos
+        total_suma_de_sumas = sum(int(paso or 0) for paso in sumas_intermedias)
+        resultado_suma_de_sumas = reducir_numero(total_suma_de_sumas)
+        bloque_suma_de_sumas = self._bloque_suma_de_sumas(total_suma_de_sumas, resultado_suma_de_sumas)
+        bloque_final = ft.Container(
+            width=self._tam(96 if self.responsive.is_mobile() else 118, 68),
+            height=self._tam(70 if self.responsive.is_mobile() else 84, 52),
+            alignment=ft.Alignment(0, 0),
+            bgcolor=final_hex,
+            border=ft.Border.all(2, MARRON),
+            border_radius=8,
+            content=ft.Text(str(final), size=self._tam(34 if self.responsive.is_mobile() else 40, 24), weight=ft.FontWeight.BOLD, color=self._texto_contraste(final_hex)),
+        )
 
         return ft.Container(
-            padding=12,
+            padding=self._tam(12, 7),
             bgcolor=PERLA_PANEL,
             border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=16,
+            border_radius=10,
             content=ft.Column(
                 tight=True,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=12,
+                spacing=self._tam(12, 6),
                 controls=[
-                    ft.Text(f"TOTAL DE CODIGOS: {total}", size=18, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    ft.Text("PROCESO DE REDUCCION", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                    ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, spacing=8, run_spacing=8, controls=partes),
-                    ft.Text("RESULTADO FINAL", size=13, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                    ft.Container(
-                        width=96,
-                        height=70,
-                        alignment=ft.Alignment(0, 0),
-                        bgcolor=final_hex,
-                        border=ft.Border.all(2, MARRON),
-                        border_radius=8,
-                        content=ft.Text(str(final), size=34, weight=ft.FontWeight.BOLD, color=self._texto_contraste(final_hex)),
+                    ft.Text("TOTAL DE CODIGOS:", size=self._tam(18, 12), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                    self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(20, 8)),
+                    ft.Text("PROCESO DE REDUCCION", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                    ft.Column(
+                        tight=True,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=self._tam(10, 5),
+                        controls=self._filas_proceso_reduccion(pasos),
+                    ),
+                    ft.Row(
+                        wrap=True,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        spacing=self._tam(24, 10),
+                        run_spacing=self._tam(16, 8),
+                        controls=[
+                            ft.Column(
+                                tight=True,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=self._tam(8, 4),
+                                controls=[
+                                    ft.Text("Suma de sumas", size=self._tam(15, 10), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                                    bloque_suma_de_sumas,
+                                ],
+                            ),
+                            ft.Column(
+                                tight=True,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=self._tam(10, 5),
+                                controls=[
+                                    ft.Text("RESULTADO FINAL", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                                    bloque_final,
+                                ],
+                            ),
+                        ],
                     ),
                 ],
             ),
         )
+
+    def _filas_proceso_reduccion(self, pasos):
+        if not pasos:
+            return []
+
+        if len(pasos) == 1:
+            return [self._digitos_en_fila(pasos[0], alineacion=ft.MainAxisAlignment.CENTER)]
+
+        filas = []
+        for indice in range(len(pasos) - 1):
+            filas.append(self._fila_suma(pasos[indice], pasos[indice + 1]))
+        return filas
+
+    def _fila_suma(self, origen, resultado):
+        controles = []
+        digitos_origen = self._digitos_numero(origen)
+        for indice, digito in enumerate(digitos_origen):
+            if indice:
+                controles.append(self._signo_operacion("+"))
+            controles.append(self._cuadro_digito(digito))
+
+        controles.append(self._signo_operacion("="))
+        controles.extend(self._cuadro_digito(digito) for digito in self._digitos_numero(resultado))
+
+        return ft.Row(
+            wrap=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=self._tam(6, 3),
+            run_spacing=self._tam(8, 4),
+            controls=controles,
+        )
+
+    def _bloque_suma_de_sumas(self, total_suma_de_sumas, resultado_suma_de_sumas):
+        if int(total_suma_de_sumas or 0) <= 9:
+            return self._cuadro_digito(resultado_suma_de_sumas)
+
+        return ft.Column(
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=0,
+            controls=[
+                self._fila_suma_sin_resultado(total_suma_de_sumas),
+                ft.Text("=", size=self._tam(14, 10), weight=ft.FontWeight.BOLD, color=NEGRO),
+                self._cuadro_digito(resultado_suma_de_sumas),
+            ],
+        )
+
+    def _fila_suma_sin_resultado(self, valor):
+        controles = []
+        for indice, digito in enumerate(self._digitos_numero(valor)):
+            if indice:
+                controles.append(self._signo_operacion("+", tamano=15))
+            controles.append(self._cuadro_digito(digito, compacto=True))
+
+        return ft.Row(
+            tight=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=self._tam(4, 2),
+            controls=controles,
+        )
+
+    def _digitos_en_fila(self, valor, alineacion=ft.MainAxisAlignment.START, separacion=8):
+        return ft.Row(
+            wrap=True,
+            alignment=alineacion,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=separacion,
+            run_spacing=self._tam(8, 4),
+            controls=[self._cuadro_digito(digito) for digito in self._digitos_numero(valor)],
+        )
+
+    @staticmethod
+    def _digitos_numero(valor):
+        texto = str(abs(int(valor or 0)))
+        return [int(digito) for digito in texto] or [0]
+
+    def _cuadro_digito(self, digito, compacto=False):
+        color = DIGITO_COLORES.get(int(digito or 0), DIGITO_COLORES[0])["hex"]
+        ancho = self._tam(42 if compacto else 54, 28 if compacto else 34)
+        alto = self._tam(36 if compacto else 44, 24 if compacto else 30)
+        return ft.Container(
+            width=ancho,
+            height=alto,
+            alignment=ft.Alignment(0, 0),
+            bgcolor=color,
+            border=ft.Border.all(1.5, MARRON) if int(digito or 0) == 9 else ft.Border.all(1, PERLA_BORDE),
+            border_radius=5,
+            content=ft.Text(str(digito), size=self._tam(16 if compacto else 18, 10 if compacto else 12), weight=ft.FontWeight.BOLD, color=self._texto_contraste(color)),
+        )
+
+    def _signo_operacion(self, signo, tamano=20):
+        return ft.Text(signo, size=self._tam(tamano, 10), weight=ft.FontWeight.BOLD, color=NEGRO)
 
     @staticmethod
     def _color_reduccion(valor):
@@ -907,14 +1123,11 @@ class AnalizadorColoresView:
 
     def _confirmacion(self, mensaje):
         def cerrar(e=None):
-            dialog.open = False
-            self.page.update()
+            cerrar_dialogo(self.page, dialog)
 
         dialog = ft.AlertDialog(
             title=ft.Text("Guardado correctamente"),
             content=ft.Text(mensaje),
             actions=[ft.ElevatedButton("Aceptar", on_click=cerrar)],
         )
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()
+        mostrar_dialogo(self.page, dialog)

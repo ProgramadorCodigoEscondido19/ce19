@@ -25,23 +25,38 @@ class DialogManager:
     def mostrar(self, dialogo: ft.AlertDialog, cerrar_al_tocar_fuera=True):
         """Abre un dialogo nativo y permite cerrar tocando fuera por defecto."""
         dialogo.modal = not cerrar_al_tocar_fuera
+        mostrar_nativo = getattr(self.page, "show_dialog", None)
+        if callable(mostrar_nativo):
+            try:
+                mostrar_nativo(dialogo)
+                return dialogo
+            except RuntimeError:
+                # Si Flet conserva el dialogo en su pila interna, creamos uno
+                # nuevo desde el llamador o caemos al overlay de compatibilidad.
+                pass
+            except Exception:
+                pass
+
         try:
-            self.page.show_dialog(dialogo)
-            return dialogo
-        except Exception:
-            # Respaldo para instalaciones antiguas de Flet.
             if dialogo not in self.page.overlay:
                 self.page.overlay.append(dialogo)
             dialogo.open = True
             self.page.update()
             return dialogo
+        except Exception:
+            return dialogo
 
     def cerrar(self, dialogo: ft.AlertDialog | None = None):
         """Cierra correctamente dialogos nativos y los de compatibilidad."""
-        try:
-            self.page.pop_dialog()
-        except Exception:
-            pass
+        cerrar_nativo = getattr(self.page, "pop_dialog", None)
+        if callable(cerrar_nativo):
+            try:
+                cerrado = cerrar_nativo()
+                if cerrado is not None:
+                    return
+            except Exception:
+                pass
+
         try:
             if dialogo is not None:
                 dialogo.open = False
