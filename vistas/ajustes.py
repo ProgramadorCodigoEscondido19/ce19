@@ -3,7 +3,7 @@ import flet as ft
 from services.alfabetos_service import AlfabetosService
 from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
-from ui.tema import PERLA_BORDE, PERLA_PANEL, VIOLETA_IOS
+from ui.tema import PERLA_BORDE, PERLA_PANEL, PURPURA_IOS
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
 
@@ -58,7 +58,7 @@ class AjustesView:
             content=ft.Row(
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Icon(ft.Icons.ABC, color=VIOLETA_IOS),
+                    ft.Icon(ft.Icons.ABC, color=PURPURA_IOS),
                     ft.Column(
                         expand=True,
                         tight=True,
@@ -135,7 +135,7 @@ class AjustesView:
                         ink=True,
                         border_radius=11,
                         bgcolor="#F2E8F7" if seleccionado else "#FFFFFF",
-                        border=ft.Border.all(2 if seleccionado else 1, VIOLETA_IOS if seleccionado else PERLA_BORDE),
+                        border=ft.Border.all(2 if seleccionado else 1, PURPURA_IOS if seleccionado else PERLA_BORDE),
                         on_click=lambda e, c=caracter: alternar(c),
                         content=ft.Column(
                             tight=True,
@@ -146,7 +146,7 @@ class AjustesView:
                                 ft.Text(
                                     str(valores[caracter]) if valores.get(caracter) else "-",
                                     size=12,
-                                    color=VIOLETA_IOS if valores.get(caracter) else "#8C8194",
+                                    color=PURPURA_IOS if valores.get(caracter) else "#8C8194",
                                     text_align=ft.TextAlign.CENTER,
                                 ),
                             ],
@@ -263,7 +263,7 @@ class AjustesView:
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=cerrar),
-                ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, bgcolor=VIOLETA_IOS, color=ft.Colors.WHITE, on_click=guardar),
+                ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, bgcolor=PURPURA_IOS, color=ft.Colors.WHITE, on_click=guardar),
             ],
         )
         mostrar_dialogo(self.page, dialog)
@@ -341,7 +341,7 @@ class AjustesView:
                                 ft.ElevatedButton(
                                     "Nuevo",
                                     icon=ft.Icons.ADD,
-                                    bgcolor=VIOLETA_IOS,
+                                    bgcolor=PURPURA_IOS,
                                     color=ft.Colors.WHITE,
                                     on_click=lambda e: self.dialog_alfabeto(),
                                 ),

@@ -12,12 +12,12 @@ NARANJA = "#FF7A24"
 AMARILLO = "#FFF300"
 VERDE = "#24AE52"
 AZUL = "#4448C8"
-VIOLETA = "#A44BA8"
+PURPURA = "#A44BA8"
 GRIS = "#C9C9C9"
 BLANCO = "#FFFFFF"
 
 # Matices modernos para usar la misma paleta sin ensuciar la UI.
-# El violeta se conserva como color semantico del numero 7. La interfaz usa
+# El purpura se conserva como color semantico del numero 7. La interfaz usa
 # acentos rojo bajo para que no se confunda con ese significado numerologico.
 MARRON_SUAVE = "#F4E7DF"
 ROJO_SUAVE = "#FFECEF"
@@ -25,18 +25,18 @@ NARANJA_SUAVE = "#FFF0E5"
 AMARILLO_SUAVE = "#FFFAD1"
 VERDE_SUAVE = "#EAF8EF"
 AZUL_SUAVE = "#EEF2FF"
-VIOLETA_SUAVE_SEMANTICO = "#F6ECFA"
-VIOLETA_SUAVE = "#FBECEF"
+PURPURA_SUAVE_SEMANTICO = "#F6ECFA"
+PURPURA_SUAVE = "#FBECEF"
 GRIS_SUAVE = "#F4F4F6"
 NEGRO_SUAVE = "#242128"
 
 PURPURA_INICIAL = "#71106F"
 DORADO = "#F4C95D"
-VIOLETA_IOS = "#A64B57"
+PURPURA_IOS = "#A64B57"
 DORADO_IOS = "#D8B45A"
 PERLA = "#FCFAFF"
 PERLA_PANEL = "#FFFEFC"
-PERLA_VIOLETA = "#FBEDEF"
+PERLA_PURPURA = "#FBEDEF"
 PERLA_BORDE = "#EFD7DB"
 FONDO_APP = "#FCFAFF"
 
@@ -59,8 +59,8 @@ TEXTO = TEXTO_PRINCIPAL
 BORDE_SUAVE = "#EEE0E3"
 BORDE_COLORIDO = "#EFD2D7"
 
-PALETA_ARCOIRIS = [NEGRO, MARRON, ROJO, NARANJA, AMARILLO, VERDE, AZUL, VIOLETA, GRIS, BLANCO]
-PALETA_SUAVE = [NEGRO_SUAVE, MARRON_SUAVE, ROJO_SUAVE, NARANJA_SUAVE, AMARILLO_SUAVE, VERDE_SUAVE, AZUL_SUAVE, VIOLETA_SUAVE_SEMANTICO, GRIS_SUAVE, BLANCO]
+PALETA_ARCOIRIS = [NEGRO, MARRON, ROJO, NARANJA, AMARILLO, VERDE, AZUL, PURPURA, GRIS, BLANCO]
+PALETA_SUAVE = [NEGRO_SUAVE, MARRON_SUAVE, ROJO_SUAVE, NARANJA_SUAVE, AMARILLO_SUAVE, VERDE_SUAVE, AZUL_SUAVE, PURPURA_SUAVE_SEMANTICO, GRIS_SUAVE, BLANCO]
 
 
 def opacidad(valor, color):
@@ -79,7 +79,7 @@ def sombra_suave(opacity=0.065, blur=22, spread=0, y=7):
     )
 
 
-def sombra_color(color=VIOLETA_IOS, opacity=0.16, blur=34, y=12):
+def sombra_color(color=PURPURA_IOS, opacity=0.16, blur=34, y=12):
     return ft.BoxShadow(
         blur_radius=blur,
         spread_radius=0,
@@ -186,9 +186,9 @@ def titulo_pagina(titulo, subtitulo=None, icono=None):
                 width=48,
                 height=48,
                 border_radius=18,
-                bgcolor=VIOLETA_SUAVE,
+                bgcolor=PURPURA_SUAVE,
                 alignment=ft.Alignment(0, 0),
-                content=ft.Icon(icono, color=VIOLETA_IOS, size=26),
+                content=ft.Icon(icono, color=PURPURA_IOS, size=26),
             )
         )
     textos = [ft.Text(titulo, size=30, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL)]
@@ -199,14 +199,14 @@ def titulo_pagina(titulo, subtitulo=None, icono=None):
 
 
 def boton_principal(texto, icono=None, on_click=None):
-    return ft.ElevatedButton(texto, icon=icono, height=44, bgcolor=VIOLETA_IOS, color=BLANCO, on_click=on_click)
+    return ft.ElevatedButton(texto, icon=icono, height=44, bgcolor=PURPURA_IOS, color=BLANCO, on_click=on_click)
 
 
 def boton_secundario(texto, icono=None, on_click=None):
     return ft.OutlinedButton(texto, icon=icono, height=44, on_click=on_click)
 
 
-def chip_suave(texto, color=VIOLETA_IOS, fondo=VIOLETA_SUAVE, icono=None):
+def chip_suave(texto, color=PURPURA_IOS, fondo=PURPURA_SUAVE, icono=None):
     controles = []
     if icono:
         controles.append(ft.Icon(icono, size=16, color=color))
@@ -235,7 +235,7 @@ def campo_moderno(label=None, hint_text=None, value=None, prefix_icon=None, on_c
         filled=True,
         bgcolor=BLANCO,
         border_color=BORDE_SUAVE,
-        focused_border_color=VIOLETA_IOS,
+        focused_border_color=PURPURA_IOS,
     )
 
 # ==========================================================

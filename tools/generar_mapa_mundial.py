@@ -65,7 +65,7 @@ def anillos(geometria):
 
 def generar_mapa(datos, salida, limites, destacados, tamano=(ANCHO, ALTO)):
     ancho, alto = tamano
-    # Gama marrón cálida para distinguir el mapa de la interfaz violeta.
+    # Gama marron calida para distinguir el mapa de la interfaz purpura.
     imagen = Image.new("RGB", (ancho, alto), "#F7EDE3")
     dibujo = ImageDraw.Draw(imagen)
 

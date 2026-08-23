@@ -13,15 +13,15 @@ from ui.tema import (
     FONDO_APP_IMAGEN,
     NARANJA,
     PERLA_BORDE,
-    PERLA_VIOLETA,
+    PERLA_PURPURA,
     ROJO,
     SUPERFICIE,
     TEXTO,
     TEXTO_MUTED,
     VERDE,
-    VIOLETA,
-    VIOLETA_IOS,
-    VIOLETA_SUAVE,
+    PURPURA,
+    PURPURA_IOS,
+    PURPURA_SUAVE,
     APP_VERSION,
     icono_estrella,
     opacidad,
@@ -207,7 +207,7 @@ class Router:
                         ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=46, color=NARANJA),
                         ft.Text(titulo, size=24, weight=ft.FontWeight.BOLD, color=TEXTO, text_align=ft.TextAlign.CENTER),
                         ft.Text(detalle, size=13, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER, selectable=True),
-                        ft.ElevatedButton("Volver a Inicio", icon=ft.Icons.HOME, bgcolor=VIOLETA_IOS, color=BLANCO, on_click=lambda e: self.navegar("inicio")),
+                        ft.ElevatedButton("Volver a Inicio", icon=ft.Icons.HOME, bgcolor=PURPURA_IOS, color=BLANCO, on_click=lambda e: self.navegar("inicio")),
                     ],
                 ),
             ),
@@ -239,7 +239,7 @@ class Router:
             expand=True,
             controls=[
                 ft.Container(left=-210, top=-180, width=520, height=520, bgcolor=opacidad(0.12, AZUL), border_radius=520),
-                ft.Container(right=-190, top=40, width=470, height=470, bgcolor=opacidad(0.13, VIOLETA), border_radius=470),
+                ft.Container(right=-190, top=40, width=470, height=470, bgcolor=opacidad(0.13, PURPURA), border_radius=470),
                 ft.Container(left=220, bottom=-260, width=620, height=620, bgcolor=opacidad(0.12, NARANJA), border_radius=620),
                 ft.Container(right=260, bottom=-190, width=390, height=390, bgcolor=opacidad(0.10, VERDE), border_radius=390),
                 contenido,
@@ -288,7 +288,7 @@ class Router:
                 ft.IconButton(
                     icon=ft.Icons.ARROW_BACK,
                     tooltip="Cambiar de nivel",
-                    icon_color=VIOLETA_IOS,
+                    icon_color=PURPURA_IOS,
                     on_click=self.cambiar_nivel,
                 )
             )
@@ -301,7 +301,7 @@ class Router:
                 ft.IconButton(
                     icon=ft.Icons.SETTINGS,
                     tooltip="Ajustes",
-                    icon_color=VIOLETA_IOS,
+                    icon_color=PURPURA_IOS,
                     on_click=lambda e: self.navegar("ajustes"),
                 )
             )
@@ -380,7 +380,7 @@ class Router:
                         spacing=10,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
-                            ft.Container(width=34, height=34, border_radius=13, bgcolor=VIOLETA_SUAVE, alignment=ft.Alignment(0, 0), content=ft.Icon(icono, size=19, color=VIOLETA_IOS)),
+                            ft.Container(width=34, height=34, border_radius=13, bgcolor=PURPURA_SUAVE, alignment=ft.Alignment(0, 0), content=ft.Icon(icono, size=19, color=PURPURA_IOS)),
                             ft.Text(label, size=17, weight=ft.FontWeight.BOLD, color=TEXTO),
                         ],
                     ),
@@ -409,7 +409,7 @@ class Router:
                         ft.Text(
                             f"Nivel {self.nivel}",
                             size=11,
-                            color=VIOLETA_IOS,
+                            color=PURPURA_IOS,
                             weight=ft.FontWeight.BOLD,
                             text_align=ft.TextAlign.CENTER,
                         ),
@@ -457,7 +457,7 @@ class Router:
         label, icono = self.meta_rutas[ruta]
         bloqueado = not self.puede_acceder(ruta)
         seleccionado = ruta == self.ruta_actual
-        fondo = PERLA_VIOLETA if seleccionado else ft.Colors.TRANSPARENT
+        fondo = PERLA_PURPURA if seleccionado else ft.Colors.TRANSPARENT
         borde = opacidad(0.95, PERLA_BORDE) if seleccionado else ft.Colors.TRANSPARENT
 
         return ft.Container(
@@ -466,7 +466,7 @@ class Router:
             bgcolor=fondo,
             border=ft.Border.all(1, borde),
             border_radius=8,
-            shadow=sombra_color(VIOLETA, 0.08, 12, 3) if seleccionado else None,
+            shadow=sombra_color(PURPURA, 0.08, 12, 3) if seleccionado else None,
             on_click=lambda e, r=ruta: self.navegar(r),
             content=ft.Row(
                 spacing=10,
@@ -476,14 +476,14 @@ class Router:
                     ft.Icon(
                         ft.Icons.BLOCK if bloqueado else icono,
                         size=20,
-                        color=ROJO if bloqueado else (VIOLETA_IOS if seleccionado else TEXTO_MUTED),
+                        color=ROJO if bloqueado else (PURPURA_IOS if seleccionado else TEXTO_MUTED),
                     ),
                     ft.Text(
                         label,
                         visible=not compacto,
                         size=13,
                         weight=ft.FontWeight.BOLD if seleccionado else ft.FontWeight.NORMAL,
-                        color=ROJO if bloqueado else (VIOLETA_IOS if seleccionado else TEXTO),
+                        color=ROJO if bloqueado else (PURPURA_IOS if seleccionado else TEXTO),
                     ),
                 ],
             ),

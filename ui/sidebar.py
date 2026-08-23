@@ -1,6 +1,6 @@
 import flet as ft
 
-from ui.tema import PERLA_PANEL, VIOLETA_IOS
+from ui.tema import PERLA_PANEL, PURPURA_IOS
 
 class AppSidebar:
     def __init__(
@@ -38,7 +38,7 @@ class AppSidebar:
                 ft.ListTile(
                     leading=ft.Icon(
                         ft.Icons.SAVE,
-                        color=VIOLETA_IOS if self.es_activo("guardados") else None,
+                        color=PURPURA_IOS if self.es_activo("guardados") else None,
                     ),
                     title=ft.Text(
                         "Guardados",

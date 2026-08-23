@@ -8,7 +8,7 @@ from core.app_state import state
 from logica.carpetas import Carpetas
 from logica.guardados import Guardados
 from logica.historial import Historial
-from ui.tema import APP_NAME, APP_VERSION, FONDO_APP, PERLA_PANEL, PERLA_VIOLETA, VIOLETA_IOS, icono_estrella
+from ui.tema import APP_NAME, APP_VERSION, FONDO_APP, PERLA_PANEL, PERLA_PURPURA, PURPURA_IOS, icono_estrella
 from services.rutas_service import RutasService
 from services.vistas_registry_service import VistasRegistryService
 
@@ -82,7 +82,7 @@ class AppStartupService:
             selected_index=0,
             on_change=cambiar_pagina,
             bgcolor=PERLA_PANEL,
-            indicator_color=PERLA_VIOLETA,
+            indicator_color=PERLA_PURPURA,
             elevation=0,
             destinations=RutasService.navigation_destinations(
                 icono_inicio=icono_estrella,
@@ -95,7 +95,7 @@ class AppStartupService:
         page.title = f"{APP_NAME} v{APP_VERSION}"
         page.bgcolor = FONDO_APP
         page.theme_mode = ft.ThemeMode.LIGHT
-        page.theme = ft.Theme(color_scheme_seed=VIOLETA_IOS)
+        page.theme = ft.Theme(color_scheme_seed=PURPURA_IOS)
         page.padding = 0
         page.spacing = 0
 
@@ -128,7 +128,7 @@ class AppStartupService:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=12,
                     controls=[
-                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=52, color=VIOLETA_IOS),
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=52, color=PURPURA_IOS),
                         ft.Text(titulo, size=24, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                         ft.Text(str(error), selectable=True, text_align=ft.TextAlign.CENTER),
                         ft.Container(

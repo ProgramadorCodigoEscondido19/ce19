@@ -23,11 +23,11 @@ from ui.tema import (
     NEGRO,
     PERLA_BORDE,
     PERLA_PANEL,
-    PERLA_VIOLETA,
+    PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
+    PURPURA_IOS,
     sombra_suave,
 )
 from ui.teclado import ocultar_teclado
@@ -38,20 +38,6 @@ from services.busqueda_global_service import BusquedaGlobalService
 
 
 COLOR_ICONOS = {
-    "NEGRO": "⬛",
-    "MARRON": "🟫",
-    "ROJO": "🟥",
-    "NARANJA": "🟧",
-    "AMARILLO": "🟨",
-    "VERDE": "🟩",
-    "AZUL": "🟦",
-    "VIOLETA": "🟪",
-    "GRIS": "🔲",
-    "BLANCO": "⬜",
-}
-
-
-COLOR_ICONOS = {
     "NEGRO": "\u2B1B",
     "MARRON": "\U0001F7EB",
     "ROJO": "\U0001F7E5",
@@ -59,10 +45,21 @@ COLOR_ICONOS = {
     "AMARILLO": "\U0001F7E8",
     "VERDE": "\U0001F7E9",
     "AZUL": "\U0001F7E6",
-    "VIOLETA": "\U0001F7EA",
-    "GRIS": "\U0001F532",
+    "PURPURA": "\U0001F7EA",
+    "GRIS": "\u25FD\uFE0F",
     "BLANCO": "\u2B1C",
 }
+
+
+def _nombre_color_publico(nombre):
+    nombre = str(nombre or "").upper().strip()
+    if nombre in ("VIOLETA", "PÚRPURA"):
+        return "PURPURA"
+    return nombre
+
+
+def _icono_color(nombre):
+    return COLOR_ICONOS.get(_nombre_color_publico(nombre), "▫")
 
 
 # Identidad visual de las carpetas principales. Las subcarpetas heredan una
@@ -123,7 +120,7 @@ class GuardadosView:
             filled=True,
             bgcolor=BLANCO,
             border_color=PERLA_BORDE,
-            focused_border_color=VIOLETA_IOS,
+            focused_border_color=PURPURA_IOS,
             border_radius=14,
             on_change=self.buscar_registros,
             on_submit=lambda e: ocultar_teclado(self.page, e.control),
@@ -306,7 +303,7 @@ class GuardadosView:
         )
         self.texto_seleccion = ft.Text(
             "",
-            color=VIOLETA_IOS,
+            color=PURPURA_IOS,
             weight=ft.FontWeight.BOLD,
         )
         self.boton_copiar = ft.IconButton(
@@ -317,7 +314,7 @@ class GuardadosView:
         self.barra_acciones = ft.Container(
             visible=False,
             padding=ft.Padding(left=12, top=8, right=12, bottom=8),
-            bgcolor=PERLA_VIOLETA,
+            bgcolor=PERLA_PURPURA,
             border=ft.Border.all(1, PERLA_BORDE),
             border_radius=16,
             content=ft.Row(
@@ -632,7 +629,7 @@ class GuardadosView:
                     f"Movidos a TARJETAS: {resultado.get('movidos_a_raiz', 0)}. "
                     "Cerrá y abrí la app si no ves los cambios inmediatamente."
                 )
-                estado.color = VIOLETA_IOS
+                estado.color = PURPURA_IOS
                 try:
                     self.cargar_vista_carpetas()
                     self.buscar_registros()
@@ -818,7 +815,7 @@ class GuardadosView:
         self.acciones_explorador = ft.Container(
             visible=not self._esta_en_inicio_guardados(),
             padding=ft.Padding(left=3, top=2, right=3, bottom=2),
-            bgcolor=PERLA_VIOLETA,
+            bgcolor=PERLA_PURPURA,
             border=ft.Border.all(1, PERLA_BORDE),
             border_radius=12,
             content=self.barra_explorador,
@@ -923,17 +920,17 @@ class GuardadosView:
         activo = self.filtro_tipo == nombre
         return ft.Container(
             padding=ft.Padding(left=12, top=7, right=12, bottom=7),
-            bgcolor=SUPERFICIE_PERLADA if activo else PERLA_VIOLETA,
+            bgcolor=SUPERFICIE_PERLADA if activo else PERLA_PURPURA,
             border=ft.Border.all(
                 1.4 if activo else 1,
-                VIOLETA_IOS if activo else PERLA_BORDE,
+                PURPURA_IOS if activo else PERLA_BORDE,
             ),
             border_radius=20,
             content=ft.Text(
                 nombre,
                 size=12,
                 weight=ft.FontWeight.BOLD if activo else None,
-                color=VIOLETA_IOS if activo else TEXTO_SECUNDARIO,
+                color=PURPURA_IOS if activo else TEXTO_SECUNDARIO,
             ),
             on_click=lambda e, n=nombre: self._cambiar_filtro_tipo(n),
         )
@@ -972,17 +969,17 @@ class GuardadosView:
         activo = self.orden_guardados == nombre
         return ft.Container(
             padding=ft.Padding(left=10, top=5, right=10, bottom=5),
-            bgcolor=SUPERFICIE_PERLADA if activo else PERLA_VIOLETA,
+            bgcolor=SUPERFICIE_PERLADA if activo else PERLA_PURPURA,
             border=ft.Border.all(
                 1.2 if activo else 1,
-                VIOLETA_IOS if activo else PERLA_BORDE,
+                PURPURA_IOS if activo else PERLA_BORDE,
             ),
             border_radius=16,
             content=ft.Text(
                 nombre,
                 size=11,
                 weight=ft.FontWeight.BOLD if activo else None,
-                color=VIOLETA_IOS if activo else TEXTO_SECUNDARIO,
+                color=PURPURA_IOS if activo else TEXTO_SECUNDARIO,
             ),
             on_click=lambda e, n=nombre: self._cambiar_orden_guardados(n),
         )
@@ -1678,7 +1675,7 @@ class GuardadosView:
         return ft.Container(
             height=90,
             alignment=ft.Alignment(0, 0),
-            bgcolor=ft.Colors.with_opacity(0.05, VIOLETA_IOS),
+            bgcolor=ft.Colors.with_opacity(0.05, PURPURA_IOS),
             border_radius=10,
             content=self.icono_registro(registro, grande=True),
         )
@@ -1822,13 +1819,13 @@ class GuardadosView:
         if tipo == "calculo_biblico":
             return ft.Icon(
                 ft.Icons.FUNCTIONS,
-                color=VIOLETA_IOS,
+                color=PURPURA_IOS,
                 size=34 if grande else 28,
             )
 
         return ft.Icon(
             ft.Icons.DESCRIPTION,
-            color=VIOLETA_IOS,
+            color=PURPURA_IOS,
             size=34 if grande else 28,
         )
 
@@ -2180,7 +2177,7 @@ class GuardadosView:
                 ft.Container(
                     padding=10,
                     border_radius=10,
-                    bgcolor=PERLA_VIOLETA,
+                    bgcolor=PERLA_PURPURA,
                     content=ft.Text(f"+ {len(detalle) - limite} caracteres", size=11, color=TEXTO_SECUNDARIO),
                 )
             )
@@ -2480,7 +2477,7 @@ class GuardadosView:
                         referencia,
                         size=12,
                         weight=ft.FontWeight.BOLD,
-                        color=VIOLETA_IOS,
+                        color=PURPURA_IOS,
                         max_lines=1,
                         overflow=ft.TextOverflow.ELLIPSIS,
                     ),
@@ -2565,8 +2562,8 @@ class GuardadosView:
 
         for item in detalle[:80]:
             digitos = item.get("digitos_colores", [])
-            iconos_digitos = "".join(COLOR_ICONOS.get(d.get("color", ""), "▫") for d in digitos)
-            icono_final = COLOR_ICONOS.get(item.get("color", ""), "▫")
+            iconos_digitos = "".join(_icono_color(d.get("color", "")) for d in digitos)
+            icono_final = _icono_color(item.get("color", ""))
             if len(digitos) > 1:
                 partes.append(f"{item.get('letra', '')} {iconos_digitos} = {icono_final} {item.get('reducido', '')}")
             else:
@@ -2585,7 +2582,7 @@ class GuardadosView:
             f"Total de codigos: {contenido.get('total_codigo', registro.get('resultado', ''))}\n"
             f"Proceso de reduccion: {pasos}\n"
             f"Resultado final: {contenido.get('resultado_final', registro.get('resultado', ''))} "
-            f"{COLOR_ICONOS.get(color_final, '')} ({color_final})"
+            f"{_icono_color(color_final)} ({_nombre_color_publico(color_final)})"
         )
 
     def _linea_color_compartir(self, item):
@@ -2593,16 +2590,17 @@ class GuardadosView:
         valor = item.get("valor", "")
         reducido = item.get("reducido", "")
         digitos = item.get("digitos_colores", [])
-        icono_final = COLOR_ICONOS.get(item.get("color", ""), "[]")
+        color_final = _nombre_color_publico(item.get("color", ""))
+        icono_final = _icono_color(color_final)
 
         if len(digitos) > 1:
             partes = [
-                f"{d.get('digito')} {COLOR_ICONOS.get(d.get('color', ''), '[]')} {d.get('color', '')}"
+                f"{d.get('digito')} {_icono_color(d.get('color', ''))} {_nombre_color_publico(d.get('color', ''))}"
                 for d in digitos
             ]
-            return f"{letra}: {valor} = {' + '.join(partes)} -> {reducido} {icono_final} {item.get('color', '')}"
+            return f"{letra}: {valor} = {' + '.join(partes)} -> {reducido} {icono_final} {color_final}"
 
-        return f"{letra}: {valor} {icono_final} {item.get('color', '')}"
+        return f"{letra}: {valor} {icono_final} {color_final}"
 
     def texto_analisis_colores(self, registro):
         contenido = registro.get("contenido") or {}
@@ -2625,7 +2623,7 @@ class GuardadosView:
             f"Total de codigo: {contenido.get('total_codigo', registro.get('resultado', ''))}\n"
             f"Reduccion final: {pasos}\n"
             f"Resultado final: {contenido.get('resultado_final', registro.get('resultado', ''))} "
-            f"{COLOR_ICONOS.get(color_final, '')} {color_final}"
+            f"{_icono_color(color_final)} {_nombre_color_publico(color_final)}"
         )
 
     def esta_seleccionado(self, registro):
@@ -2636,7 +2634,7 @@ class GuardadosView:
         self.ids_seleccionados.clear()
         self.tarjeta_seleccionada = None
         self.boton_seleccion_multiple.bgcolor = (
-            PERLA_VIOLETA
+            PERLA_PURPURA
             if self.modo_seleccion_multiple
             else None
         )
@@ -2890,7 +2888,7 @@ class GuardadosView:
             controls=[
                 ft.Container(
                     padding=ft.Padding(left=12, top=8, right=8, bottom=8),
-                    bgcolor=PERLA_VIOLETA,
+                    bgcolor=PERLA_PURPURA,
                     border=ft.Border.all(1, PERLA_BORDE),
                     border_radius=16,
                     content=ft.Row(
@@ -2974,8 +2972,8 @@ class GuardadosView:
         return ft.Container(
             width=180,
             padding=ft.Padding(left=12, top=9, right=12, bottom=9),
-            bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
-            border=ft.Border.all(1.4 if seleccionada else 1, VIOLETA_IOS if seleccionada else PERLA_BORDE),
+            bgcolor=PERLA_PURPURA if seleccionada else SUPERFICIE_PERLADA,
+            border=ft.Border.all(1.4 if seleccionada else 1, PURPURA_IOS if seleccionada else PERLA_BORDE),
             border_radius=18,
             shadow=sombra_suave(0.035, 12, 0, 4) if seleccionada else None,
             on_click=lambda e, c=carpeta: self.seleccionar_carpeta_arbol(c),
@@ -2983,13 +2981,13 @@ class GuardadosView:
                 spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
-                    ft.Icon(ft.Icons.FOLDER, size=18, color=VIOLETA_IOS if seleccionada else "#B97852"),
+                    ft.Icon(ft.Icons.FOLDER, size=18, color=PURPURA_IOS if seleccionada else "#B97852"),
                     ft.Text(
                         texto,
                         expand=True,
                         size=12,
                         weight=ft.FontWeight.BOLD if seleccionada else None,
-                        color=VIOLETA_IOS if seleccionada else TEXTO_SECUNDARIO,
+                        color=PURPURA_IOS if seleccionada else TEXTO_SECUNDARIO,
                         max_lines=2,
                         overflow=ft.TextOverflow.ELLIPSIS,
                     ),
@@ -3060,7 +3058,7 @@ class GuardadosView:
                     width=ancho,
                     height=alto,
                     padding=10,
-                    bgcolor=PERLA_VIOLETA if seleccionada else BLANCO,
+                    bgcolor=PERLA_PURPURA if seleccionada else BLANCO,
                     border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
                     border_radius=18,
                     shadow=sombra_suave(0.035, 12, 0, 4),
@@ -3111,7 +3109,7 @@ class GuardadosView:
             content=ft.Container(
                 height=78 if self.es_movil() else 82,
                 padding=ft.Padding(left=13, top=10, right=8, bottom=10),
-                bgcolor=PERLA_VIOLETA if seleccionada else BLANCO,
+                bgcolor=PERLA_PURPURA if seleccionada else BLANCO,
                 border=ft.Border.all(1.5 if seleccionada else 1, color if seleccionada else PERLA_BORDE),
                 border_radius=8,
                 content=ft.Row(
@@ -3207,7 +3205,7 @@ class GuardadosView:
                         width=34,
                         height=34,
                         alignment=ft.Alignment(0, 0),
-                        bgcolor=PERLA_VIOLETA,
+                        bgcolor=PERLA_PURPURA,
                         border=ft.Border.all(1, PERLA_BORDE),
                         border_radius=10,
                         ink=True,
@@ -3216,7 +3214,7 @@ class GuardadosView:
                         content=ft.Icon(
                             ft.Icons.CREATE_NEW_FOLDER,
                             size=18,
-                            color=VIOLETA_IOS,
+                            color=PURPURA_IOS,
                         ),
                     ),
                 ],
@@ -3312,10 +3310,10 @@ class GuardadosView:
             else ft.Icons.KEYBOARD_ARROW_RIGHT
         )
 
-        fondo = PERLA_VIOLETA if seleccionado else SUPERFICIE_PERLADA
-        borde = VIOLETA_IOS if seleccionado else PERLA_BORDE
-        texto_color = VIOLETA_IOS if seleccionado else TEXTO_PRINCIPAL
-        detalle_color = VIOLETA_IOS if seleccionado else TEXTO_SECUNDARIO
+        fondo = PERLA_PURPURA if seleccionado else SUPERFICIE_PERLADA
+        borde = PURPURA_IOS if seleccionado else PERLA_BORDE
+        texto_color = PURPURA_IOS if seleccionado else TEXTO_PRINCIPAL
+        detalle_color = PURPURA_IOS if seleccionado else TEXTO_SECUNDARIO
 
         return ft.Container(
             padding=ft.Padding(left=nivel * 14, top=4, bottom=4, right=4),
@@ -3339,7 +3337,7 @@ class GuardadosView:
                                 content=ft.Icon(
                                     flecha if tiene_hijos else ft.Icons.CIRCLE,
                                     size=18 if tiene_hijos else 6,
-                                    color=VIOLETA_IOS if tiene_hijos else PERLA_BORDE,
+                                    color=PURPURA_IOS if tiene_hijos else PERLA_BORDE,
                                 ),
                             ),
                         ),
@@ -3349,12 +3347,12 @@ class GuardadosView:
                             border_radius=13,
                             bgcolor=ft.Colors.with_opacity(
                                 0.16 if seleccionado else 0.10,
-                                VIOLETA_IOS if seleccionado else "#B97852",
+                                PURPURA_IOS if seleccionado else "#B97852",
                             ),
                             alignment=ft.Alignment(0, 0),
                             content=ft.Icon(
                                 ft.Icons.FOLDER_OPEN if abierta else ft.Icons.FOLDER,
-                                color=VIOLETA_IOS if seleccionado else "#B97852",
+                                color=PURPURA_IOS if seleccionado else "#B97852",
                                 size=19,
                             ),
                         ),
@@ -3462,7 +3460,7 @@ class GuardadosView:
         es_seleccionada = (self.carpeta_seleccionada_nombre == nombre)
         es_actual = (self.carpeta_actual_nombre == nombre)
         
-        bg_color = PERLA_VIOLETA if es_seleccionada else None
+        bg_color = PERLA_PURPURA if es_seleccionada else None
         border_color = ft.Colors.BLUE if es_actual else ft.Colors.TRANSPARENT
 
         return ft.GestureDetector(
@@ -3545,7 +3543,7 @@ class GuardadosView:
                 ft.IconButton(
                     icon=ft.Icons.ARROW_BACK,
                     tooltip=ayuda,
-                    icon_color=VIOLETA_IOS,
+                    icon_color=PURPURA_IOS,
                     on_click=volver,
                 ),
                 ft.Text(
@@ -3645,8 +3643,8 @@ class GuardadosView:
             content=ft.Container(
                 width=210,
                 padding=ft.Padding(left=12, top=10, right=12, bottom=10),
-                bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
-                border=ft.Border.all(1.4 if seleccionada else 1, VIOLETA_IOS if seleccionada else PERLA_BORDE),
+                bgcolor=PERLA_PURPURA if seleccionada else SUPERFICIE_PERLADA,
+                border=ft.Border.all(1.4 if seleccionada else 1, PURPURA_IOS if seleccionada else PERLA_BORDE),
                 border_radius=18,
                 shadow=sombra_suave(0.035, 12, 0, 4),
                 content=ft.Row(
@@ -3693,7 +3691,7 @@ class GuardadosView:
                         ft.Icon(
                             ft.Icons.CHEVRON_RIGHT,
                             size=18,
-                            color=VIOLETA_IOS,
+                            color=PURPURA_IOS,
                         ),
                     ],
                 ),
@@ -4002,7 +4000,7 @@ class GuardadosView:
 
                     bgcolor=(
 
-                        PERLA_VIOLETA
+                        PERLA_PURPURA
                         if seleccionada
                         else "#FFFFFF"
 
@@ -4130,10 +4128,10 @@ class GuardadosView:
             height=224 if self.es_movil() else 242,
             padding=12,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
-            bgcolor=PERLA_VIOLETA if seleccionada else SUPERFICIE_PERLADA,
+            bgcolor=PERLA_PURPURA if seleccionada else SUPERFICIE_PERLADA,
             border=ft.Border.all(
                 1,
-                VIOLETA_IOS if seleccionada else PERLA_BORDE,
+                PURPURA_IOS if seleccionada else PERLA_BORDE,
             ),
             border_radius=8,
             shadow=sombra_suave(0.05, 14, 0, 4),
@@ -4219,10 +4217,10 @@ class GuardadosView:
                     padding=ft.Padding(left=12, top=11, right=10, bottom=11),
                     border_radius=14,
                     clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                    bgcolor=(PERLA_VIOLETA if self.esta_seleccionado(registro) else SUPERFICIE_PERLADA),
+                    bgcolor=(PERLA_PURPURA if self.esta_seleccionado(registro) else SUPERFICIE_PERLADA),
                     border=ft.Border.all(
                         1,
-                        VIOLETA_IOS if self.esta_seleccionado(registro) else PERLA_BORDE,
+                        PURPURA_IOS if self.esta_seleccionado(registro) else PERLA_BORDE,
                     ),
                     content=ft.Row(
                         spacing=12,
@@ -4245,7 +4243,7 @@ class GuardadosView:
                                             height=46,
                                             alignment=ft.Alignment(0, 0),
                                             border_radius=12,
-                                            bgcolor=ft.Colors.with_opacity(0.05, VIOLETA_IOS),
+                                            bgcolor=ft.Colors.with_opacity(0.05, PURPURA_IOS),
                                             content=self.icono_registro(registro),
                                         ),
                                         ft.Container(
@@ -5123,7 +5121,7 @@ class GuardadosView:
                 content=ft.Container(
                     padding=ft.Padding(10, 8, 10, 8),
                     border_radius=9,
-                    bgcolor=ft.Colors.with_opacity(0.04, VIOLETA_IOS),
+                    bgcolor=ft.Colors.with_opacity(0.04, PURPURA_IOS),
                     content=ft.Row(
                         spacing=10,
                         controls=[

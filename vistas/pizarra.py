@@ -14,11 +14,11 @@ from ui.tema import (
     AZUL,
     PERLA_BORDE,
     PERLA_PANEL,
-    PERLA_VIOLETA,
+    PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
+    PURPURA_IOS,
     sombra_suave,
 )
 from ui.teclado import ocultar_teclado
@@ -52,7 +52,7 @@ FONDO_SUAVE = ft.Colors.TRANSPARENT
 CARD_BLANCO = SUPERFICIE_PERLADA
 BORDE_SUAVE = PERLA_BORDE
 ACENTO_AZUL = AZUL
-ACENTO_VIOLETA = "#8E24AA"
+ACENTO_PURPURA = "#8E24AA"
 
 def _sombra_card():
     return sombra_suave(0.055, 18, 0, 6)
@@ -257,14 +257,14 @@ class PizarraView:
                     height=54,
                     border=ft.Border.all(1, PERLA_BORDE),
                     border_radius=8,
-                    bgcolor=PERLA_VIOLETA if activo else None,
+                    bgcolor=PERLA_PURPURA if activo else None,
                     content=ft.Column(
                         tight=True,
                         spacing=1,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                         controls=[
-                            ft.Icon(icono, size=20, color=VIOLETA_IOS if not activo else TEXTO_PRINCIPAL),
+                            ft.Icon(icono, size=20, color=PURPURA_IOS if not activo else TEXTO_PRINCIPAL),
                             ft.Text(titulo, size=10, color=TEXTO_PRINCIPAL),
                         ],
                     ),
@@ -280,7 +280,7 @@ class PizarraView:
                 tooltip=titulo,
                 border=ft.Border.all(1, PERLA_BORDE),
                 border_radius=8,
-                bgcolor=PERLA_VIOLETA if activo else None,
+                bgcolor=PERLA_PURPURA if activo else None,
                 on_click=lambda e, v=valor: self.cambiar_herramienta(v),
                 content=ft.Column(
                     tight=True,
@@ -288,7 +288,7 @@ class PizarraView:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                     controls=[
-                        ft.Icon(icono, size=20, color=VIOLETA_IOS if not activo else TEXTO_PRINCIPAL),
+                        ft.Icon(icono, size=20, color=PURPURA_IOS if not activo else TEXTO_PRINCIPAL),
                         ft.Text(titulo, size=10, color=TEXTO_PRINCIPAL),
                     ],
                 ),
@@ -308,7 +308,7 @@ class PizarraView:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                     controls=[
-                        ft.Icon(icono, size=20, color=VIOLETA_IOS),
+                        ft.Icon(icono, size=20, color=PURPURA_IOS),
                         ft.Text(titulo, size=10, color=TEXTO_PRINCIPAL),
                     ],
                 ),
@@ -701,7 +701,7 @@ class PizarraView:
                     height=alto,
                     padding=ft.Padding(left=8, top=6, right=8, bottom=6),
                     border=(
-                        ft.Border.all(1.5, VIOLETA_IOS)
+                        ft.Border.all(1.5, PURPURA_IOS)
                         if seleccionado
                         else None
                     ),
@@ -1715,7 +1715,7 @@ class PizarraView:
                     top=min(sy1, sy2),
                     width=max(abs(sx2 - sx1), 4),
                     height=max(abs(sy2 - sy1), 4),
-                    border=ft.Border.all(1, VIOLETA_IOS),
+                    border=ft.Border.all(1, PURPURA_IOS),
                     bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.BLUE),
                     ignore_interactions=True,
                 )

@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import unicodedata
 from pathlib import Path
 
 import flet as ft
@@ -14,13 +15,26 @@ RAIZ_PROYECTO = Path(__file__).resolve().parents[1]
 if str(RAIZ_PROYECTO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROYECTO))
 
-from ui.tema import DORADO, PURPURA_INICIAL
+from ui.tema import (
+    AMARILLO,
+    AZUL,
+    BLANCO,
+    DORADO,
+    GRIS,
+    MARRON,
+    NARANJA,
+    NEGRO,
+    PURPURA,
+    ROJO,
+    VERDE,
+)
 from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
 
 FONDO_INTRO_PC = "intro_pc.webp"
 INTRO_AUDIO = "santo_santo_intro_loop.mp3"
 CLAVE_INTRO_MUTED = "intro_audio_muted"
+PURPURA_INTRO_CLARO = "#A05AA3"
 APOCALIPSIS_13_18 = (
     "Aqu\u00ed hay sabidur\u00eda. El que tiene entendimiento, cuente el n\u00famero de la bestia, "
     "pues es n\u00famero de hombre. Y su n\u00famero es seiscientos sesenta y seis."
@@ -29,6 +43,96 @@ ROMANOS_10_9 = (
     "que si confesares con tu boca que Jes\u00fas es el Se\u00f1or, y creyeres en tu coraz\u00f3n "
     "que Dios le levant\u00f3 de los muertos, ser\u00e1s salvo."
 )
+
+ALFABETO_29_INTRO = [
+    "A", "B", "C", "CH", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+    "LL", "M", "N", "Ñ", "O", "P", "Q", "R", "S", "T", "U", "V", "W",
+    "X", "Y", "Z",
+]
+VALOR_LETRA_INTRO = {
+    letra: valor
+    for valor, letra in enumerate(ALFABETO_29_INTRO, start=1)
+}
+COLOR_DIGITO_INTRO = {
+    0: NEGRO,
+    1: MARRON,
+    2: ROJO,
+    3: NARANJA,
+    4: AMARILLO,
+    5: VERDE,
+    6: AZUL,
+    7: PURPURA,
+    8: GRIS,
+    9: BLANCO,
+}
+BORDE_DIGITO_INTRO = {
+    4: MARRON,
+    8: NEGRO,
+    9: MARRON,
+}
+
+
+def _normalizar_letra_intro(texto):
+    texto = str(texto or "").upper().replace("Ñ", "\0")
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(
+        caracter
+        for caracter in texto
+        if unicodedata.category(caracter) != "Mn"
+    )
+    return texto.replace("\0", "Ñ")
+
+
+def _reducir_valor_intro(valor):
+    numero = abs(int(valor))
+    while numero >= 10:
+        numero = sum(int(digito) for digito in str(numero))
+    return numero
+
+
+def _digito_titulo_intro(token):
+    normalizado = _normalizar_letra_intro(token)
+    if normalizado.isdigit():
+        return int(normalizado)
+    valor = VALOR_LETRA_INTRO.get(normalizado)
+    return _reducir_valor_intro(valor) if valor is not None else None
+
+
+def _estilo_titulo_intro(digito):
+    if digito is None:
+        return None
+    color = COLOR_DIGITO_INTRO.get(digito, BLANCO)
+    borde_color = BORDE_DIGITO_INTRO.get(digito, ft.Colors.with_opacity(0.55, ft.Colors.BLACK))
+    return ft.TextStyle(
+        color=color,
+        shadow=[
+            ft.BoxShadow(blur_radius=0, spread_radius=0, color=borde_color, offset=ft.Offset(0.75, 0)),
+            ft.BoxShadow(blur_radius=0, spread_radius=0, color=borde_color, offset=ft.Offset(-0.75, 0)),
+            ft.BoxShadow(blur_radius=0, spread_radius=0, color=borde_color, offset=ft.Offset(0, 0.75)),
+            ft.BoxShadow(blur_radius=8, spread_radius=0, color=ft.Colors.with_opacity(0.34, color), offset=ft.Offset(0, 0)),
+        ],
+    )
+
+
+def _spans_titulo_intro(texto):
+    spans = []
+    indice = 0
+    while indice < len(texto):
+        par = _normalizar_letra_intro(texto[indice:indice + 2])
+        if par in ("CH", "LL"):
+            token = texto[indice:indice + 2]
+            indice += 2
+        else:
+            token = texto[indice]
+            indice += 1
+
+        spans.append(
+            ft.TextSpan(
+                token,
+                style=_estilo_titulo_intro(_digito_titulo_intro(token)),
+            )
+        )
+    return spans
 
 
 def _seguro_update(control):
@@ -87,10 +191,10 @@ def construir_intro(page, on_ingresar):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 ft.Text(
-                    "CODIGO ESCONDIDO 19",
+                    spans=_spans_titulo_intro("CODIGO ESCONDIDO 19"),
                     size=titulo_size,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.WHITE,
+                    semantics_label="CODIGO ESCONDIDO 19",
                     text_align=ft.TextAlign.CENTER,
                 ),
             ],
@@ -431,7 +535,7 @@ def construir_intro(page, on_ingresar):
 
     control = ft.Container(
         expand=True,
-        bgcolor=PURPURA_INICIAL,
+        bgcolor=PURPURA_INTRO_CLARO,
         on_click=ingresar,
         image=ft.DecorationImage(
             src=FONDO_INTRO_PC,
@@ -442,7 +546,7 @@ def construir_intro(page, on_ingresar):
             controls=[
                 ft.Container(
                     expand=True,
-                    bgcolor=ft.Colors.with_opacity(0.18, ft.Colors.BLACK),
+                    bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.BLACK),
                 ),
                 fondo_estrellas_profundo,
                 fondo_estrellas_atras,
@@ -455,8 +559,8 @@ def construir_intro(page, on_ingresar):
                         radius=1.1,
                         colors=[
                             ft.Colors.with_opacity(0.02, ft.Colors.WHITE),
-                            ft.Colors.with_opacity(0.18, PURPURA_INICIAL),
-                            ft.Colors.with_opacity(0.72, ft.Colors.BLACK),
+                            ft.Colors.with_opacity(0.10, PURPURA_INTRO_CLARO),
+                            ft.Colors.with_opacity(0.30, PURPURA_INTRO_CLARO),
                         ],
                         stops=[0.0, 0.58, 1.0],
                     ),

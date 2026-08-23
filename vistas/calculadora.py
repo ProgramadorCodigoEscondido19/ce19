@@ -16,7 +16,7 @@ from ui.tema import (
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
+    PURPURA_IOS,
     panel_moderno,
     titulo_pagina,
 )
@@ -83,7 +83,7 @@ class CalculadoraView:
             "0",
             size=38,
             weight=ft.FontWeight.BOLD,
-            color=VIOLETA_IOS,
+            color=PURPURA_IOS,
         )
         self.detalle_suma_biblia = ft.Text(
             "Seleccione un alcance y presione Calcular.",
@@ -242,7 +242,7 @@ class CalculadoraView:
                         ft.ElevatedButton(
                             "Calcular",
                             icon=ft.Icons.CALCULATE,
-                            bgcolor=VIOLETA_IOS,
+                            bgcolor=PURPURA_IOS,
                             color=BLANCO,
                             on_click=self._calcular_suma_biblica,
                         ),
@@ -479,7 +479,7 @@ class CalculadoraView:
         es_operador = valor in {"+", "-", "*", "/", "="}
         es_control = valor in {"C", "⌫", "±"}
         if es_operador:
-            bgcolor = VIOLETA_IOS
+            bgcolor = PURPURA_IOS
             color = BLANCO
         elif es_control:
             bgcolor = "#FFF1E8"

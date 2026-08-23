@@ -1,16 +1,20 @@
+from pathlib import Path
+
 import flet as ft
 
 from core.app_state import state
 from logica.analizador_colores import (
     DIGITO_COLORES,
     analizar_codigo_visual,
+    exportar_pdf_colores,
     guardar_historial,
     reducir_numero,
     tokenizar,
+    valores_secundarios_colores,
 )
 from services.biblia_service import BibliaService
 from ui.clipboard import copiar_al_portapapeles
-from ui.compartir import compartir_texto
+from ui.compartir import compartir_archivo, compartir_texto
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
@@ -21,31 +25,17 @@ from ui.tema import (
     NEGRO,
     PERLA_BORDE,
     PERLA_PANEL,
-    PERLA_VIOLETA,
+    PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
+    PURPURA_IOS,
     sombra_suave,
 )
 
 
 CARD_BLANCO = SUPERFICIE_PERLADA
 BORDE_SUAVE = PERLA_BORDE
-COLOR_ICONOS = {
-    "NEGRO": "⬛",
-    "MARRON": "🟫",
-    "ROJO": "🟥",
-    "NARANJA": "🟧",
-    "AMARILLO": "🟨",
-    "VERDE": "🟩",
-    "AZUL": "🟦",
-    "VIOLETA": "🟪",
-    "GRIS": "🔲",
-    "BLANCO": "⬜",
-}
-
-
 COLOR_ICONOS = {
     "NEGRO": "\u2B1B",
     "MARRON": "\U0001F7EB",
@@ -54,10 +44,39 @@ COLOR_ICONOS = {
     "AMARILLO": "\U0001F7E8",
     "VERDE": "\U0001F7E9",
     "AZUL": "\U0001F7E6",
-    "VIOLETA": "\U0001F7EA",
-    "GRIS": "\U0001F532",
+    "PURPURA": "\U0001F7EA",
+    "GRIS": "\u25FD\uFE0F",
     "BLANCO": "\u2B1C",
 }
+
+COLOR_ORDEN = ["NEGRO", "MARRON", "ROJO", "NARANJA", "AMARILLO", "VERDE", "AZUL", "PURPURA", "GRIS", "BLANCO"]
+COLOR_INICIALES = {
+    "NEGRO": "N",
+    "MARRON": "M",
+    "ROJO": "R",
+    "NARANJA": "N",
+    "AMARILLO": "Am",
+    "VERDE": "V",
+    "AZUL": "Az",
+    "PURPURA": "P",
+    "GRIS": "G",
+    "BLANCO": "B",
+}
+
+
+def _nombre_color_publico(nombre):
+    nombre = str(nombre or "").upper().strip()
+    if nombre in ("VIOLETA", "PÚRPURA"):
+        return "PURPURA"
+    return nombre
+
+
+def _icono_color(nombre):
+    return COLOR_ICONOS.get(_nombre_color_publico(nombre), "▫")
+
+
+def _inicial_color(nombre):
+    return COLOR_INICIALES.get(_nombre_color_publico(nombre), "")
 
 
 class AnalizadorColoresView:
@@ -69,6 +88,7 @@ class AnalizadorColoresView:
         self.ultimo_archivo_tarjeta = None
         self.escala_vista = 0.86
         self.dialogo_importar = None
+        self.file_picker_pdf = None
 
         self.libros = BibliaService.nombres_libros()
         libro_inicial = self.libros[0] if self.libros else ""
@@ -82,7 +102,7 @@ class AnalizadorColoresView:
             filled=True,
             bgcolor="#FCFAFF",
             border_color=PERLA_BORDE,
-            focused_border_color=VIOLETA_IOS,
+            focused_border_color=PURPURA_IOS,
             on_focus=lambda e: self._preparar_entrada_texto(e.control),
             on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
         )
@@ -257,9 +277,9 @@ class AnalizadorColoresView:
                                 width=40,
                                 height=40,
                                 border_radius=14,
-                                bgcolor=PERLA_VIOLETA,
+                                bgcolor=PERLA_PURPURA,
                                 alignment=ft.Alignment(0, 0),
-                                content=ft.Icon(ft.Icons.COLOR_LENS, color=VIOLETA_IOS, size=22),
+                                content=ft.Icon(ft.Icons.COLOR_LENS, color=PURPURA_IOS, size=22),
                             ),
                             ft.Text("Colores", size=24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
                         ],
@@ -285,7 +305,7 @@ class AnalizadorColoresView:
             autofocus=True,
             bgcolor="#FCFAFF",
             border_color=PERLA_BORDE,
-            focused_border_color=VIOLETA_IOS,
+            focused_border_color=PURPURA_IOS,
         )
 
         def cerrar(ev=None):
@@ -377,7 +397,7 @@ class AnalizadorColoresView:
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=12,
                         controls=[
-                            ft.Icon(ft.Icons.AUTO_AWESOME, size=40, color=VIOLETA_IOS),
+                            ft.Icon(ft.Icons.AUTO_AWESOME, size=40, color=PURPURA_IOS),
                             ft.Text("Ingrese texto o importe Biblia y presione Analizar.", text_align=ft.TextAlign.CENTER, color=TEXTO_SECUNDARIO),
                         ],
                     ),
@@ -624,7 +644,7 @@ class AnalizadorColoresView:
                 ft.Container(
                     padding=self._tam(12, 7),
                     border_radius=12,
-                    bgcolor=PERLA_VIOLETA,
+                    bgcolor=PERLA_PURPURA,
                     content=ft.Text(
                         f"Vista resumida: se muestran {cantidad_visible} de {len(detalle)} caracteres. El total se calcula completo.",
                         size=self._tam(12, 9),
@@ -701,7 +721,7 @@ class AnalizadorColoresView:
                         palabra,
                         size=self._tam(13, 9),
                         weight=ft.FontWeight.BOLD,
-                        color=VIOLETA_IOS,
+                        color=PURPURA_IOS,
                         no_wrap=True,
                         overflow=ft.TextOverflow.ELLIPSIS,
                         tooltip=palabra,
@@ -783,14 +803,49 @@ class AnalizadorColoresView:
         )
 
     def _resumen_codigo(self):
+        controles = [
+            self._panel_analisis_primario(),
+            self._panel_analisis_secundario(),
+        ]
+
+        if self.responsive.is_mobile():
+            return ft.Column(
+                spacing=self._tam(10, 5),
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=controles,
+            )
+
+        return ft.Row(
+            spacing=self._tam(12, 6),
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            controls=[
+                ft.Container(expand=True, content=controles[0]),
+                ft.Container(expand=True, content=controles[1]),
+            ],
+        )
+
+    def _panel_analisis(self, titulo, controles):
+        return ft.Container(
+            padding=self._tam(12, 7),
+            bgcolor=PERLA_PANEL,
+            border=ft.Border.all(1.4, NEGRO),
+            border_radius=12,
+            content=ft.Column(
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=self._tam(11, 5),
+                controls=[
+                    ft.Text(titulo, size=self._tam(14, 10), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                    *controles,
+                ],
+            ),
+        )
+
+    def _panel_analisis_primario(self):
         total = self.resultado.get("total_codigo", 0)
         pasos = self.resultado.get("pasos_reduccion", [])
         final = self.resultado.get("resultado_final", 0)
         final_hex = self.resultado.get("hex_final", "#FFFFFF")
-        sumas_intermedias = pasos[1:] if len(pasos) > 1 else pasos
-        total_suma_de_sumas = sum(int(paso or 0) for paso in sumas_intermedias)
-        resultado_suma_de_sumas = reducir_numero(total_suma_de_sumas)
-        bloque_suma_de_sumas = self._bloque_suma_de_sumas(total_suma_de_sumas, resultado_suma_de_sumas)
         bloque_final = ft.Container(
             width=self._tam(96 if self.responsive.is_mobile() else 118, 68),
             height=self._tam(70 if self.responsive.is_mobile() else 84, 52),
@@ -801,54 +856,74 @@ class AnalizadorColoresView:
             content=ft.Text(str(final), size=self._tam(34 if self.responsive.is_mobile() else 40, 24), weight=ft.FontWeight.BOLD, color=self._texto_contraste(final_hex)),
         )
 
-        return ft.Container(
-            padding=self._tam(12, 7),
-            bgcolor=PERLA_PANEL,
-            border=ft.Border.all(1, PERLA_BORDE),
-            border_radius=10,
-            content=ft.Column(
-                tight=True,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=self._tam(12, 6),
-                controls=[
-                    ft.Text("TOTAL DE CODIGOS:", size=self._tam(18, 12), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                    self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(20, 8)),
-                    ft.Text("PROCESO DE REDUCCION", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                    ft.Column(
-                        tight=True,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=self._tam(10, 5),
-                        controls=self._filas_proceso_reduccion(pasos),
-                    ),
-                    ft.Row(
-                        wrap=True,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
-                        spacing=self._tam(24, 10),
-                        run_spacing=self._tam(16, 8),
-                        controls=[
-                            ft.Column(
-                                tight=True,
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                spacing=self._tam(8, 4),
-                                controls=[
-                                    ft.Text("Suma de sumas", size=self._tam(15, 10), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
-                                    bloque_suma_de_sumas,
-                                ],
-                            ),
-                            ft.Column(
-                                tight=True,
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                spacing=self._tam(10, 5),
-                                controls=[
-                                    ft.Text("RESULTADO FINAL", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                                    bloque_final,
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
+        return self._panel_analisis(
+            "ANALISIS PRIMARIO",
+            [
+                ft.Text("TOTAL DE CODIGOS:", size=self._tam(17, 11), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(18, 7)),
+                ft.Text("PROCESO DE REDUCCION", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                ft.Column(
+                    tight=True,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=self._tam(10, 5),
+                    controls=self._filas_proceso_reduccion(pasos),
+                ),
+                ft.Text("RESULTADO FINAL", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                bloque_final,
+            ],
+        )
+
+    def _panel_analisis_secundario(self):
+        valores = valores_secundarios_colores(self.resultado)
+        total = sum(valores)
+        limite_base = 46 if self.responsive.is_mobile() else 82
+        limite = max(24, int(limite_base / max(0.62, self.escala_vista)))
+        visibles = valores[:limite]
+        faltantes = len(valores) - len(visibles)
+
+        controles_suma = [self._fila_valores_secundarios(visibles)]
+        if faltantes > 0:
+            controles_suma.append(
+                ft.Text(
+                    f"+ {faltantes} valores mas incluidos en el total",
+                    size=self._tam(11, 8),
+                    color=TEXTO_SECUNDARIO,
+                    text_align=ft.TextAlign.CENTER,
+                )
+            )
+
+        return self._panel_analisis(
+            "ANALISIS SECUNDARIO",
+            [
+                ft.Text("SUMA DE RESULTADOS EN 1 DIGITO:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, text_align=ft.TextAlign.CENTER),
+                ft.Column(
+                    tight=True,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=self._tam(6, 3),
+                    controls=controles_suma,
+                ),
+                ft.Text("RESULTADO SIN REDUCIR:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(8, 4)),
+            ],
+        )
+
+    def _fila_valores_secundarios(self, valores):
+        controles = []
+        for indice, valor in enumerate(valores):
+            if indice:
+                controles.append(self._signo_operacion("+", tamano=15))
+            controles.append(self._cuadro_digito(valor, compacto=True))
+
+        if not controles:
+            controles.append(self._cuadro_digito(0, compacto=True))
+
+        return ft.Row(
+            wrap=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=self._tam(4, 2),
+            run_spacing=self._tam(7, 3),
+            controls=controles,
         )
 
     def _filas_proceso_reduccion(self, pasos):
@@ -973,8 +1048,9 @@ class AnalizadorColoresView:
             run_spacing=8,
             controls=[
                 ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=self.guardar_resultado),
+                ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.descargar_pdf_resultado),
                 ft.OutlinedButton("Compartir", icon=ft.Icons.SHARE, on_click=self.compartir_resultado),
-                ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=lambda e: self.copiar_resultado()),
+                ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=self.abrir_opciones_copiado),
             ],
         )
 
@@ -1006,8 +1082,8 @@ class AnalizadorColoresView:
 
         for item in detalle:
             digitos = item.get("digitos_colores", [])
-            iconos_digitos = "".join(COLOR_ICONOS.get(d.get("color", ""), "▫") for d in digitos)
-            icono_final = COLOR_ICONOS.get(item.get("color", ""), "▫")
+            iconos_digitos = "".join(_icono_color(d.get("color", "")) for d in digitos)
+            icono_final = _icono_color(item.get("color", ""))
             if len(digitos) > 1:
                 partes.append(f"{item.get('letra', '')} {iconos_digitos} = {icono_final} {item.get('reducido', '')}")
             else:
@@ -1021,8 +1097,8 @@ class AnalizadorColoresView:
             f"Total de codigos: {self.resultado.get('total_codigo', 0)}\n"
             f"Proceso de reduccion: {pasos}\n"
             f"Resultado final: {self.resultado.get('resultado_final', 0)} "
-            f"{COLOR_ICONOS.get(self.resultado.get('color_final', ''), '')} "
-            f"({self.resultado.get('color_final', '')})"
+            f"{_icono_color(self.resultado.get('color_final', ''))} "
+            f"({_nombre_color_publico(self.resultado.get('color_final', ''))})"
         )
 
     def guardar_resultado(self, e=None):
@@ -1061,43 +1137,325 @@ class AnalizadorColoresView:
         )
         self._confirmacion("Guardado correctamente.")
 
-    def _linea_color_compartir(self, item):
+    def _obtener_file_picker_pdf(self):
+        if self.file_picker_pdf is not None:
+            return self.file_picker_pdf
+
+        self.file_picker_pdf = ft.FilePicker()
+
+        try:
+            self.page.services.append(self.file_picker_pdf)
+            self.page.update()
+        except Exception:
+            try:
+                self.page.overlay.append(self.file_picker_pdf)
+                self.page.update()
+            except Exception:
+                pass
+
+        return self.file_picker_pdf
+
+    def descargar_pdf_resultado(self, e=None):
+        if not self.resultado:
+            self._snack("Primero realice un analisis.")
+            return
+
+        try:
+            archivo = exportar_pdf_colores(self.resultado, self._titulo_resultado())
+        except Exception:
+            self._snack("No se pudo generar el PDF.")
+            return
+
+        if hasattr(self.page, "run_task"):
+            self.page.run_task(self._descargar_pdf_resultado_async, archivo)
+            return
+
+        compartir_archivo(
+            self.page,
+            archivo,
+            "Analisis de colores PDF",
+            "application/pdf",
+        )
+
+    async def _descargar_pdf_resultado_async(self, archivo):
+        ruta = Path(archivo)
+        try:
+            datos = ruta.read_bytes()
+        except Exception:
+            self._snack("No se pudo leer el PDF.")
+            return
+
+        picker = self._obtener_file_picker_pdf()
+        try:
+            destino = await picker.save_file(
+                dialog_title="Guardar analisis de colores PDF",
+                file_name=ruta.name,
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["pdf"],
+                src_bytes=datos,
+            )
+        except Exception:
+            self._snack("No se pudo abrir el selector de guardado.")
+            return
+
+        if not destino:
+            self._snack("Guardado PDF cancelado.")
+            return
+
+        plataforma = getattr(self.page, "platform", None)
+        es_movil_o_web = bool(getattr(self.page, "web", False)) or plataforma in (
+            ft.PagePlatform.ANDROID,
+            ft.PagePlatform.IOS,
+        )
+
+        if not es_movil_o_web:
+            destino_path = Path(destino)
+            if destino_path.suffix.lower() != ".pdf":
+                destino_path = destino_path.with_suffix(".pdf")
+
+            try:
+                destino_path.write_bytes(datos)
+                destino = str(destino_path)
+            except Exception:
+                self._snack("No se pudo guardar el PDF en esa ubicacion.")
+                return
+
+        self._snack(f"PDF guardado: {destino}")
+
+    def _opciones_copiado_base(self):
+        return {
+            "letras_numeros": False,
+            "resultados": True,
+            "sumas": True,
+            "cuadritos": False,
+            "solo_palabras": False,
+            "todo": False,
+        }
+
+    def _opciones_copiado_todo(self):
+        return {
+            "letras_numeros": True,
+            "resultados": True,
+            "sumas": True,
+            "cuadritos": True,
+            "solo_palabras": True,
+            "todo": True,
+        }
+
+    def _marca_color_copiado(self, color, incluir_cuadrito):
+        if not incluir_cuadrito:
+            return ""
+        color = _nombre_color_publico(color)
+        if color == "GRIS":
+            return "[G]"
+        if color == "BLANCO":
+            return "[B]"
+        return _icono_color(color)
+
+    def _numero_con_color(self, valor, color, incluir_letra, incluir_cuadrito=False):
+        texto = str(valor)
+        if incluir_letra:
+            texto += _inicial_color(color)
+        marca = self._marca_color_copiado(color, incluir_cuadrito)
+        if marca:
+            texto += marca
+        return texto
+
+    def _leyenda_colores_copiado(self, opciones):
+        incluir_letra = bool(opciones.get("letras_numeros"))
+        incluir_cuadrito = bool(opciones.get("cuadritos"))
+        if not incluir_letra and not incluir_cuadrito:
+            return ""
+
+        partes = []
+        for color in COLOR_ORDEN:
+            etiqueta = _inicial_color(color) if incluir_letra else ""
+            marca = self._marca_color_copiado(color, incluir_cuadrito)
+            partes.append(f"{etiqueta}{marca}" or color)
+        return "-".join(partes)
+
+    def _token_item_copiado(self, item, opciones, detallado=False):
+        letras_numeros = bool(opciones.get("letras_numeros"))
+        incluir_sumas = bool(opciones.get("sumas"))
+        incluir_cuadrito = bool(opciones.get("cuadritos"))
+        reducido = item.get("reducido", "")
+        digitos = item.get("digitos_colores", [])
+        color_final = _nombre_color_publico(item.get("color", ""))
+        final_texto = self._numero_con_color(reducido, color_final, letras_numeros, incluir_cuadrito)
+
+        if detallado and incluir_sumas and len(digitos) > 1:
+            partes = [
+                self._numero_con_color(
+                    d.get("digito", ""),
+                    d.get("color", ""),
+                    letras_numeros,
+                    incluir_cuadrito,
+                )
+                for d in digitos
+            ]
+            return f"({''.join(partes)}={final_texto})"
+
+        return final_texto
+
+    def _linea_color_compartir(self, item, opciones=None):
+        opciones = opciones or {}
+        letras_numeros = bool(opciones.get("letras_numeros"))
+        incluir_sumas = bool(opciones.get("sumas"))
+        incluir_cuadrito = bool(opciones.get("cuadritos"))
         letra = item.get("letra", "")
         valor = item.get("valor", "")
         reducido = item.get("reducido", "")
         digitos = item.get("digitos_colores", [])
-        icono_final = COLOR_ICONOS.get(item.get("color", ""), "[]")
+        color_final = _nombre_color_publico(item.get("color", ""))
+        marca_final = self._marca_color_copiado(color_final, incluir_cuadrito)
+        final_texto = self._numero_con_color(reducido, color_final, letras_numeros, False)
 
-        if len(digitos) > 1:
+        if len(digitos) > 1 and (letras_numeros or incluir_sumas):
             partes = [
-                f"{d.get('digito')} {COLOR_ICONOS.get(d.get('color', ''), '[]')} {d.get('color', '')}"
+                self._numero_con_color(
+                    d.get("digito", ""),
+                    d.get("color", ""),
+                    letras_numeros,
+                    incluir_cuadrito,
+                )
                 for d in digitos
             ]
-            return f"{letra}: {valor} = {' + '.join(partes)} -> {reducido} {icono_final} {item.get('color', '')}"
+            operador = "=" if incluir_sumas else "->"
+            marca = f" {marca_final}" if marca_final else ""
+            return f"{letra}: {valor} ({''.join(partes)}{operador}{final_texto}){marca} {color_final}"
 
-        return f"{letra}: {valor} {icono_final} {item.get('color', '')}"
+        valor_texto = self._numero_con_color(valor, color_final, letras_numeros, incluir_cuadrito)
+        return f"{letra}: {valor_texto} {color_final}"
 
-    def _texto_resumen(self):
+    def _color_digito_copiado(self, digito):
+        try:
+            return _nombre_color_publico(DIGITO_COLORES[int(digito)]["nombre"])
+        except (KeyError, TypeError, ValueError):
+            return "NEGRO"
+
+    def _digito_con_color_copiado(self, digito, opciones):
+        color = self._color_digito_copiado(digito)
+        return self._numero_con_color(
+            digito,
+            color,
+            bool(opciones.get("letras_numeros")),
+            bool(opciones.get("cuadritos")),
+        )
+
+    def _digitos_numero_copiado(self, valor, opciones, separador=""):
+        return separador.join(
+            self._digito_con_color_copiado(digito, opciones)
+            for digito in self._digitos_numero(valor)
+        )
+
+    def _suma_digitos_numero_copiado(self, valor, opciones):
+        return self._digitos_numero_copiado(valor, opciones, " + ")
+
+    def _fila_reduccion_copiado(self, origen, resultado, opciones):
+        return (
+            f"{self._suma_digitos_numero_copiado(origen, opciones)} = "
+            f"{self._digitos_numero_copiado(resultado, opciones)}"
+        )
+
+    def _texto_resultados_copiado(self, opciones):
+        valores_secundarios = valores_secundarios_colores(self.resultado)
+        total_secundario = sum(valores_secundarios)
+        pasos = self.resultado.get("pasos_reduccion", [])
+        total = self.resultado.get("total_codigo", 0)
+        final = pasos[-1] if pasos else self.resultado.get("resultado_final", 0)
+        proceso = [
+            self._fila_reduccion_copiado(pasos[indice], pasos[indice + 1], opciones)
+            for indice in range(len(pasos) - 1)
+        ]
+        suma_secundaria = " + ".join(
+            self._digito_con_color_copiado(valor, opciones)
+            for valor in valores_secundarios
+        )
+        if not suma_secundaria:
+            suma_secundaria = self._digito_con_color_copiado(0, opciones)
+
+        lineas = [
+            "Analisis primario:",
+            f"Total de codigos: {self._suma_digitos_numero_copiado(total, opciones)}",
+            "Proceso de reduccion:",
+        ]
+        lineas.extend(proceso or [self._digitos_numero_copiado(final, opciones)])
+        lineas.extend(
+            [
+                f"Resultado primario: {self._digitos_numero_copiado(final, opciones)}",
+                "",
+                "Analisis secundario:",
+                f"Suma de resultados en 1 digito: {suma_secundaria}",
+                f"Resultado secundario: {self._digitos_numero_copiado(total_secundario, opciones)}",
+            ]
+        )
+        return "\n".join(lineas)
+
+    def _texto_palabras_copiado(self, opciones):
+        texto_limpio = self.resultado.get("texto_limpio", "")
+        palabras = [p for p in texto_limpio.split() if p.strip()]
+        lineas = []
+        detallado = bool(opciones.get("todo")) or bool(opciones.get("sumas"))
+        for palabra in palabras:
+            analisis = analizar_codigo_visual(palabra)
+            final = analisis.get("resultado_final", 0)
+            color = _nombre_color_publico(analisis.get("color_final", ""))
+            final_texto = self._numero_con_color(
+                final,
+                color,
+                bool(opciones.get("letras_numeros")),
+                bool(opciones.get("cuadritos")),
+            )
+            if detallado:
+                partes = [
+                    self._token_item_copiado(item, opciones, detallado=True)
+                    for item in analisis.get("detalle_visual", [])
+                ]
+                formula = " + ".join(partes)
+                if formula:
+                    lineas.append(f"{palabra}= {formula}={final_texto}")
+                    continue
+            lineas.append(f"{palabra}={final_texto}")
+
+        if not lineas:
+            return "Resultado por palabra:\nSin palabras para copiar."
+
+        if detallado:
+            return "\n".join(lineas)
+        return " | ".join(lineas)
+
+    def _texto_resumen(self, opciones=None):
         if not self.resultado:
             return ""
 
-        pasos = " -> ".join(str(p) for p in self.resultado.get("pasos_reduccion", []))
-        detalle = self.resultado.get("detalle_visual", [])
-        partes = [self._linea_color_compartir(item) for item in detalle]
+        incluir_encabezado = opciones is None
+        opciones = opciones or self._opciones_copiado_base()
+        solo_palabras = bool(opciones.get("solo_palabras")) and not bool(opciones.get("todo"))
+        mostrar_detalle = not solo_palabras and bool(opciones.get("todo"))
+        secciones = []
 
         referencia = self._titulo_resultado()
         texto_limpio = self.resultado.get("texto_limpio", "")
         texto = texto_limpio if referencia == "Analisis de colores" else f"{referencia}\n{texto_limpio}"
-        return (
-            "CODIGO ESCONDIDO 19 - COLORES\n\n"
-            f"Texto analizado:\n{texto}\n\n"
-            f"Detalle:\n" + "\n".join(partes) + "\n\n"
-            f"Total de codigo: {self.resultado.get('total_codigo', 0)}\n"
-            f"Reduccion final: {pasos}\n"
-            f"Resultado final: {self.resultado.get('resultado_final', 0)} "
-            f"{COLOR_ICONOS.get(self.resultado.get('color_final', ''), '')} "
-            f"{self.resultado.get('color_final', '')}"
-        )
+        leyenda = self._leyenda_colores_copiado(opciones)
+        if leyenda:
+            secciones.append(leyenda)
+        if mostrar_detalle or solo_palabras or opciones.get("resultados"):
+            secciones.append(f"Texto analizado:\n{texto}")
+
+        if mostrar_detalle or solo_palabras:
+            secciones.append(self._texto_palabras_copiado(opciones))
+
+        if opciones.get("resultados"):
+            secciones.append(self._texto_resultados_copiado(opciones))
+
+        if not secciones:
+            secciones.append(f"Texto analizado:\n{texto}")
+
+        contenido = "\n\n".join(secciones)
+        if incluir_encabezado:
+            return "CODIGO ESCONDIDO 19 - COLORES\n\n" + contenido
+        return contenido
 
     def compartir_resultado(self, e=None):
         if not self.resultado:
@@ -1105,11 +1463,129 @@ class AnalizadorColoresView:
             return
         compartir_texto(self.page, self._texto_resumen(), self._titulo_resultado())
 
-    def copiar_resultado(self):
+    def abrir_opciones_copiado(self, e=None):
         if not self.resultado:
             self._snack("Primero realice un analisis.")
             return
-        copiar_al_portapapeles(self.page, self._texto_resumen())
+
+        opciones_iniciales = self._opciones_copiado_base()
+        check_letras = ft.Checkbox(
+            label="Letras junto a numeros",
+            value=opciones_iniciales["letras_numeros"],
+        )
+        check_resultados = ft.Checkbox(
+            label="Incluir analisis primario y secundario",
+            value=opciones_iniciales["resultados"],
+        )
+        check_sumas = ft.Checkbox(
+            label="Incluir suma de numeros",
+            value=opciones_iniciales["sumas"],
+        )
+        check_cuadritos = ft.Checkbox(
+            label="Cuadritos de colores",
+            value=opciones_iniciales["cuadritos"],
+        )
+        check_palabras = ft.Checkbox(
+            label="Solo resultado palabra por palabra",
+            value=opciones_iniciales["solo_palabras"],
+        )
+        check_todo = ft.Checkbox(label="Todo", value=opciones_iniciales["todo"])
+        preview = ft.Text(
+            self._texto_resumen(opciones_iniciales),
+            size=12,
+            color=TEXTO_SECUNDARIO,
+            selectable=True,
+        )
+
+        def leer_opciones():
+            return {
+                "letras_numeros": bool(check_letras.value),
+                "resultados": bool(check_resultados.value),
+                "sumas": bool(check_sumas.value),
+                "cuadritos": bool(check_cuadritos.value),
+                "solo_palabras": bool(check_palabras.value),
+                "todo": bool(check_todo.value),
+            }
+
+        def refrescar(e=None):
+            opciones = leer_opciones()
+            preview.value = self._texto_resumen(opciones)
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def cambiar_todo(e=None):
+            activar = bool(check_todo.value)
+            check_letras.value = activar
+            check_resultados.value = activar
+            check_sumas.value = activar
+            check_cuadritos.value = activar
+            check_palabras.value = activar
+            refrescar()
+
+        def cambiar_opcion(e=None):
+            check_todo.value = all(
+                bool(c.value)
+                for c in (check_letras, check_resultados, check_sumas, check_cuadritos, check_palabras)
+            )
+            refrescar()
+
+        for check in (check_letras, check_resultados, check_sumas, check_cuadritos, check_palabras):
+            check.on_change = cambiar_opcion
+        check_todo.on_change = cambiar_todo
+
+        def cerrar(e=None):
+            cerrar_dialogo(self.page, dialog)
+
+        def copiar(e=None):
+            texto = self._texto_resumen(leer_opciones())
+            cerrar_dialogo(self.page, dialog)
+            copiar_al_portapapeles(self.page, texto)
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Forma de copiado"),
+            content=ft.Container(
+                width=520,
+                content=ft.Column(
+                    tight=True,
+                    spacing=10,
+                    controls=[
+                        ft.Column(
+                            tight=True,
+                            spacing=0,
+                            controls=[
+                                check_letras,
+                                check_resultados,
+                                check_sumas,
+                                check_cuadritos,
+                                check_palabras,
+                                check_todo,
+                            ],
+                        ),
+                        ft.Container(
+                            height=220,
+                            padding=10,
+                            border=ft.Border.all(1, PERLA_BORDE),
+                            border_radius=8,
+                            bgcolor=SUPERFICIE_PERLADA,
+                            content=ft.Column(
+                                scroll=ft.ScrollMode.AUTO,
+                                controls=[preview],
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=cerrar),
+                ft.ElevatedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=copiar),
+            ],
+        )
+        mostrar_dialogo(self.page, dialog)
+
+    def copiar_resultado(self):
+        self.abrir_opciones_copiado()
 
     def _snack(self, mensaje):
         self.page.snack_bar = ft.SnackBar(

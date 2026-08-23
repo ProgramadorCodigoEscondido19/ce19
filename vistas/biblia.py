@@ -56,17 +56,21 @@ COLORES_RESALTADO = {
     "Amarillo": "#FFF300",
     "Verde": "#24AE52",
     "Azul": "#4448C8",
-    "Violeta": "#A44BA8",
+    "Purpura": "#A44BA8",
     "Gris": "#C9C9C9",
     COLOR_BLANCO_BORDE: "#FFFFFF",
 }
 COLORES_TEXTO_RESALTADO = {
     "Negro": "#FFFFFF",
     "Azul": "#FFFFFF",
-    "Violeta": "#FFFFFF",
+    "Purpura": "#FFFFFF",
 }
 ALIAS_COLORES_RESALTADO = {
     "Blanco": COLOR_BLANCO_BORDE,
+    "Violeta": "Purpura",
+    "violeta": "Purpura",
+    "VIOLETA": "Purpura",
+    "Púrpura": "Purpura",
 }
 DIGITO_A_COLOR = {
     1: "Marron",
@@ -75,7 +79,7 @@ DIGITO_A_COLOR = {
     4: "Amarillo",
     5: "Verde",
     6: "Azul",
-    7: "Violeta",
+    7: "Purpura",
     8: "Gris",
     9: COLOR_BLANCO_BORDE,
 }
@@ -90,7 +94,7 @@ TEXTO_SECUNDARIO = TEMA_TEXTO_SECUNDARIO
 ROJO_ACCENTO = "#FF2D55"
 NARANJA_ACCENTO = "#FF9500"
 AZUL_ACCENTO = "#0A84FF"
-VIOLETA_ACCENTO = MARRON_ACENTO
+PURPURA_ACCENTO = MARRON_ACENTO
 VERDE_ACCENTO = "#34C759"
 GRIS_SUAVE = "#F8F3FA"
 ULTIMA_LECTURA_ARCHIVO = Path("datos/ultima_lectura_biblia.json")
@@ -260,7 +264,7 @@ class BibliaView:
             self.versiculo_random_referencia,
             size=15,
             weight=ft.FontWeight.BOLD,
-            color=VIOLETA_ACCENTO,
+            color=PURPURA_ACCENTO,
         )
         self.random_versiculo_texto = ft.Text(
             self.versiculo_random_texto,
@@ -548,9 +552,9 @@ class BibliaView:
                             width=68,
                             height=68,
                             border_radius=24,
-                            bgcolor=ft.Colors.with_opacity(0.10, VIOLETA_ACCENTO),
+                            bgcolor=ft.Colors.with_opacity(0.10, PURPURA_ACCENTO),
                             alignment=ft.Alignment(0, 0),
-                            content=ft.Icon(ft.Icons.BOOK, size=38, color=VIOLETA_ACCENTO),
+                            content=ft.Icon(ft.Icons.BOOK, size=38, color=PURPURA_ACCENTO),
                         ),
                         ft.Text(
                             "Antes de entrar a la Biblia pida permiso y entendimiento a Nuestro Señor Todopoderoso",
@@ -563,7 +567,7 @@ class BibliaView:
                             "Aceptar",
                             icon=ft.Icons.CHECK,
                             height=44,
-                            bgcolor=VIOLETA_ACCENTO,
+                            bgcolor=PURPURA_ACCENTO,
                             color=ft.Colors.WHITE,
                             on_click=self.aceptar_aviso,
                         ),
@@ -651,9 +655,9 @@ class BibliaView:
                                 width=56,
                                 height=56,
                                 border_radius=18,
-                                bgcolor=ft.Colors.with_opacity(0.10, VIOLETA_ACCENTO),
+                                bgcolor=ft.Colors.with_opacity(0.10, PURPURA_ACCENTO),
                                 alignment=ft.Alignment(0, 0),
-                                content=ft.Icon(ft.Icons.MENU_BOOK, color=VIOLETA_ACCENTO, size=30),
+                                content=ft.Icon(ft.Icons.MENU_BOOK, color=PURPURA_ACCENTO, size=30),
                             ),
                             ft.Column(
                                 tight=True,
@@ -884,19 +888,19 @@ class BibliaView:
             padding=ft.Padding(left=12, top=7, right=12, bottom=7),
             border_radius=999,
             bgcolor=(
-                ft.Colors.with_opacity(0.14, VIOLETA_ACCENTO)
+                ft.Colors.with_opacity(0.14, PURPURA_ACCENTO)
                 if seleccionado
                 else ft.Colors.WHITE
             ),
             border=ft.Border.all(
                 1.2,
-                VIOLETA_ACCENTO if seleccionado else BORDE_SUAVE,
+                PURPURA_ACCENTO if seleccionado else BORDE_SUAVE,
             ),
             content=ft.Text(
                 categoria,
                 size=12,
                 weight=ft.FontWeight.BOLD if seleccionado else None,
-                color=VIOLETA_ACCENTO if seleccionado else TEXTO_SECUNDARIO,
+                color=PURPURA_ACCENTO if seleccionado else TEXTO_SECUNDARIO,
             ),
             on_click=lambda e, c=categoria: self.cambiar_categoria_random(c),
         )
@@ -934,7 +938,7 @@ class BibliaView:
                 tight=True,
                 spacing=14,
                 controls=[
-                    self._titulo_seccion("Versiculo random", ft.Icons.AUTO_AWESOME, VIOLETA_ACCENTO),
+                    self._titulo_seccion("Versiculo random", ft.Icons.AUTO_AWESOME, PURPURA_ACCENTO),
                     ft.Row(
                         wrap=True,
                         spacing=7,
@@ -1321,7 +1325,7 @@ class BibliaView:
                         )
                         icono = ft.Icon(
                             ft.Icons.KEYBOARD_ARROW_DOWN if abierto else ft.Icons.KEYBOARD_ARROW_RIGHT,
-                            color=VIOLETA_ACCENTO,
+                            color=PURPURA_ACCENTO,
                             size=20,
                         )
 
@@ -1351,7 +1355,7 @@ class BibliaView:
                                                 titulo,
                                                 size=12,
                                                 weight=ft.FontWeight.BOLD,
-                                                color=VIOLETA_ACCENTO,
+                                                color=PURPURA_ACCENTO,
                                             ),
                                         ],
                                     ),
@@ -1399,7 +1403,7 @@ class BibliaView:
                     ft.Text(
                         f"Libros: {libros_encontrados}",
                         size=11,
-                        color=VIOLETA_ACCENTO,
+                        color=PURPURA_ACCENTO,
                         max_lines=2,
                         overflow=ft.TextOverflow.ELLIPSIS,
                     ),
@@ -1753,7 +1757,7 @@ class BibliaView:
                     NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO,
                     self.toggle_modo_compartir_multiple,
                 ),
-                accion(ft.Icons.SHARE, "Compartir", VIOLETA_ACCENTO, self.dialog_compartir_biblia),
+                accion(ft.Icons.SHARE, "Compartir", PURPURA_ACCENTO, self.dialog_compartir_biblia),
             ]
 
         def crear_menu_extra():
@@ -1826,7 +1830,7 @@ class BibliaView:
                 accion(
                     ft.Icons.DOWNLOAD,
                     "Descargar Biblia codificada (PDF/TXT)",
-                    VIOLETA_ACCENTO,
+                    PURPURA_ACCENTO,
                     self.dialog_exportar_biblia_codificada,
                 ),
                 crear_menu_extra(),
@@ -1846,10 +1850,10 @@ class BibliaView:
             )
 
         acciones = crear_acciones_principales() + [
-            accion(ft.Icons.DOWNLOAD, "Descargar Biblia codificada (PDF/TXT)", VIOLETA_ACCENTO, self.dialog_exportar_biblia_codificada),
+            accion(ft.Icons.DOWNLOAD, "Descargar Biblia codificada (PDF/TXT)", PURPURA_ACCENTO, self.dialog_exportar_biblia_codificada),
         ]
         if puede_diccionario:
-            acciones.append(accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", VIOLETA_ACCENTO, self.dialog_diccionario_hebreo))
+            acciones.append(accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", PURPURA_ACCENTO, self.dialog_diccionario_hebreo))
         if puede_cordero:
             acciones.append(accion(ft.Icons.RECORD_VOICE_OVER, "Ver palabras del Cordero", COLOR_PALABRAS_CORDERO, self.dialog_palabras_cordero))
         if puede_marcas:
@@ -2640,7 +2644,7 @@ class BibliaView:
                     entrada.get("hebreo", ""),
                     size=28,
                     weight=ft.FontWeight.BOLD,
-                    color=VIOLETA_ACCENTO,
+                    color=PURPURA_ACCENTO,
                     text_align=ft.TextAlign.RIGHT,
                 ),
                 ft.Text(
@@ -2717,7 +2721,7 @@ class BibliaView:
                                 entrada.get("hebreo", ""),
                                 size=18,
                                 weight=ft.FontWeight.BOLD,
-                                color=VIOLETA_ACCENTO,
+                                color=PURPURA_ACCENTO,
                             ),
                         ],
                     ),
@@ -4603,9 +4607,9 @@ class BibliaView:
             for clave, boton in botones_alcance.items():
                 activo = clave == alcance
                 boton.style = ft.ButtonStyle(
-                    color=ft.Colors.WHITE if activo else VIOLETA_ACCENTO,
-                    bgcolor=VIOLETA_ACCENTO if activo else ft.Colors.with_opacity(0.5, ft.Colors.WHITE),
-                    side=ft.BorderSide(1, VIOLETA_ACCENTO),
+                    color=ft.Colors.WHITE if activo else PURPURA_ACCENTO,
+                    bgcolor=PURPURA_ACCENTO if activo else ft.Colors.with_opacity(0.5, ft.Colors.WHITE),
+                    side=ft.BorderSide(1, PURPURA_ACCENTO),
                     shape=ft.RoundedRectangleBorder(radius=12),
                 )
             if hasattr(contenido, "update"):

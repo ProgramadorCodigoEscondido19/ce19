@@ -11,11 +11,11 @@ from ui.compartir import compartir_texto
 from ui.tema import (
     PERLA_BORDE,
     PERLA_PANEL,
-    PERLA_VIOLETA,
+    PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
-    VIOLETA_IOS,
+    PURPURA_IOS,
     sombra_suave,
 )
 from ui.teclado import ocultar_teclado
@@ -226,6 +226,23 @@ class InicioView:
             icon=ft.Icons.MENU,
             on_click=lambda e: self.sidebar.toggle(),
         )
+        self.icono_referencia_colores = ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=self.abrir_referencia_colores,
+            content=ft.Container(
+                width=28,
+                height=28,
+                border=ft.Border.all(1, PERLA_BORDE),
+                border_radius=4,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                content=ft.Image(
+                    src="referencia_colores.png",
+                    width=28,
+                    height=28,
+                    fit=ft.BoxFit.FILL,
+                ),
+            ),
+        )
 
         self.resultado_actual = ft.Column()
         self.ultimo_registro = None
@@ -412,11 +429,17 @@ class InicioView:
             ft.Column(
                 spacing=14,
                 controls=[
-                    ft.Text(
-                        "Entrada",
-                        size=16,
-                        weight=ft.FontWeight.BOLD,
-                        color=TEXTO_PRINCIPAL,
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        controls=[
+                            ft.Text(
+                                "Entrada",
+                                size=16,
+                                weight=ft.FontWeight.BOLD,
+                                color=TEXTO_PRINCIPAL,
+                            ),
+                            self.icono_referencia_colores,
+                        ],
                     ),
                     self.palabra_input,
                     self.alfabeto_selector,
@@ -424,13 +447,13 @@ class InicioView:
                     self.ayuda_modo,
                     ft.Container(
                         padding=ft.Padding(left=12, top=6, right=12, bottom=6),
-                        bgcolor=PERLA_VIOLETA,
+                        bgcolor=PERLA_PURPURA,
                         border=ft.Border.all(1, PERLA_BORDE),
                         border_radius=16,
                         content=ft.Text(
                             "Código 19",
                             size=13,
-                            color=VIOLETA_IOS,
+                            color=PURPURA_IOS,
                             weight=ft.FontWeight.BOLD,
                         ),
                     ),
@@ -456,7 +479,7 @@ class InicioView:
                                 weight=ft.FontWeight.BOLD,
                                 color=TEXTO_PRINCIPAL,
                             ),
-                            ft.Icon(ft.Icons.INSIGHTS, color=VIOLETA_IOS, size=22),
+                            ft.Icon(ft.Icons.INSIGHTS, color=PURPURA_IOS, size=22),
                         ],
                     ),
                     ft.Container(expand=not es_movil, content=self.resultado_actual),
@@ -492,6 +515,71 @@ class InicioView:
         if self.responsive.is_tablet():
             return 6
         return 8
+
+    def abrir_referencia_colores(self, e=None):
+        ventana = getattr(self.page, "window", None)
+        ancho_pantalla = min(
+            valor
+            for valor in (
+                getattr(self.page, "width", None),
+                getattr(ventana, "width", None),
+                1200,
+            )
+            if valor
+        )
+        alto_pantalla = (
+            getattr(self.page, "height", None)
+            or getattr(ventana, "height", None)
+            or 720
+        )
+        es_movil = ancho_pantalla < 700
+        proporcion = 1180 / 1333
+        ancho_maximo = max(190, min(720, ancho_pantalla - (24 if es_movil else 72)))
+        alto_maximo = max(240, alto_pantalla - (48 if es_movil else 80))
+        ancho_imagen = min(ancho_maximo, alto_maximo * proporcion)
+        alto_imagen = ancho_imagen / proporcion
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            bgcolor=ft.Colors.BLACK,
+            content_padding=0,
+            inset_padding=ft.Padding(
+                8 if es_movil else 24,
+                8 if es_movil else 24,
+                8 if es_movil else 24,
+                8 if es_movil else 24,
+            ),
+            content=ft.Stack(
+                width=ancho_imagen,
+                height=alto_imagen,
+                controls=[
+                    ft.Container(
+                        width=ancho_imagen,
+                        height=alto_imagen,
+                        border_radius=8,
+                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                        content=ft.Image(
+                            src="referencia_colores.png",
+                            width=ancho_imagen,
+                            height=alto_imagen,
+                            fit=ft.BoxFit.CONTAIN,
+                        ),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_color=ft.Colors.WHITE,
+                        bgcolor=ft.Colors.with_opacity(0.68, ft.Colors.BLACK),
+                        right=6,
+                        top=6,
+                        on_click=cerrar,
+                    ),
+                ],
+            ),
+        )
+        mostrar_dialogo(self.page, dialog)
 
     def limpiar_codificador(self, e=None):
         self.palabra_input.value = ""

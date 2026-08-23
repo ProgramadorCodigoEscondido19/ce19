@@ -6,7 +6,7 @@ from services.app_paths import AppPaths
 from services.app_startup_service import AppStartupService
 from services.permisos_service import PermisosService
 from ui.intro import construir_intro
-from ui.tema import APP_NAME, APP_VERSION, DORADO, PERLA_PANEL, PURPURA_INICIAL, VIOLETA_IOS, icono_estrella
+from ui.tema import APP_NAME, APP_VERSION, DORADO, PERLA_PANEL, PURPURA_INICIAL, PURPURA_IOS, icono_estrella
 
 
 FONDO_REGION_MARRON = "#5F3A2C"
@@ -441,7 +441,7 @@ def main(page: ft.Page):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=5,
                     controls=[
-                        ft.Icon(datos.get("icono", ft.Icons.LOCK), size=22, color=VIOLETA_IOS if disponible else "#9A8F9E"),
+                        ft.Icon(datos.get("icono", ft.Icons.LOCK), size=22, color=PURPURA_IOS if disponible else "#9A8F9E"),
                         ft.Text(nombre, size=12 if es_movil else 13, weight=ft.FontWeight.BOLD),
                         ft.Text(
                             f"{len(datos.get('paises', []))} pa\u00edses disponibles" if disponible else "Pr\u00f3ximamente",
@@ -457,7 +457,7 @@ def main(page: ft.Page):
             codigo = datos["codigo"]
             disponible = datos.get("disponible", False)
             seleccionado = idioma_seleccionado["valor"] == codigo
-            color_borde = DORADO if seleccionado else (VIOLETA_IOS if disponible else "#D8CDD9")
+            color_borde = DORADO if seleccionado else (PURPURA_IOS if disponible else "#D8CDD9")
             return ft.Container(
                 width=None if es_movil else 340,
                 padding=12,
@@ -474,7 +474,7 @@ def main(page: ft.Page):
                             tight=True,
                             spacing=8,
                             controls=[
-                                ft.Icon(ft.Icons.LANGUAGE if disponible else ft.Icons.LOCK, color=VIOLETA_IOS if disponible else "#8D8393", size=19),
+                                ft.Icon(ft.Icons.LANGUAGE if disponible else ft.Icons.LOCK, color=PURPURA_IOS if disponible else "#8D8393", size=19),
                                 ft.Text(datos["nombre"], weight=ft.FontWeight.BOLD, size=14),
                                 ft.Text("Disponible" if disponible else "Pr\u00f3ximamente", size=11, color="#746879"),
                             ],
@@ -522,7 +522,7 @@ def main(page: ft.Page):
                         tight=True,
                         alignment=ft.MainAxisAlignment.CENTER,
                         controls=[
-                            ft.Icon(ft.Icons.PUBLIC, color=VIOLETA_IOS, size=27),
+                            ft.Icon(ft.Icons.PUBLIC, color=PURPURA_IOS, size=27),
                             ft.Text(
                                 "Elige una versi\u00f3n" if continente else "Elige tu continente",
                                 size=23 if es_movil else 28,
@@ -549,7 +549,7 @@ def main(page: ft.Page):
                     spacing=8,
                     alignment=ft.MainAxisAlignment.CENTER,
                     controls=[
-                        ft.Icon(ft.Icons.CHECK_CIRCLE if idioma else ft.Icons.INFO_OUTLINE, color=VIOLETA_IOS, size=19),
+                        ft.Icon(ft.Icons.CHECK_CIRCLE if idioma else ft.Icons.INFO_OUTLINE, color=PURPURA_IOS, size=19),
                         ft.Text(
                             "Espa\u00f1ol seleccionado" if idioma else (
                                 f"{continente} seleccionado. Elige una versi\u00f3n de idioma" if continente else "Selecciona un continente para continuar"
@@ -658,7 +658,7 @@ def main(page: ft.Page):
                             ft.ElevatedButton(
                                 "Continuar",
                                 icon=ft.Icons.ARROW_FORWARD,
-                                bgcolor=VIOLETA_IOS,
+                                bgcolor=PURPURA_IOS,
                                 color=ft.Colors.WHITE,
                                 on_click=continuar,
                             )

@@ -23,6 +23,7 @@ class ExportadorBibliaCodificada:
     RESALTADOS = {
         "marron": {"hex": "#795548", "texto": "#FFFFFF", "marca": "🟫"},
         "naranja": {"hex": "#FB8C00", "texto": "#17131D", "marca": "🟧"},
+        "purpura": {"hex": "#8E24AA", "texto": "#FFFFFF", "marca": "🟪"},
         "violeta": {"hex": "#8E24AA", "texto": "#FFFFFF", "marca": "🟪"},
     }
 
@@ -152,7 +153,7 @@ class ExportadorBibliaCodificada:
                     "texto": codigo_versiculo,
                     "prefijo": prefijo,
                     "negrita": False,
-                    "resaltado": "violeta",
+                    "resaltado": "purpura",
                     "resaltado_texto": prefijo,
                 }
             )
