@@ -32,9 +32,9 @@ from ui.tema import (
 
 class Router:
     RUTAS_POR_NIVEL = {
-        1: {"inicio", "biblia"},
-        2: {"inicio", "biblia", "guardados", "calculadora", "tiempo"},
-        3: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados"},
+        1: {"inicio", "biblia", "ajustes"},
+        2: {"inicio", "biblia", "guardados", "calculadora", "tiempo", "ajustes"},
+        3: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados", "ajustes"},
         4: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "guardados", "ajustes"},
     }
 
@@ -66,6 +66,7 @@ class Router:
         self._refrescando = False
         self.menu_lateral_abierto = True
         self.orden_rutas = RutasService.orden()
+        self.orden_navegacion = RutasService.orden_navegacion()
         self.meta_rutas = {ruta: (RutasService.label(ruta), RutasService.icono(ruta)) for ruta in self.orden_rutas}
         self.meta_rutas["ajustes"] = ("Ajustes", ft.Icons.SETTINGS)
 
@@ -135,16 +136,16 @@ class Router:
 
     def navegar(self, ruta):
         if not self.puede_acceder(ruta):
-            if self.page.navigation_bar and self.ruta_actual in self.orden_rutas:
-                self.page.navigation_bar.selected_index = self.orden_rutas.index(self.ruta_actual)
+            if self.page.navigation_bar and self.ruta_actual in self.orden_navegacion:
+                self.page.navigation_bar.selected_index = self.orden_navegacion.index(self.ruta_actual)
             self._avisar_bloqueo(ruta)
             return
 
         ruta_anterior = self.ruta_actual
         self.ruta_actual = ruta
 
-        if self.page.navigation_bar and ruta in self.orden_rutas:
-            self.page.navigation_bar.selected_index = self.orden_rutas.index(ruta)
+        if self.page.navigation_bar and ruta in self.orden_navegacion:
+            self.page.navigation_bar.selected_index = self.orden_navegacion.index(ruta)
 
         vista = None
         try:
@@ -292,7 +293,7 @@ class Router:
                     on_click=self.cambiar_nivel,
                 )
             )
-        if self.nivel == 4:
+        if self.puede_acceder("ajustes"):
             if acciones_contextuales:
                 acciones_contextuales.append(
                     ft.Container(width=1, height=22, bgcolor=opacidad(0.7, PERLA_BORDE))
@@ -414,7 +415,7 @@ class Router:
                             text_align=ft.TextAlign.CENTER,
                         ),
                         ft.Divider(height=8, color=opacidad(0.65, PERLA_BORDE)),
-                        ft.Column(spacing=4, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_rutas]),
+                        ft.Column(spacing=4, controls=[self._item_menu(ruta, compacto) for ruta in self.orden_navegacion]),
                         ft.Container(expand=True),
                         ft.Text(f"v{APP_VERSION}", size=10, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
                     ],
@@ -495,8 +496,8 @@ class Router:
 
     def _cambiar_desde_menu_lateral(self, e):
         indice = e.control.selected_index
-        if 0 <= indice < len(self.orden_rutas):
-            self.navegar(self.orden_rutas[indice])
+        if 0 <= indice < len(self.orden_navegacion):
+            self.navegar(self.orden_navegacion[indice])
 
     def _actualizar_barra_inferior(self):
         # En escritorio/web se usa menu lateral; en celular queda la barra inferior.

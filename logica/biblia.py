@@ -167,21 +167,29 @@ def cargar_biblia(archivo=BIBLIA_ARCHIVO):
 
     for libro in datos:
         nombre = libro.get("nombre") or libro.get("book")
+        capitulos_origen = libro.get("capitulos") or libro.get("chapters") or []
         capitulos = [
             [
                 normalizar_versiculo(versiculo)
                 for versiculo in capitulo
             ]
-            for capitulo in (libro.get("capitulos") or libro.get("chapters") or [])
+            for capitulo in capitulos_origen
         ]
 
         if nombre:
-            libros.append(
-                {
-                    "nombre": nombre,
-                    "capitulos": capitulos,
-                }
-            )
+            libro_limpio = {
+                "nombre": nombre,
+                "capitulos": capitulos,
+            }
+
+            secciones = libro.get("secciones")
+            parrafos = libro.get("parrafos")
+            if isinstance(secciones, list):
+                libro_limpio["secciones"] = secciones
+            if isinstance(parrafos, list):
+                libro_limpio["parrafos"] = parrafos
+
+            libros.append(libro_limpio)
 
     return libros
 

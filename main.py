@@ -170,7 +170,7 @@ def main(page: ft.Page):
     AppStartupService.configurar_page(page)
     page.bgcolor = PURPURA_INICIAL
 
-    root = ft.Container(expand=True)
+    root = ft.Container(expand=True, clip_behavior=ft.ClipBehavior.HARD_EDGE)
     page.add(root)
 
     # Los archivos locales no sobreviven a una recarga de GitHub Pages. Estas

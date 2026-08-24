@@ -3,16 +3,65 @@ import flet as ft
 from services.alfabetos_service import AlfabetosService
 from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
-from ui.tema import PERLA_BORDE, PERLA_PANEL, PURPURA_IOS
+from ui.compartir import _abrir_url
+from ui.tema import APP_VERSION, PERLA_BORDE, PERLA_PANEL, PURPURA_IOS
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
+
+GITHUB_RELEASES = "https://github.com/ProgramadorCodigoEscondido19/ce19/releases"
+GITHUB_LATEST = f"{GITHUB_RELEASES}/latest"
+RELEASE_TAG = f"v{APP_VERSION}"
+DESCARGAS_APP = {
+    "android": {
+        "label": "Android",
+        "icono": ft.Icons.ANDROID,
+        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Android-{RELEASE_TAG}.apk",
+        "detalle": "Descarga el APK para instalarlo localmente en Android.",
+    },
+    "windows": {
+        "label": "Windows",
+        "icono": ft.Icons.DESKTOP_WINDOWS,
+        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Windows-{RELEASE_TAG}.zip",
+        "detalle": "Descarga el ZIP, descomprímelo y ejecuta CODIGO ESCONDIDO 19.exe.",
+    },
+    "iphone": {
+        "label": "iPhone",
+        "icono": ft.Icons.PHONE_IPHONE,
+        "url": GITHUB_LATEST,
+        "detalle": "Abre la última versión publicada para descargar el paquete iOS cuando esté disponible.",
+    },
+    "mac": {
+        "label": "Mac",
+        "icono": ft.Icons.LAPTOP_MAC,
+        "url": GITHUB_LATEST,
+        "detalle": "Abre la última versión publicada para descargar el paquete macOS cuando esté disponible.",
+    },
+}
 
 
 class AjustesView:
-    """Preferencias disponibles solo para el Nivel 4."""
+    """Preferencias de la app y descargas locales por nivel."""
 
     def __init__(self, page, router):
         self.page = page
         self.router = router
+        self.sistema_descarga = self._sistema_sugerido()
+        self.selector_sistema = ft.Dropdown(
+            label="Sistema operativo",
+            value=self.sistema_descarga,
+            options=[
+                ft.dropdown.Option("android", text="Android"),
+                ft.dropdown.Option("windows", text="Windows"),
+                ft.dropdown.Option("iphone", text="iPhone"),
+                ft.dropdown.Option("mac", text="Mac"),
+            ],
+            border_radius=12,
+            on_select=self._cambiar_sistema_descarga,
+        )
+        self.info_descarga = ft.Text(
+            DESCARGAS_APP[self.sistema_descarga]["detalle"],
+            size=12,
+            color="#6E6374",
+        )
         self.selector = ft.Dropdown(
             label="Alfabeto activo",
             expand=True,
@@ -29,6 +78,26 @@ class AjustesView:
         datos = self._config()
         datos[clave] = valor
         AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
+
+    def _sistema_sugerido(self):
+        plataforma = getattr(self.page, "platform", None)
+        if plataforma == ft.PagePlatform.ANDROID:
+            return "android"
+        if plataforma == ft.PagePlatform.IOS:
+            return "iphone"
+        if plataforma == ft.PagePlatform.MACOS:
+            return "mac"
+        return "windows"
+
+    def _cambiar_sistema_descarga(self, e=None):
+        self.sistema_descarga = self.selector_sistema.value or self.sistema_descarga
+        self.info_descarga.value = DESCARGAS_APP[self.sistema_descarga]["detalle"]
+        self.page.update()
+
+    def _abrir_descarga(self, actualizar=False):
+        sistema = self.selector_sistema.value or self.sistema_descarga
+        url = GITHUB_LATEST if actualizar else DESCARGAS_APP[sistema]["url"]
+        _abrir_url(self.page, url)
 
     def _cambiar_fondo(self, e):
         self._guardar_config("fondo_decorativo", bool(e.control.value))
@@ -302,8 +371,103 @@ class AjustesView:
             ]),
         )
 
+    def _descargas_app(self):
+        return ft.Container(
+            padding=16,
+            border_radius=16,
+            bgcolor=PERLA_PANEL,
+            border=ft.Border.all(1, PERLA_BORDE),
+            content=ft.Column(
+                spacing=12,
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.INSTALL_MOBILE, color=PURPURA_IOS),
+                            ft.Text("Descarga local de la app", size=18, weight=ft.FontWeight.BOLD, expand=True),
+                        ],
+                    ),
+                    ft.Text(
+                        "Elija el sistema operativo para instalar o actualizar Codigo Escondido 19 en el dispositivo.",
+                        size=12,
+                        color="#6E6374",
+                    ),
+                    self.selector_sistema,
+                    self.info_descarga,
+                    ft.Row(
+                        wrap=True,
+                        spacing=10,
+                        run_spacing=8,
+                        controls=[
+                            ft.ElevatedButton(
+                                "Descargar",
+                                icon=ft.Icons.DOWNLOAD,
+                                bgcolor=PURPURA_IOS,
+                                color=ft.Colors.WHITE,
+                                on_click=lambda e: self._abrir_descarga(False),
+                            ),
+                            ft.OutlinedButton(
+                                "Actualizar app local",
+                                icon=ft.Icons.SYSTEM_UPDATE_ALT,
+                                on_click=lambda e: self._abrir_descarga(True),
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
     def obtener_vista(self):
-        self._recargar()
+        nivel = getattr(self.router, "nivel", 4)
+        if nivel >= 4:
+            self._recargar()
+
+        controles = [
+            ft.Container(
+                padding=ft.Padding(left=18, top=16, right=18, bottom=16),
+                border_radius=18,
+                bgcolor=PERLA_PANEL,
+                border=ft.Border.all(1, PERLA_BORDE),
+                content=ft.Column(
+                    tight=True,
+                    spacing=4,
+                    controls=[
+                        ft.Text("Ajustes", size=27, weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            "Descargas, actualizaciones y configuracion del codificador.",
+                            color="#6E6374",
+                        ),
+                    ],
+                ),
+            ),
+            self._descargas_app(),
+        ]
+
+        if nivel >= 4:
+            controles.extend([
+                self._preferencias(),
+                ft.Container(
+                    padding=16,
+                    border_radius=16,
+                    bgcolor=PERLA_PANEL,
+                    border=ft.Border.all(1, PERLA_BORDE),
+                    content=ft.Column(spacing=12, controls=[
+                        ft.Row(controls=[
+                            ft.Text("Alfabetos", size=18, weight=ft.FontWeight.BOLD, expand=True),
+                            ft.ElevatedButton(
+                                "Nuevo",
+                                icon=ft.Icons.ADD,
+                                bgcolor=PURPURA_IOS,
+                                color=ft.Colors.WHITE,
+                                on_click=lambda e: self.dialog_alfabeto(),
+                            ),
+                        ]),
+                        self.selector,
+                        ft.Text("El alfabeto activo se usa al codificar y decodificar desde Inicio.", size=12, color="#6E6374"),
+                        self.lista_alfabetos,
+                    ]),
+                ),
+            ])
+
         return ft.Container(
             expand=True,
             padding=16,
@@ -311,46 +475,6 @@ class AjustesView:
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
                 spacing=14,
-                controls=[
-                    ft.Container(
-                        padding=ft.Padding(left=18, top=16, right=18, bottom=16),
-                        border_radius=18,
-                        bgcolor=PERLA_PANEL,
-                        border=ft.Border.all(1, PERLA_BORDE),
-                        content=ft.Column(
-                            tight=True,
-                            spacing=4,
-                            controls=[
-                                ft.Text("Ajustes", size=27, weight=ft.FontWeight.BOLD),
-                                ft.Text(
-                                    "Configure la experiencia y los alfabetos disponibles en el codificador.",
-                                    color="#6E6374",
-                                ),
-                            ],
-                        ),
-                    ),
-                    self._preferencias(),
-                    ft.Container(
-                        padding=16,
-                        border_radius=16,
-                        bgcolor=PERLA_PANEL,
-                        border=ft.Border.all(1, PERLA_BORDE),
-                        content=ft.Column(spacing=12, controls=[
-                            ft.Row(controls=[
-                                ft.Text("Alfabetos", size=18, weight=ft.FontWeight.BOLD, expand=True),
-                                ft.ElevatedButton(
-                                    "Nuevo",
-                                    icon=ft.Icons.ADD,
-                                    bgcolor=PURPURA_IOS,
-                                    color=ft.Colors.WHITE,
-                                    on_click=lambda e: self.dialog_alfabeto(),
-                                ),
-                            ]),
-                            self.selector,
-                            ft.Text("El alfabeto activo se usa al codificar y decodificar desde Inicio.", size=12, color="#6E6374"),
-                            self.lista_alfabetos,
-                        ]),
-                    ),
-                ],
+                controls=controles,
             ),
         )

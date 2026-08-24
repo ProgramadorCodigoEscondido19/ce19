@@ -36,7 +36,7 @@ $argsFlet = @(
     "--splash-dark-color",
     "#71106F",
     "--build-version",
-    "1.0.0",
+    "1.8",
     "--no-rich-output",
     "--yes",
     "--skip-flutter-doctor",

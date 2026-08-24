@@ -7,7 +7,7 @@ from services.notificacion_service import NotificacionService
 from vistas.componentes import tarjeta_resultado
 from vistas.detalle import mostrar_detalle_comparacion
 from ui.sidebar import AppSidebar
-from ui.compartir import compartir_texto
+from ui.compartir import compartir_texto, descargar_archivo
 from ui.tema import (
     PERLA_BORDE,
     PERLA_PANEL,
@@ -23,6 +23,21 @@ from ui.tareas import ejecutar_demorado
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from core.app_state import state
 from core.event_bus import bus
+
+REFERENCIAS_INICIO = {
+    "colores": {
+        "src": "referencia_colores.png",
+        "archivo": "assets/referencia_colores.png",
+        "titulo": "Referencia de colores",
+        "proporcion": 1180 / 1333,
+    },
+    "texto_parrafo": {
+        "src": "referencia_texto_parrafo.jpg",
+        "archivo": "assets/referencia_texto_parrafo.jpg",
+        "titulo": "Texto del parrafo",
+        "proporcion": 1,
+    },
+}
 
 
 class InicioView:
@@ -226,22 +241,13 @@ class InicioView:
             icon=ft.Icons.MENU,
             on_click=lambda e: self.sidebar.toggle(),
         )
-        self.icono_referencia_colores = ft.GestureDetector(
-            mouse_cursor=ft.MouseCursor.CLICK,
-            on_tap=self.abrir_referencia_colores,
-            content=ft.Container(
-                width=28,
-                height=28,
-                border=ft.Border.all(1, PERLA_BORDE),
-                border_radius=4,
-                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                content=ft.Image(
-                    src="referencia_colores.png",
-                    width=28,
-                    height=28,
-                    fit=ft.BoxFit.FILL,
-                ),
-            ),
+        self.referencias_inicio = ft.Row(
+            tight=True,
+            spacing=8,
+            controls=[
+                self._crear_boton_referencia("colores"),
+                self._crear_boton_referencia("texto_parrafo"),
+            ],
         )
 
         self.resultado_actual = ft.Column()
@@ -438,7 +444,7 @@ class InicioView:
                                 weight=ft.FontWeight.BOLD,
                                 color=TEXTO_PRINCIPAL,
                             ),
-                            self.icono_referencia_colores,
+                            self.referencias_inicio,
                         ],
                     ),
                     self.palabra_input,
@@ -516,7 +522,39 @@ class InicioView:
             return 6
         return 8
 
+    def _crear_boton_referencia(self, clave):
+        referencia = REFERENCIAS_INICIO[clave]
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=lambda e, clave_ref=clave: self.abrir_referencia_imagen(clave_ref),
+            content=ft.Container(
+                width=32,
+                height=32,
+                border=ft.Border.all(1, PERLA_BORDE),
+                border_radius=4,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                content=ft.Image(
+                    src=referencia["src"],
+                    width=32,
+                    height=32,
+                    fit=ft.BoxFit.COVER,
+                ),
+            ),
+        )
+
+    def descargar_referencia(self, clave):
+        referencia = REFERENCIAS_INICIO[clave]
+        descargar_archivo(
+            self.page,
+            referencia["archivo"],
+            f"Guardar {referencia['titulo']}",
+        )
+
     def abrir_referencia_colores(self, e=None):
+        self.abrir_referencia_imagen("colores")
+
+    def abrir_referencia_imagen(self, clave):
+        referencia = REFERENCIAS_INICIO[clave]
         ventana = getattr(self.page, "window", None)
         ancho_pantalla = min(
             valor
@@ -533,7 +571,7 @@ class InicioView:
             or 720
         )
         es_movil = ancho_pantalla < 700
-        proporcion = 1180 / 1333
+        proporcion = referencia["proporcion"]
         ancho_maximo = max(190, min(720, ancho_pantalla - (24 if es_movil else 72)))
         alto_maximo = max(240, alto_pantalla - (48 if es_movil else 80))
         ancho_imagen = min(ancho_maximo, alto_maximo * proporcion)
@@ -544,7 +582,7 @@ class InicioView:
 
         dialog = ft.AlertDialog(
             modal=True,
-            bgcolor=ft.Colors.BLACK,
+            bgcolor=ft.Colors.TRANSPARENT,
             content_padding=0,
             inset_padding=ft.Padding(
                 8 if es_movil else 24,
@@ -559,14 +597,21 @@ class InicioView:
                     ft.Container(
                         width=ancho_imagen,
                         height=alto_imagen,
-                        border_radius=8,
-                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                         content=ft.Image(
-                            src="referencia_colores.png",
+                            src=referencia["src"],
                             width=ancho_imagen,
                             height=alto_imagen,
-                            fit=ft.BoxFit.CONTAIN,
+                            fit=ft.BoxFit.FILL,
                         ),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.DOWNLOAD,
+                        tooltip="Descargar",
+                        icon_color=ft.Colors.WHITE,
+                        bgcolor=ft.Colors.with_opacity(0.68, ft.Colors.BLACK),
+                        right=50,
+                        top=6,
+                        on_click=lambda ev, clave_ref=clave: self.descargar_referencia(clave_ref),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.CLOSE,

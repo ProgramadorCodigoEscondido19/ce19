@@ -16,21 +16,31 @@ class RutasService:
         "tiempo",
         "calculadora",
         "guardados",
+        "ajustes",
+    ]
+    ORDEN_NAVEGACION = [
+        ruta for ruta in ORDEN_RUTAS
+        if ruta != "ajustes"
     ]
 
     META_RUTAS = {
         "inicio": {"label": "Inicio", "icon": ft.Icons.HOME},
         "pizarra": {"label": "Pizarra", "icon": ft.Icons.EDIT},
-        "colores": {"label": "Colores", "icon": ft.Icons.COLOR_LENS},
+        "colores": {"label": "Resaltado", "icon": ft.Icons.COLOR_LENS},
         "biblia": {"label": "Biblia", "icon": ft.Icons.BOOK},
         "tiempo": {"label": "Tiempo", "icon": ft.Icons.SCHEDULE},
         "calculadora": {"label": "Calc", "icon": ft.Icons.CALCULATE},
         "guardados": {"label": "Guardados", "icon": ft.Icons.SAVE},
+        "ajustes": {"label": "Ajustes", "icon": ft.Icons.SETTINGS},
     }
 
     @classmethod
     def orden(cls):
         return list(cls.ORDEN_RUTAS)
+
+    @classmethod
+    def orden_navegacion(cls):
+        return list(cls.ORDEN_NAVEGACION)
 
     @classmethod
     def meta(cls, ruta):
@@ -56,9 +66,9 @@ class RutasService:
 
     @classmethod
     def ruta_por_indice(cls, indice):
-        if 0 <= indice < len(cls.ORDEN_RUTAS):
-            return cls.ORDEN_RUTAS[indice]
-        return cls.ORDEN_RUTAS[0]
+        if 0 <= indice < len(cls.ORDEN_NAVEGACION):
+            return cls.ORDEN_NAVEGACION[indice]
+        return cls.ORDEN_NAVEGACION[0]
 
     @classmethod
     def existe(cls, ruta):
@@ -68,7 +78,7 @@ class RutasService:
     def navigation_destinations(cls, icono_inicio=None, rutas_bloqueadas=None):
         rutas_bloqueadas = set(rutas_bloqueadas or [])
         destinos = []
-        for ruta in cls.ORDEN_RUTAS:
+        for ruta in cls.ORDEN_NAVEGACION:
             if ruta in rutas_bloqueadas:
                 destinos.append(
                     ft.NavigationBarDestination(

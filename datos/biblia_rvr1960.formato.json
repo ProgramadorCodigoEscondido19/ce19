@@ -1,16 +1,45 @@
 {
-    "libros": [
-        {
-            "nombre": "Nombre del libro",
-            "capitulos": [
-                [
-                    "Texto del versiculo 1",
-                    "Texto del versiculo 2"
-                ],
-                [
-                    "Texto del capitulo 2, versiculo 1"
-                ]
+  "version": "Reina-Valera 1960",
+  "fuente": "Texto proporcionado por el usuario",
+  "formato": 2,
+  "libros": [
+    {
+      "nombre": "Nombre del libro",
+      "capitulos": [
+        [
+          "Texto del versiculo 1",
+          "Texto del versiculo 2"
+        ]
+      ],
+      "secciones": [
+        [
+          {
+            "versiculo": 1,
+            "titulo": "Subtitulo antes del versiculo"
+          }
+        ]
+      ],
+      "parrafos": [
+        [
+          {
+            "tipo": "titulo",
+            "texto": "Subtitulo visible"
+          },
+          {
+            "tipo": "parrafo",
+            "segmentos": [
+              {
+                "versiculo": 1,
+                "texto": "Texto del versiculo dentro del parrafo"
+              },
+              {
+                "versiculo": 2,
+                "texto": "Texto del siguiente versiculo"
+              }
             ]
-        }
-    ]
+          }
+        ]
+      ]
+    }
+  ]
 }

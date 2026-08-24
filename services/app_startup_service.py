@@ -104,6 +104,9 @@ class AppStartupService:
             ventana.min_width = 360
             ventana.min_height = 600
             ventana.title = f"{APP_NAME} v{APP_VERSION}"
+            ventana.bgcolor = FONDO_APP
+            ventana.title_bar_hidden = False
+            ventana.title_bar_buttons_hidden = False
             try:
                 ventana.icon = "assets/icon.ico"
             except Exception:

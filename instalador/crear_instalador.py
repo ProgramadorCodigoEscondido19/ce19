@@ -3,6 +3,9 @@ import subprocess
 import sys
 import os
 import shutil
+import fnmatch
+import hashlib
+import zipfile
 from pathlib import Path
 
 
@@ -10,7 +13,7 @@ APP_NOMBRE = "CODIGO ESCONDIDO 19"
 PROJECT_NAME = "codigo_escondido_19"
 BUNDLE_ID = "com.flet.app_ce_19"
 ORG = "com.flet"
-VERSION = "1.0.4"
+VERSION = "1.8"
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUSIONES_PAQUETE = [
     ".git",
@@ -39,6 +42,15 @@ EXCLUSIONES_PAQUETE = [
     "datos/notas_biblia.json",
     "datos/resaltados_biblia.json",
     "datos/ultima_lectura_biblia.json",
+]
+EXCLUSIONES_APP_ZIP = [
+    ".agents",
+    ".codex",
+    ".mypy_cache",
+    ".pytest_cache",
+    "CODIGO-ESCONDIDO-19-*.apk",
+    "CODIGO-ESCONDIDO-19-*.zip",
+    "*.log",
 ]
 
 DESTINOS = {
@@ -343,6 +355,8 @@ def copiar_salida_windows():
     if not exe.exists():
         return None, None
 
+    recrear_app_zip_windows(origen)
+
     raiz = ROOT / "dist_windows"
     destino = raiz / APP_NOMBRE
     destino.mkdir(parents=True, exist_ok=True)
@@ -356,12 +370,80 @@ def copiar_salida_windows():
         else:
             shutil.copy2(elemento, salida)
 
-    zip_base = ROOT / "CODIGO_ESCONDIDO_19_WINDOWS"
-    zip_path = zip_base.with_suffix(".zip")
+    zip_base = ROOT / f"CODIGO-ESCONDIDO-19-Windows-v{VERSION}"
+    zip_path = Path(str(zip_base) + ".zip")
     if zip_path.exists():
         zip_path.unlink()
     shutil.make_archive(str(zip_base), "zip", root_dir=raiz, base_dir=APP_NOMBRE)
     return destino, zip_path
+
+
+def _ruta_excluida_app_zip(rel):
+    rel = rel.replace("\\", "/")
+    nombre = rel.rsplit("/", 1)[-1]
+    partes = rel.split("/")
+
+    for patron in [*EXCLUSIONES_PAQUETE, *EXCLUSIONES_APP_ZIP]:
+        patron = patron.replace("\\", "/")
+        if rel == patron or rel.startswith(patron.rstrip("/") + "/"):
+            return True
+        if fnmatch.fnmatch(rel, patron) or fnmatch.fnmatch(nombre, patron):
+            return True
+        if "/" not in patron and patron in partes:
+            return True
+
+    return False
+
+
+def recrear_app_zip_windows(carpeta_release):
+    app_dir = carpeta_release / "data" / "flutter_assets" / "app"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = app_dir / "app.zip"
+    temporal = app_dir / "app.zip.tmp"
+
+    if temporal.exists():
+        temporal.unlink()
+
+    with zipfile.ZipFile(temporal, "w", compression=zipfile.ZIP_DEFLATED) as paquete:
+        for carpeta, subcarpetas, archivos in os.walk(ROOT):
+            carpeta_path = Path(carpeta)
+            rel_carpeta = carpeta_path.relative_to(ROOT).as_posix()
+            if rel_carpeta == ".":
+                rel_carpeta = ""
+
+            subcarpetas[:] = [
+                subcarpeta
+                for subcarpeta in subcarpetas
+                if not _ruta_excluida_app_zip(
+                    f"{rel_carpeta}/{subcarpeta}".strip("/")
+                )
+            ]
+
+            for archivo in archivos:
+                ruta = carpeta_path / archivo
+                rel = ruta.relative_to(ROOT).as_posix()
+                if _ruta_excluida_app_zip(rel):
+                    continue
+                paquete.write(ruta, rel)
+
+    shutil.move(str(temporal), str(zip_path))
+    (app_dir / "app.zip.hash").write_text(
+        hashlib.sha256(zip_path.read_bytes()).hexdigest(),
+        encoding="utf-8",
+    )
+    return zip_path
+
+
+def copiar_salida_android():
+    origen = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
+    if not origen.exists():
+        return None
+
+    destino = ROOT / f"CODIGO-ESCONDIDO-19-Android-v{VERSION}.apk"
+    if destino.exists():
+        destino.unlink()
+    shutil.copy2(origen, destino)
+    return destino
 
 
 def tiene_visual_studio_cpp():
@@ -457,6 +539,12 @@ def main():
             if carpeta and zip_path:
                 print(f"\nListo. Carpeta Windows: {carpeta}")
                 print(f"Archivo ZIP: {zip_path}")
+            else:
+                print(f"\nListo. Revise la carpeta build/{destino}.")
+        elif destino == "apk":
+            apk_path = copiar_salida_android()
+            if apk_path:
+                print(f"\nListo. APK: {apk_path}")
             else:
                 print(f"\nListo. Revise la carpeta build/{destino}.")
         else:

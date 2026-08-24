@@ -99,6 +99,28 @@ class BibliaService:
             return []
 
     @classmethod
+    def obtener_secciones(cls, libro_nombre, capitulo):
+        libro = cls.libro_por_nombre(libro_nombre)
+        if not libro:
+            return []
+        try:
+            secciones = libro.get("secciones", [])[int(capitulo) - 1]
+            return secciones if isinstance(secciones, list) else []
+        except (ValueError, TypeError, IndexError):
+            return []
+
+    @classmethod
+    def obtener_parrafos(cls, libro_nombre, capitulo):
+        libro = cls.libro_por_nombre(libro_nombre)
+        if not libro:
+            return []
+        try:
+            parrafos = libro.get("parrafos", [])[int(capitulo) - 1]
+            return parrafos if isinstance(parrafos, list) else []
+        except (ValueError, TypeError, IndexError):
+            return []
+
+    @classmethod
     def obtener_versiculo(cls, libro_nombre, capitulo, versiculo):
         cap = cls.obtener_capitulo(libro_nombre, capitulo)
         try:

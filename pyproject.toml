@@ -1,6 +1,6 @@
 [project]
 name = "codigo-escondido-19"
-version = "1.0.5"
+version = "1.8"
 description = "CODIGO ESCONDIDO 19"
 dependencies = [
     "flet",

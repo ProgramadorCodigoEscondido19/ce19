@@ -11,7 +11,7 @@ cd /d "%~dp0\.."
  --android-adaptive-icon-background "#71106F" ^
  --splash-color "#71106F" ^
  --splash-dark-color "#71106F" ^
- --build-version 1.0.0 ^
+ --build-version 1.8 ^
  --no-rich-output ^
  --yes ^
  --skip-flutter-doctor ^
