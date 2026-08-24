@@ -241,6 +241,7 @@ class BibliaView:
         self.objetivo_color_control = None
         self.objetivos_color = set()
         self.modo_color_directo = False
+        self.seleccion_texto_resaltado = None
         self._cache_primer_resaltado = {}
         self.codificador_service = CodificadorService()
         self.exportador_biblia_codificada = ExportadorBibliaCodificada()
@@ -780,6 +781,16 @@ class BibliaView:
         puede_buscar = self._puede("biblia_buscar")
         puede_azar = self._puede("biblia_aleatorio")
 
+        if self.responsive.width() < 820:
+            return ft.Column(
+                expand=True,
+                spacing=8,
+                controls=[
+                    self._barra_compacta_lectura(puede_buscar, puede_azar),
+                    ft.Container(expand=True, content=lectura),
+                ],
+            )
+
         return ft.Row(
             expand=True,
             spacing=8,
@@ -789,6 +800,38 @@ class BibliaView:
                 ft.Container(expand=True, content=lectura),
                 self._riel_lateral_resaltado(),
             ],
+        )
+
+    def _barra_compacta_lectura(self, puede_buscar, puede_azar):
+        botones = [
+            self._boton_lateral(ft.Icons.ARROW_BACK, "Volver", lambda e: self.volver_lectura()),
+            self._boton_lateral(ft.Icons.MENU_BOOK, "Ir a referencia", self.dialog_ir_a_referencia),
+        ]
+        if puede_buscar:
+            botones.append(self._boton_lateral(ft.Icons.SEARCH, "Buscar", self.dialog_busqueda))
+        if puede_azar:
+            botones.append(self._boton_lateral(ft.Icons.AUTO_AWESOME, "Aleatorio", self.dialog_versiculo_random))
+        botones.extend(
+            [
+                self._boton_lateral(ft.Icons.ZOOM_IN, "Aumentar letra", lambda e: self.cambiar_tamano_fuente_lectura(1)),
+                self._boton_lateral(ft.Icons.ZOOM_OUT, "Achicar letra", lambda e: self.cambiar_tamano_fuente_lectura(-1)),
+                self._boton_lateral(
+                    ft.Icons.FORMAT_PAINT,
+                    "Rodillo de resaltado",
+                    lambda e: self.accion_color_contextual(),
+                    color=MARRON_ACENTO,
+                    activo=self.modo_color_directo or bool(self.seleccion_texto_resaltado),
+                ),
+                self._boton_lateral(ft.Icons.SAVE_ALT, "Guardar", lambda e: self.dialog_guardar_biblia(), color=NARANJA_ACCENTO),
+                self._boton_lateral(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), lambda e: self.copiar_contexto_lectura(), color=AZUL_ACCENTO),
+            ]
+        )
+        return ft.Container(
+            padding=ft.Padding(left=6, top=4, right=6, bottom=4),
+            bgcolor=ft.Colors.with_opacity(0.82, ft.Colors.WHITE),
+            border=ft.Border.all(1, BORDE_SUAVE),
+            border_radius=12,
+            content=ft.Row(wrap=True, spacing=2, run_spacing=2, controls=botones),
         )
 
     def _boton_lateral(self, icono, ayuda, on_click, color=TEXTO_SECUNDARIO, activo=False):
@@ -883,11 +926,11 @@ class BibliaView:
             visible=bool(cantidad),
         )
         boton_color = self._boton_lateral(
-            ft.Icons.FORMAT_COLOR_RESET if quitar else ft.Icons.FORMAT_PAINT,
-            "Quitar resaltado" if quitar else "Aplicar resaltado",
+            ft.Icons.FORMAT_PAINT,
+            "Rodillo de resaltado",
             lambda e: self.accion_color_contextual(),
             color=MARRON_ACENTO,
-            activo=bool(cantidad),
+            activo=self.modo_color_directo or bool(cantidad) or bool(self.seleccion_texto_resaltado),
         )
 
         self._indicador_color_control = indicador_color
@@ -904,7 +947,6 @@ class BibliaView:
                 [
                     boton_indicador_color,
                     boton_color,
-                    self._boton_lateral(ft.Icons.HIGHLIGHT, "Resaltar palabra o frase", self.dialog_resaltar_palabra),
                     contador_color,
                 ]
             )
@@ -2128,11 +2170,23 @@ class BibliaView:
     def accion_color_contextual(self):
         if self._solo_lectura() or not self._puede("biblia_color"):
             return
+        if self._resaltar_seleccion_texto_actual():
+            return
+
         objetivos = self._objetivos_color_activos()
 
         if not objetivos:
-            # Tambien permite preparar un color antes de seleccionar el elemento.
-            self.dialog_elegir_color_biblia()
+            self.modo_color_directo = not self.modo_color_directo
+            self._snack(
+                "Rodillo activo: toque un numero de versiculo o capitulo para resaltarlo."
+                if self.modo_color_directo
+                else "Rodillo desactivado."
+            )
+            self._actualizar_estado_color_visible()
+            try:
+                self.page.update()
+            except (RuntimeError, AssertionError):
+                pass
             return
 
         if self._seleccion_tiene_color():
@@ -2140,6 +2194,52 @@ class BibliaView:
             return
 
         self.dialog_elegir_color_biblia()
+
+    def _guardar_seleccion_texto_resaltado(self, evento, libro_nombre, capitulo_numero):
+        texto = str(getattr(evento, "selected_text", "") or "").strip()
+        if not texto:
+            self.seleccion_texto_resaltado = None
+            return
+
+        texto_busqueda = self._normalizar_texto_busqueda(texto)
+        libro = self._buscar_libro_por_nombre(libro_nombre)
+        capitulos = libro.get("capitulos", []) if libro else []
+        indice = int(capitulo_numero or 1) - 1
+        if indice < 0 or indice >= len(capitulos):
+            return
+
+        for numero_versiculo, texto_versiculo in enumerate(capitulos[indice], start=1):
+            if texto_busqueda and texto_busqueda in self._normalizar_texto_busqueda(texto_versiculo):
+                verso = verso_id(libro_nombre, capitulo_numero, numero_versiculo)
+                self.seleccion_texto_resaltado = {"verso": verso, "texto": texto}
+                self.verso_seleccionado = verso
+                self.ultimo_verso_accionado = verso
+                return
+
+    def _resaltar_seleccion_texto_actual(self):
+        seleccion = self.seleccion_texto_resaltado
+        if not isinstance(seleccion, dict):
+            return False
+
+        verso = seleccion.get("verso")
+        texto = str(seleccion.get("texto") or "").strip()
+        if not verso or not texto:
+            return False
+
+        clave = self._clave_resaltado_palabras(verso)
+        actuales = [
+            item
+            for item in self._resaltados_palabras_verso(verso)
+            if self._normalizar_texto_busqueda(item.get("texto")) != self._normalizar_texto_busqueda(texto)
+        ]
+        actuales.append({"texto": texto, "color": self.color_actual})
+        self.resaltados[clave] = actuales
+        guardar_resaltados(self.resaltados)
+        self.seleccion_texto_resaltado = None
+        self.modo_color_directo = False
+        self._snack("Texto resaltado.")
+        self._refrescar_lectura_colores({verso})
+        return True
 
     def dialog_elegir_color_biblia(self):
         def cerrar(e=None):
@@ -2232,6 +2332,9 @@ class BibliaView:
         return "".join(normalizado), mapa
 
     def _partes_resaltado_palabras(self, texto, verso):
+        if not verso or self._clave_resaltado_palabras(verso) not in self.resaltados:
+            return [(texto, None)]
+
         marcas = []
         for item in self._resaltados_palabras_verso(verso):
             texto_marca = str(item.get("texto") or "").strip()
@@ -2509,8 +2612,9 @@ class BibliaView:
 
         try:
             boton = self._boton_color_control
-            boton.icon = ft.Icons.FORMAT_COLOR_RESET if quitar else ft.Icons.FORMAT_PAINT
-            boton.tooltip = "Quitar resaltado" if quitar else "Aplicar resaltado"
+            boton.icon = ft.Icons.FORMAT_PAINT
+            boton.tooltip = "Rodillo de resaltado"
+            boton.icon_color = NARANJA_ACCENTO if self.modo_color_directo else MARRON_ACENTO
             boton.update()
         except (AttributeError, RuntimeError, AssertionError):
             pass
@@ -2977,6 +3081,11 @@ class BibliaView:
         )
 
         def tocar_capitulo(e):
+            if self.modo_color_directo:
+                self.objetivos_color = {clave}
+                self.objetivo_color = clave
+                self.seleccionar_color(self.color_actual)
+                return
             on_tap(e)
 
         return ft.GestureDetector(
@@ -3417,6 +3526,14 @@ class BibliaView:
 
             return
 
+        if self.modo_color_directo:
+            self.objetivos_color = {verso}
+            self.objetivo_color = verso
+            self.verso_seleccionado = verso
+            self.ultimo_verso_accionado = verso
+            self.seleccionar_color(self.color_actual)
+            return
+
         self.seleccionar_verso(verso, evento)
 
     def toggle_verso_compartir(self, verso, refrescar=True):
@@ -3673,6 +3790,9 @@ class BibliaView:
                                 color=ft.Colors.BLACK,
                                 font_family=FUENTE_LECTURA_BIBLIA,
                                 text_align=ft.TextAlign.JUSTIFY,
+                                selectable=True,
+                                on_selection_change=lambda e, l=libro["nombre"], c=numero_capitulo:
+                                    self._guardar_seleccion_texto_resaltado(e, l, c),
                                 style=ft.TextStyle(height=self._alto_linea_lectura(), font_family=FUENTE_LECTURA_BIBLIA),
                             ),
                         ],
@@ -3827,6 +3947,12 @@ class BibliaView:
             color=ft.Colors.BLACK,
             font_family=FUENTE_LECTURA_BIBLIA,
             text_align=ft.TextAlign.JUSTIFY,
+            selectable=True,
+            on_selection_change=lambda e: self._guardar_seleccion_texto_resaltado(
+                e,
+                self.libro_actual,
+                self.capitulo_actual,
+            ),
             style=ft.TextStyle(height=self._alto_linea_lectura(), font_family=FUENTE_LECTURA_BIBLIA),
         )
 
@@ -3879,6 +4005,8 @@ class BibliaView:
                     vid,
                     color_texto,
                     fondo,
+                    interactivo=False,
+                    usar_diccionario=False,
                 )
             )
             spans.append(ft.TextSpan(" "))

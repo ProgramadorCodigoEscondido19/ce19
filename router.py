@@ -216,9 +216,15 @@ class Router:
 
     def _ancho(self):
         ancho = getattr(self.page, "width", None)
-        if ancho is None and hasattr(self.page, "window"):
-            ancho = getattr(self.page.window, "width", None)
-        return ancho or 1200
+        ancho_ventana = None
+        if hasattr(self.page, "window"):
+            ancho_ventana = getattr(self.page.window, "width", None)
+        anchos = [
+            valor
+            for valor in (ancho, ancho_ventana)
+            if isinstance(valor, (int, float)) and valor > 0
+        ]
+        return min(anchos) if anchos else 1200
 
     def _es_movil(self):
         return self._ancho() < 700
