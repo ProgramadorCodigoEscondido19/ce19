@@ -5,12 +5,18 @@ class Responsive:
         self.page = page
 
     def width(self):
-        ancho = getattr(self.page, "width", None)
-
-        if ancho is None and hasattr(self.page, "window"):
-            ancho = getattr(self.page.window, "width", None)
-
-        return ancho or 1200
+        ancho_pagina = getattr(self.page, "width", None)
+        ancho_ventana = (
+            getattr(getattr(self.page, "window", None), "width", None)
+            if hasattr(self.page, "window")
+            else None
+        )
+        anchos = [
+            ancho
+            for ancho in (ancho_pagina, ancho_ventana)
+            if isinstance(ancho, (int, float)) and ancho > 0
+        ]
+        return min(anchos) if anchos else 1200
 
     #F() IS MOBILE===========================
     def is_mobile(self):

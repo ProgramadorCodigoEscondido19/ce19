@@ -168,13 +168,9 @@ def cargar_biblia(archivo=BIBLIA_ARCHIVO):
     for libro in datos:
         nombre = libro.get("nombre") or libro.get("book")
         capitulos_origen = libro.get("capitulos") or libro.get("chapters") or []
-        capitulos = [
-            [
-                normalizar_versiculo(versiculo)
-                for versiculo in capitulo
-            ]
-            for capitulo in capitulos_origen
-        ]
+        # La RVR1960 importada ya esta normalizada. Reprocesar sus mas de
+        # 31 mil versiculos en cada inicio retrasaba la apertura de Biblia.
+        capitulos = capitulos_origen if isinstance(capitulos_origen, list) else []
 
         if nombre:
             libro_limpio = {

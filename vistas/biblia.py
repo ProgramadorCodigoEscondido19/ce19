@@ -243,6 +243,10 @@ class BibliaView:
         self.modo_color_directo = False
         self.seleccion_texto_resaltado = None
         self._cache_primer_resaltado = {}
+        # Referencias a los textos ya montados: permiten repintar solamente el
+        # parrafo afectado, sin reconstruir todo el capitulo o el libro.
+        self._controles_texto_lectura = {}
+        self._cache_capitulos_normalizados = {}
         self.codificador_service = CodificadorService()
         self.exportador_biblia_codificada = ExportadorBibliaCodificada()
         self.ultimos_resultados_busqueda = []
@@ -1002,7 +1006,7 @@ class BibliaView:
         permitidos = LIBROS_RANDOM_POR_CATEGORIA.get(categoria, set())
         return nombre_normalizado in permitidos
 
-    def _candidatos_random_categoria(self, categoria):
+    def _libros_random_categoria(self, categoria):
         categoria = categoria or "General"
         cache = getattr(self, "_random_candidatos_cache", None)
 
@@ -1013,32 +1017,23 @@ class BibliaView:
         if categoria in cache:
             return cache[categoria]
 
-        candidatos = []
-
-        for libro in self.libros or []:
-            nombre_libro = libro.get("nombre", "")
-
-            if not self._libro_pertenece_categoria_random(nombre_libro, categoria):
-                continue
-
-            for indice_capitulo, capitulo in enumerate(libro.get("capitulos", []), start=1):
-                for indice_versiculo, texto in enumerate(capitulo, start=1):
-                    texto_limpio = str(texto or "").strip()
-                    if texto_limpio:
-                        referencia = f"{nombre_libro} {indice_capitulo}:{indice_versiculo}"
-                        candidatos.append((referencia, texto_limpio))
-
-        cache[categoria] = candidatos
-        return candidatos
+        libros = [
+            libro
+            for libro in self.libros or []
+            if self._libro_pertenece_categoria_random(libro.get("nombre", ""), categoria)
+            and libro.get("capitulos")
+        ]
+        cache[categoria] = libros
+        return libros
 
     def _obtener_versiculo_random(self):
         categoria = getattr(self, "categoria_random", "General") or "General"
-        candidatos = self._candidatos_random_categoria(categoria)
+        libros = self._libros_random_categoria(categoria)
 
-        if not candidatos and categoria != "General":
-            candidatos = self._candidatos_random_categoria("General")
+        if not libros and categoria != "General":
+            libros = self._libros_random_categoria("General")
 
-        if not candidatos:
+        if not libros:
             return "Sin versiculo", "No hay texto biblico cargado."
 
         usados_por_categoria = getattr(self, "_random_usados_por_categoria", None)
@@ -1047,13 +1042,31 @@ class BibliaView:
             usados_por_categoria = self._random_usados_por_categoria
 
         usados = usados_por_categoria.setdefault(categoria, set())
-        disponibles = [item for item in candidatos if item[0] not in usados]
+        elegido = None
 
-        if not disponibles:
+        # Elegir directamente un libro, capitulo y versiculo evita crear una
+        # lista de los mas de 31 mil versiculos cada vez que se abre Biblia.
+        for _ in range(24):
+            libro = random.choice(libros)
+            capitulos = libro.get("capitulos", [])
+            capitulo_numero = random.randrange(1, len(capitulos) + 1)
+            capitulo = capitulos[capitulo_numero - 1]
+            if not capitulo:
+                continue
+            versiculo_numero = random.randrange(1, len(capitulo) + 1)
+            texto = str(capitulo[versiculo_numero - 1] or "").strip()
+            if not texto:
+                continue
+            referencia = f"{libro['nombre']} {capitulo_numero}:{versiculo_numero}"
+            elegido = (referencia, texto)
+            if referencia not in usados:
+                break
+
+        if elegido is None:
+            return "Sin versiculo", "No hay texto biblico cargado."
+
+        if elegido[0] in usados and len(usados) >= 24:
             usados.clear()
-            disponibles = candidatos[:]
-
-        elegido = random.choice(disponibles)
         usados.add(elegido[0])
         return elegido
 
@@ -2202,19 +2215,47 @@ class BibliaView:
             return
 
         texto_busqueda = self._normalizar_texto_busqueda(texto)
-        libro = self._buscar_libro_por_nombre(libro_nombre)
-        capitulos = libro.get("capitulos", []) if libro else []
-        indice = int(capitulo_numero or 1) - 1
-        if indice < 0 or indice >= len(capitulos):
+        if not texto_busqueda:
             return
 
-        for numero_versiculo, texto_versiculo in enumerate(capitulos[indice], start=1):
-            if texto_busqueda and texto_busqueda in self._normalizar_texto_busqueda(texto_versiculo):
-                verso = verso_id(libro_nombre, capitulo_numero, numero_versiculo)
+        for verso, texto_versiculo in self._versiculos_normalizados_capitulo(
+            libro_nombre,
+            capitulo_numero,
+        ):
+            if texto_busqueda in texto_versiculo:
                 self.seleccion_texto_resaltado = {"verso": verso, "texto": texto}
                 self.verso_seleccionado = verso
                 self.ultimo_verso_accionado = verso
+                if self.modo_color_directo:
+                    self._resaltar_seleccion_texto_actual()
+                else:
+                    self._actualizar_estado_color_visible()
                 return
+
+    def _versiculos_normalizados_capitulo(self, libro_nombre, capitulo_numero):
+        clave = (str(libro_nombre), int(capitulo_numero or 1))
+        cache = self._cache_capitulos_normalizados.get(clave)
+        if cache is not None:
+            return cache
+
+        libro = next(
+            (item for item in self.libros if item.get("nombre") == libro_nombre),
+            None,
+        )
+        capitulos = libro.get("capitulos", []) if libro else []
+        indice = clave[1] - 1
+        if indice < 0 or indice >= len(capitulos):
+            cache = []
+        else:
+            cache = [
+                (
+                    verso_id(libro_nombre, clave[1], numero),
+                    self._normalizar_texto_busqueda(texto),
+                )
+                for numero, texto in enumerate(capitulos[indice], start=1)
+            ]
+        self._cache_capitulos_normalizados[clave] = cache
+        return cache
 
     def _resaltar_seleccion_texto_actual(self):
         seleccion = self.seleccion_texto_resaltado
@@ -2236,8 +2277,6 @@ class BibliaView:
         self.resaltados[clave] = actuales
         guardar_resaltados(self.resaltados)
         self.seleccion_texto_resaltado = None
-        self.modo_color_directo = False
-        self._snack("Texto resaltado.")
         self._refrescar_lectura_colores({verso})
         return True
 
@@ -2629,8 +2668,13 @@ class BibliaView:
             pass
 
     def _refrescar_lectura_colores(self, objetivos=None):
-        """Reconstruye solo el panel de lectura para evitar recargar toda la pagina."""
+        """Repinta primero los textos visibles y reconstruye solo si es necesario."""
         objetivos = set(objetivos or [])
+
+        if objetivos and self._actualizar_textos_lectura_resaltados(objetivos):
+            self._actualizar_estado_color_visible()
+            return
+
         son_versiculos_visibles = bool(objetivos) and all(
             objetivo in self._controles_versiculos
             and "|DIG|" not in objetivo
@@ -2647,6 +2691,29 @@ class BibliaView:
                 pass
 
         self._refrescar_lectura_actual()
+
+    def _registrar_control_texto_lectura(self, control, versos, actualizar):
+        for verso in set(versos):
+            if not verso:
+                continue
+            controles = self._controles_texto_lectura.setdefault(verso, {})
+            controles[id(control)] = actualizar
+
+    def _actualizar_textos_lectura_resaltados(self, versos):
+        actualizadores = {}
+        for verso in versos:
+            for identificador, actualizar in self._controles_texto_lectura.get(verso, {}).items():
+                actualizadores[identificador] = actualizar
+
+        if not actualizadores:
+            return False
+
+        try:
+            for actualizar in actualizadores.values():
+                actualizar()
+            return True
+        except (RuntimeError, AssertionError, AttributeError):
+            return False
 
     def _objetivo_tiene_color(self, objetivo):
         clave = objetivo.split("|DIG|", 1)[0]
@@ -2895,6 +2962,7 @@ class BibliaView:
     def _render_lectura(self):
         self._cache_primer_resaltado = {}
         self._controles_versiculos.clear()
+        self._controles_texto_lectura.clear()
         self.panel_lectura.controls.clear()
 
         if not self.libros:
@@ -3769,6 +3837,42 @@ class BibliaView:
                 libro["nombre"],
                 numero_capitulo,
             )
+            texto_capitulo = ft.Text(
+                spans=spans,
+                size=self.tamano_fuente_lectura,
+                color=ft.Colors.BLACK,
+                font_family=FUENTE_LECTURA_BIBLIA,
+                text_align=ft.TextAlign.JUSTIFY,
+                selectable=True,
+                on_selection_change=lambda e, l=libro["nombre"], c=numero_capitulo:
+                    self._guardar_seleccion_texto_resaltado(e, l, c),
+                style=ft.TextStyle(height=self._alto_linea_lectura(), font_family=FUENTE_LECTURA_BIBLIA),
+            )
+            versos_capitulo = [
+                verso_id(libro["nombre"], numero_capitulo, int(segmento["versiculo"]))
+                for bloque in parrafos
+                for segmento in bloque.get("segmentos", [])
+                if isinstance(segmento, dict) and str(segmento.get("versiculo") or "").isdigit()
+            ]
+
+            def actualizar_texto_capitulo(
+                control=texto_capitulo,
+                parrafos_capitulo=parrafos,
+                nombre_libro=libro["nombre"],
+                capitulo=numero_capitulo,
+            ):
+                control.spans = self._spans_capitulo_libro_completo(
+                    parrafos_capitulo,
+                    nombre_libro,
+                    capitulo,
+                )[0]
+                control.update()
+
+            self._registrar_control_texto_lectura(
+                texto_capitulo,
+                versos_capitulo,
+                actualizar_texto_capitulo,
+            )
             bloques.append(
                 ft.Container(
                     data={"peso": peso},
@@ -3784,17 +3888,7 @@ class BibliaView:
                                 color=ft.Colors.BLACK,
                                 font_family=FUENTE_LECTURA_BIBLIA,
                             ),
-                            ft.Text(
-                                spans=spans,
-                                size=self.tamano_fuente_lectura,
-                                color=ft.Colors.BLACK,
-                                font_family=FUENTE_LECTURA_BIBLIA,
-                                text_align=ft.TextAlign.JUSTIFY,
-                                selectable=True,
-                                on_selection_change=lambda e, l=libro["nombre"], c=numero_capitulo:
-                                    self._guardar_seleccion_texto_resaltado(e, l, c),
-                                style=ft.TextStyle(height=self._alto_linea_lectura(), font_family=FUENTE_LECTURA_BIBLIA),
-                            ),
+                            texto_capitulo,
                         ],
                     ),
                 )
@@ -3911,6 +4005,7 @@ class BibliaView:
                         fondo,
                         interactivo=False,
                         usar_diccionario=False,
+                        libro_nombre=libro_nombre,
                     )
                 )
                 spans.append(ft.TextSpan(" "))
@@ -3941,7 +4036,7 @@ class BibliaView:
         if not segmentos:
             return None
 
-        return ft.Text(
+        control = ft.Text(
             spans=self._spans_parrafo_lectura(segmentos),
             size=self.tamano_fuente_lectura,
             color=ft.Colors.BLACK,
@@ -3956,7 +4051,40 @@ class BibliaView:
             style=ft.TextStyle(height=self._alto_linea_lectura(), font_family=FUENTE_LECTURA_BIBLIA),
         )
 
-    def _spans_parrafo_lectura(self, segmentos):
+        versos = [
+            verso_id(self.libro_actual, self.capitulo_actual, int(segmento["versiculo"]))
+            for segmento in segmentos
+            if isinstance(segmento, dict) and str(segmento.get("versiculo") or "").isdigit()
+        ]
+
+        def actualizar_texto_parrafo(
+            texto_control=control,
+            segmentos_parrafo=segmentos,
+            nombre_libro=self.libro_actual,
+            capitulo=self.capitulo_actual,
+        ):
+            texto_control.spans = self._spans_parrafo_lectura(
+                segmentos_parrafo,
+                nombre_libro,
+                capitulo,
+            )
+            texto_control.update()
+
+        self._registrar_control_texto_lectura(
+            control,
+            versos,
+            actualizar_texto_parrafo,
+        )
+        return control
+
+    def _spans_parrafo_lectura(
+        self,
+        segmentos,
+        libro_nombre=None,
+        capitulo_numero=None,
+    ):
+        libro_nombre = libro_nombre or self.libro_actual
+        capitulo_numero = capitulo_numero or self.capitulo_actual
         spans = []
         for segmento in segmentos:
             texto = str(segmento.get("texto") or "").strip()
@@ -3971,7 +4099,7 @@ class BibliaView:
             if numero:
                 try:
                     numero = int(numero)
-                    vid = verso_id(self.libro_actual, self.capitulo_actual, numero)
+                    vid = verso_id(libro_nombre, capitulo_numero, numero)
                     resaltado = self.resaltados.get(vid)
                     seleccionado = self.verso_seleccionado == vid or self._esta_marcado_para_color(vid)
                     seleccionado_multiple = vid in self.versos_compartir
@@ -4007,6 +4135,7 @@ class BibliaView:
                     fondo,
                     interactivo=False,
                     usar_diccionario=False,
+                    libro_nombre=libro_nombre,
                 )
             )
             spans.append(ft.TextSpan(" "))
@@ -4021,8 +4150,12 @@ class BibliaView:
         fondo,
         interactivo=True,
         usar_diccionario=True,
+        libro_nombre=None,
     ):
-        inicio_rojo = self._inicio_palabras_cordero(self.libro_actual, texto)
+        inicio_rojo = self._inicio_palabras_cordero(
+            libro_nombre or self.libro_actual,
+            texto,
+        )
         fragmentos = (
             fragmentos_con_diccionario(texto)
             if usar_diccionario and self._puede("biblia_diccionario_hebreo")
@@ -4281,6 +4414,7 @@ class BibliaView:
         nombre = self._normalizar_color(nombre)
         self.color_actual = nombre
         objetivos = set(self._objetivos_color_activos())
+        rodillo_activo = self.modo_color_directo
 
         if objetivos:
             for objetivo in objetivos:
@@ -4288,10 +4422,13 @@ class BibliaView:
                 self._aplicar_color_identificador(clave, parte, indice, nombre)
             guardar_resaltados(self.resaltados)
             self._limpiar_objetivos_color()
-            self._snack("Resaltado aplicado.")
+            self.modo_color_directo = rodillo_activo
+            self._refrescar_lectura_colores(objetivos)
+            return
 
-        self.modo_color_directo = False
-        self._refrescar_lectura_colores(objetivos)
+        # Elegir un color no debe volver a dibujar la Biblia ni apagar el
+        # rodillo: el siguiente texto seleccionado se pinta al soltarlo.
+        self._actualizar_estado_color_visible()
 
     def _parsear_objetivo_color(self, objetivo):
         if "|DIG|" not in objetivo:
@@ -6735,6 +6872,9 @@ class BibliaView:
     def recargar(self):
         self.libros = BibliaService.libros()
         self.resaltados = cargar_resaltados()
+        self._cache_capitulos_normalizados.clear()
+        self._random_candidatos_cache.clear()
+        self._random_usados_por_categoria.clear()
         self.libro_actual = self.libros[0]["nombre"] if self.libros else None
         self.capitulo_actual = 1
         self.dropdown_libro.options = self._opciones_libros()
