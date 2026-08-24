@@ -142,6 +142,14 @@ class Router:
             return
 
         ruta_anterior = self.ruta_actual
+        if ruta != ruta_anterior:
+            vista_anterior = self.vistas.get(ruta_anterior)
+            salir = getattr(vista_anterior, "on_leave", None)
+            if callable(salir):
+                try:
+                    salir()
+                except Exception as error:
+                    registrar_error("Router.navegar.on_leave", error, f"ruta={ruta_anterior}")
         self.ruta_actual = ruta
 
         if self.page.navigation_bar and ruta in self.orden_navegacion:

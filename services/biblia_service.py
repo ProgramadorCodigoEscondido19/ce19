@@ -1,10 +1,11 @@
 import json
 import random
 import re
+import threading
 import unicodedata
 from pathlib import Path
 
-from logica.biblia import cargar_biblia
+from logica.biblia import cargar_biblia, crear_indice_busqueda
 
 DATOS_DIR = Path("datos")
 ULTIMA_LECTURA_ARCHIVO = DATOS_DIR / "ultima_lectura_biblia.json"
@@ -52,6 +53,9 @@ class BibliaService:
     """
 
     _cache_libros = None
+    _cache_indice_busqueda = None
+    _cache_libros_por_nombre = None
+    _bloqueo_indice_busqueda = threading.Lock()
     _cache_random = {}
     _usados_random = {}
 
@@ -65,17 +69,32 @@ class BibliaService:
     def libros(cls, refrescar=False):
         if refrescar or cls._cache_libros is None:
             cls._cache_libros = cargar_biblia() or []
+            cls._cache_indice_busqueda = None
+            cls._cache_libros_por_nombre = None
             cls._cache_random.clear()
             cls._usados_random.clear()
         return cls._cache_libros
 
     @classmethod
+    def indice_busqueda(cls):
+        with cls._bloqueo_indice_busqueda:
+            if cls._cache_indice_busqueda is None:
+                cls._cache_indice_busqueda = crear_indice_busqueda(cls.libros())
+        return cls._cache_indice_busqueda
+
+    @classmethod
+    def _libros_por_nombre(cls):
+        if cls._cache_libros_por_nombre is None:
+            cls._cache_libros_por_nombre = {
+                cls.normalizar(libro.get("nombre")): libro
+                for libro in cls.libros()
+                if libro.get("nombre")
+            }
+        return cls._cache_libros_por_nombre
+
+    @classmethod
     def libro_por_nombre(cls, nombre):
-        buscado = cls.normalizar(nombre)
-        for libro in cls.libros():
-            if cls.normalizar(libro.get("nombre")) == buscado:
-                return libro
-        return None
+        return cls._libros_por_nombre().get(cls.normalizar(nombre))
 
     @classmethod
     def nombres_libros(cls):

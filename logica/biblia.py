@@ -216,6 +216,39 @@ def normalizar_busqueda(texto):
     return re.sub(r"\s+", " ", texto).strip().lower()
 
 
+def crear_indice_busqueda(libros):
+    """Normaliza cada versiculo una unica vez para las busquedas posteriores."""
+    entradas = []
+
+    for libro in libros or []:
+        if not isinstance(libro, dict):
+            continue
+
+        nombre_libro = str(libro.get("nombre") or "").strip()
+        if not nombre_libro:
+            continue
+
+        for capitulo_indice, capitulo in enumerate(libro.get("capitulos") or [], start=1):
+            if not isinstance(capitulo, (list, tuple)):
+                continue
+
+            for versiculo_indice, texto in enumerate(capitulo, start=1):
+                texto_normalizado = normalizar_busqueda(texto)
+                entradas.append(
+                    (
+                        nombre_libro,
+                        capitulo_indice,
+                        versiculo_indice,
+                        texto,
+                        texto_normalizado,
+                    )
+                )
+
+    return {
+        "entradas": tuple(entradas),
+    }
+
+
 NUMEROS_TEXTO = {numero: numero_a_texto(numero) for numero in range(0, 1000)}
 TEXTO_NUMEROS = {
     variante: numero
@@ -255,13 +288,13 @@ def alternativas_consulta(consulta, incluir_errores=False):
     ]
 
 
-def buscar_texto(libros, consulta):
+def buscar_texto(libros, consulta, indice=None):
     consultas = alternativas_consulta(consulta)
 
     if not consultas:
         return []
 
-    resultados = _buscar_por_alternativas(libros, consultas)
+    resultados = _buscar_por_alternativas(libros, consultas, indice)
 
     if resultados:
         return resultados
@@ -276,10 +309,10 @@ def buscar_texto(libros, consulta):
     if not nuevas_consultas:
         return []
 
-    return _buscar_por_alternativas(libros, nuevas_consultas)
+    return _buscar_por_alternativas(libros, nuevas_consultas, indice)
 
 
-def _buscar_por_alternativas(libros, consultas):
+def _buscar_por_alternativas(libros, consultas, indice=None):
     resultados = []
     referencias_vistas = set()
 
@@ -292,34 +325,27 @@ def _buscar_por_alternativas(libros, consultas):
     if not consultas_validas:
         return resultados
 
-    for libro in libros or []:
-        if not isinstance(libro, dict):
+    entradas = indice.get("entradas") if isinstance(indice, dict) else None
+    if entradas is None:
+        indice = crear_indice_busqueda(libros)
+        entradas = indice["entradas"]
+
+    for nombre_libro, capitulo_indice, versiculo_indice, texto, texto_normalizado in entradas:
+        if not any(consulta in texto_normalizado for consulta in consultas_validas):
             continue
 
-        nombre_libro = str(libro.get("nombre") or "").strip()
-        if not nombre_libro:
+        referencia = (nombre_libro, capitulo_indice, versiculo_indice)
+        if referencia in referencias_vistas:
             continue
-
-        for capitulo_indice, capitulo in enumerate(libro.get("capitulos") or [], start=1):
-            if not isinstance(capitulo, (list, tuple)):
-                continue
-
-            for versiculo_indice, texto in enumerate(capitulo, start=1):
-                texto_normalizado = normalizar_busqueda(texto)
-
-                if any(consulta in texto_normalizado for consulta in consultas_validas):
-                    referencia = (nombre_libro, capitulo_indice, versiculo_indice)
-                    if referencia in referencias_vistas:
-                        continue
-                    referencias_vistas.add(referencia)
-                    resultados.append(
-                        {
-                            "tipo": "versiculo",
-                            "libro": nombre_libro,
-                            "capitulo": capitulo_indice,
-                            "versiculo": versiculo_indice,
-                            "texto": texto,
-                        }
-                    )
+        referencias_vistas.add(referencia)
+        resultados.append(
+            {
+                "tipo": "versiculo",
+                "libro": nombre_libro,
+                "capitulo": capitulo_indice,
+                "versiculo": versiculo_indice,
+                "texto": texto,
+            }
+        )
 
     return resultados
