@@ -659,10 +659,67 @@ class BibliaView:
             on_click=lambda e, destino=clave: self.dialog_comentario_biblia(destino),
         )
 
+    def _boton_comentario_titulo(self, clave, tooltip):
+        """Abre el mismo comentario para titulos, capitulos y subtitulos."""
+        tiene_comentario = self._tiene_comentario(clave)
+        return ft.IconButton(
+            icon=(
+                ft.Icons.CHAT_BUBBLE
+                if tiene_comentario
+                else ft.Icons.CHAT_BUBBLE_OUTLINE
+            ),
+            tooltip=tooltip,
+            icon_size=16,
+            icon_color=NARANJA_ACCENTO if tiene_comentario else "#8C8279",
+            width=28,
+            height=28,
+            on_click=lambda e, destino=clave: self.dialog_comentario_biblia(destino),
+        )
+
+    def _span_boton_comentario_titulo(self, clave):
+        tiene_comentario = self._tiene_comentario(clave)
+        return ft.TextSpan(
+            MARCADOR_COMENTARIO,
+            tooltip=(
+                "Ver comentario o referencia"
+                if tiene_comentario
+                else "Agregar comentario o referencia"
+            ),
+            style=ft.TextStyle(
+                size=self._tamano_numero_lectura(),
+                color=NARANJA_ACCENTO if tiene_comentario else "#8C8279",
+                weight=ft.FontWeight.BOLD if tiene_comentario else None,
+            ),
+            on_click=lambda e, destino=clave: self.dialog_comentario_biblia(destino),
+        )
+
+    def _clave_subtitulo(self, libro, capitulo, indice_bloque):
+        return f"SUB|{libro}|{capitulo}|{indice_bloque}"
+
+    def _texto_subtitulo_comentario(self, libro, capitulo, indice_bloque):
+        try:
+            parrafos = BibliaService.obtener_parrafos(libro, int(capitulo))
+            bloque = parrafos[int(indice_bloque)]
+            texto = str(bloque.get("texto") or "").strip()
+            return texto or "Subtitulo"
+        except (IndexError, TypeError, ValueError, AttributeError):
+            return "Subtitulo"
+
     def _referencia_comentario(self, clave):
+        if str(clave).startswith("LIBRO|"):
+            partes = str(clave).split("|", 1)
+            return partes[1] if len(partes) == 2 else "Libro"
+
         if str(clave).startswith("CAP|"):
             partes = str(clave).split("|", 2)
             return f"{partes[1]} {partes[2]}" if len(partes) == 3 else "Capitulo"
+
+        if str(clave).startswith("SUB|"):
+            partes = str(clave).split("|", 3)
+            if len(partes) == 4:
+                texto = self._texto_subtitulo_comentario(partes[1], partes[2], partes[3])
+                return f"{partes[1]} {partes[2]}: {texto}"
+            return "Subtitulo"
 
         libro, capitulo, versiculo = self._desarmar_clave_verso(clave)
         if libro and capitulo and versiculo:
@@ -676,7 +733,7 @@ class BibliaView:
             self._snack("No se pudo guardar el comentario.")
 
     def _refrescar_comentario_visible(self, clave):
-        if str(clave).startswith("CAP|"):
+        if str(clave).startswith(("LIBRO|", "CAP|", "SUB|")):
             self._refrescar_lectura_actual()
             return
         self._refrescar_lectura_colores({clave})
@@ -3665,9 +3722,20 @@ class BibliaView:
             return
 
         self.panel_lectura.controls.append(
-            ft.Text(
-                f"{libro['nombre']}: capitulos",
-                weight=ft.FontWeight.BOLD,
+            ft.Row(
+                tight=True,
+                spacing=2,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Text(
+                        f"{libro['nombre']}: capitulos",
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    self._boton_comentario_titulo(
+                        self._clave_libro(libro["nombre"]),
+                        "Agregar o ver comentario del libro",
+                    ),
+                ],
             )
         )
 
@@ -4232,7 +4300,15 @@ class BibliaView:
             ]
 
         movil = self.responsive.is_mobile()
-        bloques = [self._control_bloque_lectura(bloque) for bloque in parrafos]
+        bloques = [
+            self._control_bloque_lectura(
+                bloque,
+                indice_bloque=indice_bloque,
+                libro_nombre=self.libro_actual,
+                capitulo_numero=self.capitulo_actual,
+            )
+            for indice_bloque, bloque in enumerate(parrafos)
+        ]
         bloques = [bloque for bloque in bloques if bloque is not None]
 
         titulo_libro = ft.Text(
@@ -4256,7 +4332,18 @@ class BibliaView:
                     tight=True,
                     spacing=2,
                     controls=[
-                        titulo_libro,
+                        ft.Row(
+                            tight=True,
+                            spacing=2,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                titulo_libro,
+                                self._boton_comentario_titulo(
+                                    self._clave_libro(self.libro_actual),
+                                    "Agregar o ver comentario del libro",
+                                ),
+                            ],
+                        ),
                         self._titulo_capitulo_lectura(
                             self.libro_actual,
                             self.capitulo_actual,
@@ -4417,7 +4504,18 @@ class BibliaView:
                     tight=True,
                     spacing=2,
                     controls=[
-                        titulo_libro,
+                        ft.Row(
+                            tight=True,
+                            spacing=2,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                titulo_libro,
+                                self._boton_comentario_titulo(
+                                    self._clave_libro(libro["nombre"]),
+                                    "Agregar o ver comentario del libro",
+                                ),
+                            ],
+                        ),
                         subtitulo_libro,
                         self._barra_rapida_libros(),
                     ],
@@ -4623,20 +4721,9 @@ class BibliaView:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
                         titulo,
-                        *(
-                            [
-                                ft.IconButton(
-                                    icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
-                                    tooltip="Ver comentario del capitulo",
-                                    icon_size=16,
-                                    icon_color=NARANJA_ACCENTO,
-                                    width=28,
-                                    height=28,
-                                    on_click=lambda e, clave=clave_comentario: self.dialog_comentario_biblia(clave),
-                                )
-                            ]
-                            if self._tiene_comentario(clave_comentario)
-                            else []
+                        self._boton_comentario_titulo(
+                            clave_comentario,
+                            "Agregar o ver comentario del capitulo",
                         ),
                     ],
                 ),
@@ -4689,7 +4776,7 @@ class BibliaView:
         peso = 0
         posicion = 0
         rangos_seleccion = []
-        for bloque in parrafos:
+        for indice_bloque, bloque in enumerate(parrafos):
             tipo = bloque.get("tipo")
             if tipo == "titulo":
                 texto = str(bloque.get("texto") or "").strip()
@@ -4697,16 +4784,25 @@ class BibliaView:
                     if spans:
                         spans.append(ft.TextSpan("\n"))
                         posicion += 1
+                    clave_subtitulo = self._clave_subtitulo(
+                        libro_nombre,
+                        numero_capitulo,
+                        indice_bloque,
+                    )
                     spans.append(
                         ft.TextSpan(
-                            f"{texto}\n",
+                            texto,
                             style=ft.TextStyle(
                                 color=SUBTITULO_LECTURA,
                                 weight=ft.FontWeight.BOLD,
                             ),
                         )
                     )
-                    posicion += len(texto) + 1
+                    posicion += len(texto)
+                    spans.append(self._span_boton_comentario_titulo(clave_subtitulo))
+                    posicion += len(MARCADOR_COMENTARIO)
+                    spans.append(ft.TextSpan("\n"))
+                    posicion += 1
                     peso += max(1, len(texto) // 120)
                 continue
 
@@ -4789,7 +4885,13 @@ class BibliaView:
 
         return spans, max(1, peso), rangos_seleccion
 
-    def _control_bloque_lectura(self, bloque):
+    def _control_bloque_lectura(
+        self,
+        bloque,
+        indice_bloque=None,
+        libro_nombre=None,
+        capitulo_numero=None,
+    ):
         tipo = bloque.get("tipo")
 
         if tipo == "titulo":
@@ -4809,9 +4911,35 @@ class BibliaView:
                     control, "size", self._tamano_subtitulo_lectura()
                 ),
             )
+            clave_subtitulo = None
+            if (
+                indice_bloque is not None
+                and libro_nombre
+                and capitulo_numero is not None
+            ):
+                clave_subtitulo = self._clave_subtitulo(
+                    libro_nombre,
+                    capitulo_numero,
+                    indice_bloque,
+                )
             return ft.Container(
                 padding=ft.Padding(left=0, top=8, right=0, bottom=0),
-                content=subtitulo,
+                content=(
+                    ft.Row(
+                        tight=True,
+                        spacing=2,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            subtitulo,
+                            self._boton_comentario_titulo(
+                                clave_subtitulo,
+                                "Agregar o ver comentario del subtitulo",
+                            ),
+                        ],
+                    )
+                    if clave_subtitulo
+                    else subtitulo
+                ),
             )
 
         segmentos = bloque.get("segmentos") if isinstance(bloque, dict) else None

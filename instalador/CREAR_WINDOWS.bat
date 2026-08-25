@@ -1,4 +1,4 @@
 @echo off
-cd /d "%~dp0"
-call "%~dp0BUILD_WINDOWS_DIRECT.bat"
+cd /d "%~dp0\.."
+"%~dp0..\env\Scripts\python.exe" "%~dp0crear_instalador.py" 4
 pause

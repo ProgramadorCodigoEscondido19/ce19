@@ -16,6 +16,8 @@ ORG = "com.flet"
 VERSION = "1.8"
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUSIONES_PAQUETE = [
+    ".agents",
+    ".codex",
     ".git",
     ".github",
     ".venv",
@@ -46,6 +48,21 @@ EXCLUSIONES_PAQUETE = [
     "datos/resaltados_biblia.json",
     "datos/ultima_lectura_biblia.json",
 ]
+ARCHIVOS_REQUERIDOS_APP_ZIP = [
+    "main.py",
+    "core/__init__.py",
+    "core/app_state.py",
+    "ui/__init__.py",
+    "ui/tema.py",
+    "vistas/analizador_colores.py",
+    "logica/analizador_colores.py",
+]
+MARCADORES_REQUERIDOS_APP_ZIP = {
+    "logica/analizador_colores.py": [
+        "valores_terciarios_colores",
+        "total_terciario_colores",
+    ],
+}
 EXCLUSIONES_APP_ZIP = [
     ".agents",
     ".codex",
@@ -375,6 +392,7 @@ def copiar_salida_windows():
     if zip_path.exists():
         zip_path.unlink()
     shutil.make_archive(str(zip_base), "zip", root_dir=raiz, base_dir=APP_NOMBRE)
+    validar_zip_windows(zip_path)
     return destino, zip_path
 
 
@@ -433,15 +451,78 @@ def recrear_app_zip(app_dir):
     return zip_path
 
 
+def validar_app_zip_bytes(datos, origen):
+    import io
+
+    errores = []
+    with zipfile.ZipFile(io.BytesIO(datos)) as paquete:
+        nombres = set(paquete.namelist())
+
+        for requerido in ARCHIVOS_REQUERIDOS_APP_ZIP:
+            if requerido not in nombres:
+                errores.append(f"Falta {requerido} en {origen}")
+
+        for archivo, marcadores in MARCADORES_REQUERIDOS_APP_ZIP.items():
+            if archivo not in nombres:
+                continue
+            contenido = paquete.read(archivo).decode("utf-8", errors="ignore")
+            for marcador in marcadores:
+                if marcador not in contenido:
+                    errores.append(f"Falta marcador {marcador} en {archivo} de {origen}")
+
+        prohibidos = [
+            nombre
+            for nombre in nombres
+            if nombre.startswith((".git/", ".codex/", ".agents/", "env/", "build/"))
+        ]
+        if prohibidos:
+            errores.append(f"El paquete incluye rutas excluidas: {prohibidos[:3]}")
+
+    if errores:
+        raise RuntimeError("\n".join(errores))
+
+
+def validar_app_zip(ruta):
+    validar_app_zip_bytes(Path(ruta).read_bytes(), str(ruta))
+
+
+def validar_zip_windows(zip_path):
+    app_zip = f"{APP_NOMBRE}/data/flutter_assets/app/app.zip"
+    with zipfile.ZipFile(zip_path) as paquete:
+        nombres = set(paquete.namelist())
+        requeridos = [
+            f"{APP_NOMBRE}/{APP_NOMBRE}.exe",
+            f"{APP_NOMBRE}/flutter_windows.dll",
+            app_zip,
+        ]
+        faltantes = [nombre for nombre in requeridos if nombre not in nombres]
+        if faltantes:
+            raise RuntimeError("Faltan archivos en Windows ZIP: " + ", ".join(faltantes))
+        validar_app_zip_bytes(paquete.read(app_zip), app_zip)
+
+
+def validar_apk_android(apk_path):
+    app_zip = "assets/flutter_assets/app/app.zip"
+    with zipfile.ZipFile(apk_path) as paquete:
+        nombres = set(paquete.namelist())
+        if app_zip not in nombres:
+            raise RuntimeError(f"Falta {app_zip} dentro del APK")
+        validar_app_zip_bytes(paquete.read(app_zip), app_zip)
+
+
 def recrear_app_zip_windows(carpeta_release):
     app_dir = carpeta_release / "data" / "flutter_assets" / "app"
-    return recrear_app_zip(app_dir)
+    zip_path = recrear_app_zip(app_dir)
+    validar_app_zip(zip_path)
+    return zip_path
 
 
 def copiar_salida_android():
     origen = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
     if not origen.exists():
         return None
+
+    validar_apk_android(origen)
 
     destino = ROOT / f"CODIGO-ESCONDIDO-19-Android-v{VERSION}.apk"
     if destino.exists():
@@ -477,7 +558,7 @@ def mostrar_requisito_windows(estado=None):
     print("CREAR_INSTALADOR.bat y elegi WINDOWS otra vez.")
 
 
-def main():
+def main(opcion=None):
     print("\n=== CODIGO ESCONDIDO 19 - Crear instalador ===\n", flush=True)
     sistema_actual = platform.system()
     print(f"Sistema actual: {nombre_sistema(sistema_actual)}\n", flush=True)
@@ -488,7 +569,11 @@ def main():
         estado = "disponible" if disponible else "no disponible en este equipo"
         print(f"{clave}. {datos['nombre']} - {estado}", flush=True)
 
-    opcion = input("\nOpcion: ").strip()
+    opcion = (opcion or (sys.argv[1] if len(sys.argv) > 1 else "")).strip()
+    if opcion:
+        print(f"\nOpcion: {opcion}")
+    else:
+        opcion = input("\nOpcion: ").strip()
 
     if opcion not in DESTINOS:
         print("Opcion no valida.")

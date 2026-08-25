@@ -810,7 +810,7 @@ class AnalizadorColoresView:
             self._panel_analisis_terciario(),
         ]
 
-        if self.responsive.is_mobile():
+        if self.responsive.width() < 980:
             return ft.Column(
                 spacing=self._tam(10, 5),
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,

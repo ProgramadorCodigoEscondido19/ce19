@@ -18,6 +18,8 @@ bundle_id = "com.flet.app_ce_19"
 
 [tool.flet.app]
 exclude = [
+    ".agents",
+    ".codex",
     ".git",
     ".github",
     ".venv",

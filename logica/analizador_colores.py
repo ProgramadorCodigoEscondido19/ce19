@@ -587,58 +587,58 @@ def _pdf_pagina_resumen(resultado, titulo):
     pasos = resultado.get("pasos_reduccion", [])
     final = resultado.get("resultado_final", 0)
     final_hex = resultado.get("hex_final", "#FFFFFF")
-    panel_y = 150
-    panel_alto = 318
-    panel_ancho = 365
-    izquierdo_x = 36
-    derecho_x = 441
+    panel_x = 36
+    panel_ancho = 770
+    panel_alto = 130
+    primario_y = 342
+    secundario_y = 196
+    terciario_y = 50
 
-    _pdf_rect(comandos, izquierdo_x, panel_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.6)
-    _pdf_texto(comandos, "ANALISIS PRIMARIO", izquierdo_x + panel_ancho / 2, panel_y + panel_alto - 24, 12, "#17131D", True, True)
-    _pdf_texto(comandos, "TOTAL DE CODIGOS:", izquierdo_x + panel_ancho / 2, panel_y + panel_alto - 56, 14, "#17131D", True, True)
-    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), izquierdo_x + panel_ancho / 2, panel_y + panel_alto - 98, 30, 18)
-    _pdf_texto(comandos, "PROCESO DE REDUCCION", izquierdo_x + panel_ancho / 2, panel_y + panel_alto - 130, 10, "#6F6677", True, True)
-    y = panel_y + panel_alto - 168
+    _pdf_rect(comandos, panel_x, primario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
+    _pdf_texto(comandos, "ANALISIS PRIMARIO", panel_x + panel_ancho / 2, primario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "TOTAL DE CODIGOS:", 146, primario_y + panel_alto - 56, 12, "#17131D", True, True)
+    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), 146, primario_y + panel_alto - 93, 27, 14)
+    _pdf_texto(comandos, "PROCESO DE REDUCCION", 418, primario_y + panel_alto - 56, 9, "#6F6677", True, True)
+    y = primario_y + panel_alto - 92
     if len(pasos) <= 1:
-        _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), izquierdo_x + panel_ancho / 2, y, 26, 10)
+        _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), 418, y, 23, 8)
     else:
         for indice in range(len(pasos) - 1):
             y = _pdf_fila_suma(
                 comandos,
                 _pdf_digitos_numero(pasos[indice]),
-                izquierdo_x + panel_ancho / 2,
+                418,
                 y,
-                25,
-                panel_ancho - 30,
+                22,
+                360,
                 pasos[indice + 1],
-            ) - 42
-    _pdf_texto(comandos, "RESULTADO FINAL", izquierdo_x + panel_ancho / 2, panel_y + 76, 10, "#6F6677", True, True)
-    _pdf_rect(comandos, izquierdo_x + panel_ancho / 2 - 42, panel_y + 26, 84, 42, final_hex, "#795548", 1.4)
-    _pdf_texto(comandos, str(final), izquierdo_x + panel_ancho / 2, panel_y + 39, 24, _color_texto_para(final_hex), True, True)
+            ) - 32
+    _pdf_texto(comandos, "RESULTADO FINAL", 706, primario_y + panel_alto - 56, 9, "#6F6677", True, True)
+    _pdf_rect(comandos, 668, primario_y + panel_alto - 104, 76, 44, final_hex, "#795548", 1.4)
+    _pdf_texto(comandos, str(final), 706, primario_y + panel_alto - 90, 23, _color_texto_para(final_hex), True, True)
 
     valores = valores_secundarios_colores(resultado)
     total_secundario = sum(valores)
-    _pdf_rect(comandos, derecho_x, panel_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.6)
-    _pdf_texto(comandos, "ANALISIS SECUNDARIO", derecho_x + panel_ancho / 2, panel_y + panel_alto - 24, 12, "#17131D", True, True)
-    _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DIGITO:", derecho_x + panel_ancho / 2, panel_y + panel_alto - 58, 11, "#17131D", True, True)
-    visibles = valores[:48]
-    y_sec = _pdf_fila_suma(comandos, visibles, derecho_x + panel_ancho / 2, panel_y + panel_alto - 102, 21, panel_ancho - 32)
+    _pdf_rect(comandos, panel_x, secundario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
+    _pdf_texto(comandos, "ANALISIS SECUNDARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DIGITO:", panel_x + panel_ancho / 2, secundario_y + panel_alto - 48, 10, "#17131D", True, True)
+    visibles = valores[:40]
+    y_sec = _pdf_fila_suma(comandos, visibles, panel_x + panel_ancho / 2, secundario_y + panel_alto - 78, 19, panel_ancho - 72)
     if len(valores) > len(visibles):
-        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores mas en el detalle", derecho_x + panel_ancho / 2, y_sec - 22, 9, "#6F6677", False, True)
-    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", derecho_x + panel_ancho / 2, panel_y + 110, 10, "#6F6677", True, True)
-    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), derecho_x + panel_ancho / 2, panel_y + 66, 30, 8)
+        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores mas en el detalle", panel_x + panel_ancho / 2, y_sec - 18, 8, "#6F6677", False, True)
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, secundario_y + 22, 9, "#6F6677", True, True)
+    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), 500, secundario_y + 14, 22, 6)
 
     valores_terciarios = valores_terciarios_colores(resultado)
     total_terciario = sum(valores_terciarios)
-    terciario_y = 22
-    _pdf_rect(comandos, 36, terciario_y, 770, 112, "#FFFEFC", "#EFD7DB", 1.0)
-    _pdf_texto(comandos, "ANALISIS TERCIARIO", 421, terciario_y + 92, 11, "#17131D", True, True)
-    _pdf_texto(comandos, "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:", 421, terciario_y + 74, 9, "#6F6677", True, True)
-    _pdf_fila_suma(comandos, valores_terciarios[:36], 421, terciario_y + 51, 17, 708)
-    if len(valores_terciarios) > 36:
-        _pdf_texto(comandos, f"+ {len(valores_terciarios) - 36} valores incluidos", 421, terciario_y + 35, 8, "#6F6677", False, True)
-    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, terciario_y + 15, 9, "#6F6677", True, True)
-    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_terciario), 500, terciario_y + 8, 22, 6)
+    _pdf_rect(comandos, panel_x, terciario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
+    _pdf_texto(comandos, "ANALISIS TERCIARIO", panel_x + panel_ancho / 2, terciario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:", panel_x + panel_ancho / 2, terciario_y + panel_alto - 48, 9, "#6F6677", True, True)
+    _pdf_fila_suma(comandos, valores_terciarios[:42], panel_x + panel_ancho / 2, terciario_y + panel_alto - 77, 18, panel_ancho - 72)
+    if len(valores_terciarios) > 42:
+        _pdf_texto(comandos, f"+ {len(valores_terciarios) - 42} valores incluidos", panel_x + panel_ancho / 2, terciario_y + 40, 8, "#6F6677", False, True)
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, terciario_y + 22, 9, "#6F6677", True, True)
+    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_terciario), 500, terciario_y + 14, 22, 6)
     return comandos
 
 
