@@ -420,6 +420,33 @@ def total_secundario_colores(resultado):
     return sum(valores_secundarios_colores(resultado))
 
 
+def valores_terciarios_colores(resultado):
+    """Devuelve los digitos tal como aparecen en todo el analisis primario."""
+    resultado = resultado or {}
+    total = resultado.get("total_codigo", 0)
+    pasos = list(resultado.get("pasos_reduccion") or [])
+    final = resultado.get("resultado_final", pasos[-1] if pasos else total)
+
+    def digitos(valor):
+        return [int(digito) for digito in str(abs(int(valor or 0)))]
+
+    # El panel primario muestra el total, ambos lados de cada reduccion y el
+    # resultado final. El terciario suma todos esos bloques visibles.
+    valores = digitos(total)
+    if len(pasos) <= 1:
+        valores.extend(digitos(pasos[0] if pasos else total))
+    else:
+        for indice in range(len(pasos) - 1):
+            valores.extend(digitos(pasos[indice]))
+            valores.extend(digitos(pasos[indice + 1]))
+    valores.extend(digitos(final))
+    return valores or [0]
+
+
+def total_terciario_colores(resultado):
+    return sum(valores_terciarios_colores(resultado))
+
+
 def _pdf_escape(texto):
     return str(texto).encode("cp1252", errors="replace").replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
 
@@ -601,8 +628,17 @@ def _pdf_pagina_resumen(resultado, titulo):
     _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", derecho_x + panel_ancho / 2, panel_y + 110, 10, "#6F6677", True, True)
     _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), derecho_x + panel_ancho / 2, panel_y + 66, 30, 8)
 
-    _pdf_texto(comandos, f"Detalle total: {len(resultado.get('detalle_visual', []))} bloques decodificados", 36, 112, 10, "#6F6677", False)
-    _pdf_texto(comandos, "Las paginas siguientes incluyen los bloques de letras/numeros, su valor y su color.", 36, 96, 10, "#6F6677", False)
+    valores_terciarios = valores_terciarios_colores(resultado)
+    total_terciario = sum(valores_terciarios)
+    terciario_y = 22
+    _pdf_rect(comandos, 36, terciario_y, 770, 112, "#FFFEFC", "#EFD7DB", 1.0)
+    _pdf_texto(comandos, "ANALISIS TERCIARIO", 421, terciario_y + 92, 11, "#17131D", True, True)
+    _pdf_texto(comandos, "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:", 421, terciario_y + 74, 9, "#6F6677", True, True)
+    _pdf_fila_suma(comandos, valores_terciarios[:36], 421, terciario_y + 51, 17, 708)
+    if len(valores_terciarios) > 36:
+        _pdf_texto(comandos, f"+ {len(valores_terciarios) - 36} valores incluidos", 421, terciario_y + 35, 8, "#6F6677", False, True)
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, terciario_y + 15, 9, "#6F6677", True, True)
+    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_terciario), 500, terciario_y + 8, 22, 6)
     return comandos
 
 

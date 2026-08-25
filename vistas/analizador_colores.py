@@ -11,6 +11,7 @@ from logica.analizador_colores import (
     reducir_numero,
     tokenizar,
     valores_secundarios_colores,
+    valores_terciarios_colores,
 )
 from services.biblia_service import BibliaService
 from ui.clipboard import copiar_al_portapapeles
@@ -806,6 +807,7 @@ class AnalizadorColoresView:
         controles = [
             self._panel_analisis_primario(),
             self._panel_analisis_secundario(),
+            self._panel_analisis_terciario(),
         ]
 
         if self.responsive.is_mobile():
@@ -821,6 +823,7 @@ class AnalizadorColoresView:
             controls=[
                 ft.Container(expand=True, content=controles[0]),
                 ft.Container(expand=True, content=controles[1]),
+                ft.Container(expand=True, content=controles[2]),
             ],
         )
 
@@ -904,6 +907,35 @@ class AnalizadorColoresView:
                 ),
                 ft.Text("RESULTADO SIN REDUCIR:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
                 self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(8, 4)),
+            ],
+        )
+
+    def _panel_analisis_terciario(self):
+        valores = valores_terciarios_colores(self.resultado)
+        total = sum(valores)
+
+        return self._panel_analisis(
+            "ANALISIS TERCIARIO",
+            [
+                ft.Text(
+                    "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:",
+                    size=self._tam(12, 8),
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                self._fila_valores_secundarios(valores),
+                ft.Text(
+                    "RESULTADO SIN REDUCIR:",
+                    size=self._tam(13, 9),
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_SECUNDARIO,
+                ),
+                self._digitos_en_fila(
+                    total,
+                    alineacion=ft.MainAxisAlignment.CENTER,
+                    separacion=self._tam(8, 4),
+                ),
             ],
         )
 
@@ -1360,6 +1392,8 @@ class AnalizadorColoresView:
     def _texto_resultados_copiado(self, opciones):
         valores_secundarios = valores_secundarios_colores(self.resultado)
         total_secundario = sum(valores_secundarios)
+        valores_terciarios = valores_terciarios_colores(self.resultado)
+        total_terciario = sum(valores_terciarios)
         pasos = self.resultado.get("pasos_reduccion", [])
         total = self.resultado.get("total_codigo", 0)
         final = pasos[-1] if pasos else self.resultado.get("resultado_final", 0)
@@ -1373,6 +1407,10 @@ class AnalizadorColoresView:
         )
         if not suma_secundaria:
             suma_secundaria = self._digito_con_color_copiado(0, opciones)
+        suma_terciaria = " + ".join(
+            self._digito_con_color_copiado(valor, opciones)
+            for valor in valores_terciarios
+        )
 
         lineas = [
             "Analisis primario:",
@@ -1387,6 +1425,10 @@ class AnalizadorColoresView:
                 "Analisis secundario:",
                 f"Suma de resultados en 1 digito: {suma_secundaria}",
                 f"Resultado secundario: {self._digitos_numero_copiado(total_secundario, opciones)}",
+                "",
+                "Analisis terciario:",
+                f"Suma de numeros del analisis primario: {suma_terciaria}",
+                f"Resultado terciario sin reducir: {self._digitos_numero_copiado(total_terciario, opciones)}",
             ]
         )
         return "\n".join(lineas)
