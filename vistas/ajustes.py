@@ -27,13 +27,13 @@ DESCARGAS_APP = {
         "label": "iPhone",
         "icono": ft.Icons.PHONE_IPHONE,
         "url": GITHUB_LATEST,
-        "detalle": "Abre la última versión publicada para descargar el paquete iOS cuando esté disponible.",
+        "detalle": "Todavía no disponible: iPhone requiere firma y un perfil de distribución de Apple.",
     },
     "mac": {
         "label": "Mac",
         "icono": ft.Icons.LAPTOP_MAC,
-        "url": GITHUB_LATEST,
-        "detalle": "Abre la última versión publicada para descargar el paquete macOS cuando esté disponible.",
+        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Mac-{RELEASE_TAG}.zip",
+        "detalle": "Descarga el ZIP para macOS. Al no estar firmado, el sistema puede pedir autorización para abrirlo.",
     },
 }
 
