@@ -8,6 +8,7 @@ from core.rutas import ruta_datos, ruta_recurso
 
 BIBLIA_ARCHIVO = ruta_recurso("datos/biblia_rvr1960.json.gz")
 RESALTADOS_ARCHIVO = ruta_datos("resaltados_biblia.json")
+COMENTARIOS_ARCHIVO = ruta_datos("comentarios_biblia.json")
 UNIDADES = {
     0: "cero",
     1: "uno",
@@ -203,6 +204,27 @@ def guardar_resaltados(resaltados, archivo=RESALTADOS_ARCHIVO):
 
     with open(archivo, "w", encoding="utf-8") as salida:
         json.dump(resaltados, salida, indent=4, ensure_ascii=False)
+
+
+def cargar_comentarios(archivo=COMENTARIOS_ARCHIVO):
+    """Carga notas de lectura sin mezclarlas con los datos de resaltado."""
+    if not os.path.exists(archivo):
+        return {}
+
+    try:
+        with open(archivo, "r", encoding="utf-8") as entrada:
+            datos = json.load(entrada)
+    except (OSError, ValueError, TypeError):
+        return {}
+
+    return datos if isinstance(datos, dict) else {}
+
+
+def guardar_comentarios(comentarios, archivo=COMENTARIOS_ARCHIVO):
+    os.makedirs(os.path.dirname(archivo), exist_ok=True)
+
+    with open(archivo, "w", encoding="utf-8") as salida:
+        json.dump(comentarios, salida, indent=4, ensure_ascii=False)
 
 
 def verso_id(libro, capitulo, versiculo):

@@ -16,7 +16,9 @@ from core.app_state import state
 from logica.biblia import (
     BIBLIA_ARCHIVO,
     buscar_texto,
+    cargar_comentarios,
     cargar_resaltados,
+    guardar_comentarios,
     guardar_resaltados,
     verso_id,
 )
@@ -106,6 +108,7 @@ AZUL_LECTURA = "#007AFF"
 SUBTITULO_LECTURA = ft.Colors.BLACK
 FUENTE_LECTURA_BIBLIA = "Georgia"
 OPACIDAD_RESALTADO_LECTURA = 0.52
+MARCADOR_COMENTARIO = " \u270E "
 ULTIMA_LECTURA_ARCHIVO = Path("datos/ultima_lectura_biblia.json")
 LIBROS_PALABRAS_CORDERO = {"mateo", "marcos", "lucas", "juan", "apocalipsis"}
 COLOR_PALABRAS_CORDERO = "#C1121F"
@@ -229,6 +232,7 @@ class BibliaView:
         self._generar_versiculo_random_inicial()
         self.historial_referencias = self._cargar_historial_referencias()
         self.resaltados = cargar_resaltados()
+        self.comentarios = cargar_comentarios()
         ultima_lectura = self._cargar_ultima_lectura()
         self.libro_actual = ultima_lectura.get("libro") or (self.libros[0]["nombre"] if self.libros else None)
         self.capitulo_actual = int(ultima_lectura.get("capitulo") or 1)
@@ -262,10 +266,12 @@ class BibliaView:
         # parrafo afectado, sin reconstruir todo el capitulo o el libro.
         self._controles_texto_lectura = {}
         self._controles_tamano_lectura = {}
-        self._cache_capitulos_normalizados = {}
+        self._rangos_seleccion_lectura = {}
         self._libro_completo_cargado = None
         self._siguiente_capitulo_libro = 1
         self._cargando_tramo_libro = False
+        self._perfil_tamano_biblia = None
+        self._version_redimension_biblia = 0
         self._lista_barra_libros = None
         self._libro_barra_pendiente = None
         self.codificador_service = CodificadorService()
@@ -278,7 +284,9 @@ class BibliaView:
             # El carril derecho evita que el scrollbar superpuesto cubra texto seleccionable.
             padding=ft.Padding(left=0, top=0, right=34, bottom=0),
             build_controls_on_demand=True,
-            cache_extent=240,
+            cache_extent=120,
+            # Evita enviar un evento Python por cada pixel desplazado.
+            scroll_interval=180,
             on_scroll=self._al_desplazar_libro_completo,
             scroll=ft.Scrollbar(
                 thumb_visibility=True,
@@ -632,6 +640,140 @@ class BibliaView:
         self._guardar_ultima_lectura()
         self._refrescar_lectura_actual()
 
+    def _tiene_comentario(self, clave):
+        comentario = self.comentarios.get(clave)
+        return isinstance(comentario, dict) and bool(
+            str(comentario.get("texto") or "").strip()
+            or str(comentario.get("referencia") or "").strip()
+        )
+
+    def _span_indicador_comentario(self, clave):
+        return ft.TextSpan(
+            MARCADOR_COMENTARIO,
+            tooltip="Ver comentario",
+            style=ft.TextStyle(
+                size=self._tamano_numero_lectura(),
+                color=NARANJA_ACCENTO,
+                weight=ft.FontWeight.BOLD,
+            ),
+            on_click=lambda e, destino=clave: self.dialog_comentario_biblia(destino),
+        )
+
+    def _referencia_comentario(self, clave):
+        if str(clave).startswith("CAP|"):
+            partes = str(clave).split("|", 2)
+            return f"{partes[1]} {partes[2]}" if len(partes) == 3 else "Capitulo"
+
+        libro, capitulo, versiculo = self._desarmar_clave_verso(clave)
+        if libro and capitulo and versiculo:
+            return f"{libro} {capitulo}:{versiculo}"
+        return "Comentario biblico"
+
+    def _guardar_comentarios_biblia(self):
+        try:
+            guardar_comentarios(self.comentarios)
+        except OSError:
+            self._snack("No se pudo guardar el comentario.")
+
+    def _refrescar_comentario_visible(self, clave):
+        if str(clave).startswith("CAP|"):
+            self._refrescar_lectura_actual()
+            return
+        self._refrescar_lectura_colores({clave})
+
+    def dialog_comentario_contextual(self):
+        clave = self.verso_seleccionado or self.ultimo_verso_accionado
+        if not clave:
+            clave = self._clave_capitulo(self.libro_actual, self.capitulo_actual)
+        self.dialog_comentario_biblia(clave)
+
+    def dialog_comentario_biblia(self, clave):
+        comentario = self.comentarios.get(clave, {})
+        comentario = comentario if isinstance(comentario, dict) else {}
+        puede_editar = not self._solo_lectura() and self._puede("biblia_marcas")
+        campo_texto = ft.TextField(
+            label="Comentario",
+            value=str(comentario.get("texto") or ""),
+            multiline=True,
+            min_lines=3,
+            max_lines=6,
+            read_only=not puede_editar,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        campo_referencia = ft.TextField(
+            label="Referencia biblica opcional",
+            hint_text="Juan 3:16",
+            value=str(comentario.get("referencia") or ""),
+            read_only=not puede_editar,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+
+        def cerrar(e=None):
+            self._cerrar_dialogo_biblia(dialog)
+
+        def guardar(e=None):
+            texto = str(campo_texto.value or "").strip()
+            referencia = str(campo_referencia.value or "").strip()
+            if not texto and not referencia:
+                self._snack("Escriba un comentario o una referencia.")
+                return
+            if referencia and not self._parsear_referencia(referencia):
+                self._snack("La referencia no es valida. Ejemplo: Juan 3:16.")
+                return
+            self.comentarios[clave] = {"texto": texto, "referencia": referencia}
+            self._guardar_comentarios_biblia()
+            cerrar()
+            self._refrescar_comentario_visible(clave)
+
+        def eliminar(e=None):
+            self.comentarios.pop(clave, None)
+            self._guardar_comentarios_biblia()
+            cerrar()
+            self._refrescar_comentario_visible(clave)
+
+        def ir_a_referencia_guardada(e=None):
+            referencia = str(comentario.get("referencia") or "").strip()
+            if not self._parsear_referencia(referencia):
+                return
+            cerrar()
+            self._ir_a_referencia_texto(referencia)
+
+        contenido = [campo_texto, campo_referencia]
+        referencia_guardada = str(comentario.get("referencia") or "").strip()
+        if referencia_guardada and self._parsear_referencia(referencia_guardada):
+            contenido.append(
+                ft.TextButton(
+                    referencia_guardada,
+                    icon=ft.Icons.OPEN_IN_NEW,
+                    tooltip="Ir a esta referencia",
+                    on_click=ir_a_referencia_guardada,
+                )
+            )
+
+        acciones = [ft.TextButton("Cerrar" if not puede_editar else "Cancelar", on_click=cerrar)]
+        if puede_editar and self._tiene_comentario(clave):
+            acciones.append(ft.TextButton("Eliminar", on_click=eliminar))
+        if puede_editar:
+            acciones.append(
+                ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=guardar)
+            )
+
+        dialog = ft.AlertDialog(
+            modal=False,
+            title=self._titulo_seccion(
+                self._referencia_comentario(clave),
+                ft.Icons.CHAT_BUBBLE_OUTLINE,
+                NARANJA_ACCENTO,
+            ),
+            content=ft.Container(
+                width=360 if self.responsive.is_mobile() else 480,
+                content=ft.Column(tight=True, spacing=10, controls=contenido),
+            ),
+            actions=acciones,
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self._abrir_dialogo_biblia(dialog)
+
     def dialog_ir_a_referencia(self, e=None):
         campo = ft.TextField(
             hint_text="Juan 3:16, Salmo 91, Génesis 1",
@@ -703,11 +845,41 @@ class BibliaView:
         self.modo_compartir_multiple = False
         self.modo_color_directo = False
 
+    def _perfil_responsivo_biblia(self):
+        ancho = self.responsive.width()
+        if ancho < 700:
+            return "movil"
+        if ancho < 820:
+            return "compacto"
+        return "amplio"
+
     def _on_resize(self, e):
+        perfil = self._perfil_responsivo_biblia()
+        if perfil == self._perfil_tamano_biblia:
+            actualizar_barra = getattr(self.router, "_actualizar_barra_inferior", None)
+            if callable(actualizar_barra):
+                actualizar_barra()
+            return
+
+        # Durante el arrastre de la ventana se reciben muchos eventos. Solo la
+        # ultima medida que se estabiliza reconstruye el marco responsivo.
+        self._perfil_tamano_biblia = perfil
+        self._version_redimension_biblia += 1
+        version = self._version_redimension_biblia
+        try:
+            self.page.run_task(self._refrescar_despues_de_redimensionar, version)
+        except (RuntimeError, AssertionError, AttributeError):
+            self.router.refrescar()
+
+    async def _refrescar_despues_de_redimensionar(self, version):
+        await asyncio.sleep(0.18)
+        if version != self._version_redimension_biblia:
+            return
         self.router.refrescar()
 
     def obtener_vista(self):
         self.page.on_resize = self._on_resize
+        self._perfil_tamano_biblia = self._perfil_responsivo_biblia()
         self._preparar_snack_biblia()
         self._precalentar_indice_busqueda()
 
@@ -962,6 +1134,7 @@ class BibliaView:
                 ),
                 self._boton_lateral(ft.Icons.SAVE_ALT, "Guardar", lambda e: self.dialog_guardar_biblia(), color=NARANJA_ACCENTO),
                 self._boton_lateral(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), lambda e: self.copiar_contexto_lectura(), color=AZUL_ACCENTO),
+                self._boton_lateral(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", lambda e: self.dialog_comentario_contextual(), color=NARANJA_ACCENTO),
             ]
         )
         return ft.Container(
@@ -1079,6 +1252,16 @@ class BibliaView:
             self._boton_lateral(ft.Icons.ZOOM_IN, "Aumentar letra", lambda e: self.cambiar_tamano_fuente_lectura(1)),
             self._boton_lateral(ft.Icons.ZOOM_OUT, "Achicar letra", lambda e: self.cambiar_tamano_fuente_lectura(-1)),
         ]
+
+        if puede_marcas:
+            botones.append(
+                self._boton_lateral(
+                    ft.Icons.CHAT_BUBBLE_OUTLINE,
+                    "Agregar o ver comentario",
+                    lambda e: self.dialog_comentario_contextual(),
+                    color=NARANJA_ACCENTO,
+                )
+            )
 
         if puede_color:
             botones.extend(
@@ -1500,9 +1683,9 @@ class BibliaView:
 
     def _barra_navegacion_rapida(self, controles):
         return ft.Container(
-            height=48,
-            margin=ft.Margin(left=0, top=8, right=0, bottom=0),
-            padding=ft.Padding(left=4, top=3, right=4, bottom=3),
+            height=58,
+            margin=ft.Margin(left=0, top=10, right=0, bottom=2),
+            padding=ft.Padding(left=4, top=4, right=4, bottom=8),
             bgcolor=GRIS_SUAVE,
             border=ft.Border.all(1, BORDE_SUAVE),
             border_radius=8,
@@ -1510,7 +1693,9 @@ class BibliaView:
                 expand=True,
                 horizontal=True,
                 spacing=6,
-                padding=ft.Padding(left=2, top=0, right=2, bottom=0),
+                # El espacio inferior es exclusivo para el scrollbar y evita
+                # que se superponga con los chips de navegacion.
+                padding=ft.Padding(left=2, top=0, right=2, bottom=8),
                 build_controls_on_demand=True,
                 cache_extent=120,
                 scroll=ft.Scrollbar(
@@ -2315,6 +2500,7 @@ class BibliaView:
             return [
                 accion(ft.Icons.SAVE_ALT, "Guardar", NARANJA_ACCENTO, self.dialog_guardar_biblia),
                 accion(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), AZUL_ACCENTO, self.copiar_contexto_lectura),
+                accion(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", NARANJA_ACCENTO, self.dialog_comentario_contextual),
                 accion(
                     ft.Icons.SELECT_ALL,
                     "Activar/desactivar seleccion multiple",
@@ -2460,29 +2646,45 @@ class BibliaView:
         self._actualizar_estado_color_visible()
 
     def _guardar_seleccion_texto_resaltado(self, evento, libro_nombre, capitulo_numero):
-        texto = self._texto_seleccionado_evento(evento)
-        if not texto:
+        seleccion = self._seleccion_final_del_evento(evento)
+        if seleccion is None:
             self.seleccion_texto_resaltado = None
             self._version_seleccion_resaltado += 1
             return
 
-        texto_busqueda = self._normalizar_texto_busqueda(texto)
-        if not texto_busqueda:
-            return
+        verso, texto = seleccion
+        self.seleccion_texto_resaltado = {"verso": verso, "texto": texto}
+        self.verso_seleccionado = verso
+        self.ultimo_verso_accionado = verso
+        if self.modo_color_directo:
+            self._programar_resaltado_al_soltar()
+        else:
+            self._actualizar_estado_color_visible()
 
-        for verso, texto_versiculo in self._versiculos_normalizados_capitulo(
-            libro_nombre,
-            capitulo_numero,
-        ):
-            if texto_busqueda in texto_versiculo:
-                self.seleccion_texto_resaltado = {"verso": verso, "texto": texto}
-                self.verso_seleccionado = verso
-                self.ultimo_verso_accionado = verso
-                if self.modo_color_directo:
-                    self._programar_resaltado_al_soltar()
-                else:
-                    self._actualizar_estado_color_visible()
-                return
+    def _seleccion_final_del_evento(self, evento):
+        """Acepta solo el rango final contenido por completo en un versiculo."""
+        control = getattr(evento, "control", None)
+        seleccion = getattr(evento, "selection", None)
+        rangos = self._rangos_seleccion_lectura.get(id(control), ())
+        if seleccion is None or not rangos:
+            return None
+
+        try:
+            inicio = min(int(seleccion.base_offset), int(seleccion.extent_offset))
+            fin = max(int(seleccion.base_offset), int(seleccion.extent_offset))
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+        if inicio >= fin:
+            return None
+
+        for rango in rangos:
+            if inicio < rango["inicio"] or fin > rango["fin"]:
+                continue
+            texto = rango["texto"][inicio - rango["inicio"] : fin - rango["inicio"]].strip()
+            if texto:
+                return rango["verso"], texto
+        return None
 
     def _programar_resaltado_al_soltar(self):
         self._version_seleccion_resaltado += 1
@@ -2508,62 +2710,6 @@ class BibliaView:
             if self.modo_quitar_resaltado
             else self._resaltar_seleccion_texto_actual()
         )
-
-    def _texto_seleccionado_evento(self, evento):
-        texto = str(getattr(evento, "selected_text", "") or "").strip()
-        if texto:
-            return texto
-
-        # Algunas plataformas entregan el evento de seleccion como JSON en
-        # lugar de poblar selected_text en el objeto tipado de Flet.
-        datos = getattr(evento, "data", None)
-        if isinstance(datos, str):
-            try:
-                datos = json.loads(datos)
-            except (TypeError, ValueError):
-                datos = None
-        if isinstance(datos, dict):
-            texto = str(
-                datos.get("selected_text") or datos.get("selectedText") or ""
-            ).strip()
-            if texto:
-                return texto
-
-        seleccion = getattr(evento, "selection", None)
-        control = getattr(evento, "control", None)
-        spans = getattr(control, "spans", None) or []
-        if seleccion is not None and spans:
-            fuente = "".join(str(getattr(span, "text", "") or "") for span in spans)
-            try:
-                return str(seleccion.get_selected_text(fuente) or "").strip()
-            except (AssertionError, AttributeError):
-                pass
-        return ""
-
-    def _versiculos_normalizados_capitulo(self, libro_nombre, capitulo_numero):
-        clave = (str(libro_nombre), int(capitulo_numero or 1))
-        cache = self._cache_capitulos_normalizados.get(clave)
-        if cache is not None:
-            return cache
-
-        libro = next(
-            (item for item in self.libros if item.get("nombre") == libro_nombre),
-            None,
-        )
-        capitulos = libro.get("capitulos", []) if libro else []
-        indice = clave[1] - 1
-        if indice < 0 or indice >= len(capitulos):
-            cache = []
-        else:
-            cache = [
-                (
-                    verso_id(libro_nombre, clave[1], numero),
-                    self._normalizar_texto_busqueda(texto),
-                )
-                for numero, texto in enumerate(capitulos[indice], start=1)
-            ]
-        self._cache_capitulos_normalizados[clave] = cache
-        return cache
 
     def _resaltar_seleccion_texto_actual(self):
         seleccion = self.seleccion_texto_resaltado
@@ -3067,6 +3213,44 @@ class BibliaView:
             controles = self._controles_texto_lectura.setdefault(verso, {})
             controles[id(control)] = actualizar
 
+    def _registrar_rangos_seleccion_lectura(self, control, rangos):
+        self._rangos_seleccion_lectura[id(control)] = tuple(rangos)
+
+    def _rangos_versiculos_parrafo(self, segmentos, libro_nombre, capitulo_numero):
+        """Replica el texto plano del parrafo para ubicar su seleccion final."""
+        posicion = 0
+        rangos = []
+        for segmento in segmentos:
+            texto = str(segmento.get("texto") or "").strip()
+            if not texto:
+                continue
+
+            numero = segmento.get("versiculo")
+            try:
+                numero = int(numero)
+                verso = verso_id(libro_nombre, capitulo_numero, numero)
+            except (TypeError, ValueError):
+                verso = None
+
+            if verso:
+                posicion += len(f"{numero} ")
+                if self._tiene_comentario(verso):
+                    posicion += len(MARCADOR_COMENTARIO)
+
+            inicio = posicion
+            posicion += len(texto)
+            if verso:
+                rangos.append(
+                    {
+                        "verso": verso,
+                        "inicio": inicio,
+                        "fin": posicion,
+                        "texto": texto,
+                    }
+                )
+            posicion += 1
+        return rangos
+
     def _actualizar_textos_lectura_resaltados(self, versos):
         actualizadores = {}
         for verso in versos:
@@ -3333,7 +3517,14 @@ class BibliaView:
         self._controles_versiculos.clear()
         self._controles_texto_lectura.clear()
         self._controles_tamano_lectura.clear()
+        self._rangos_seleccion_lectura.clear()
         self.panel_lectura.controls.clear()
+        # El callback solo es necesario mientras se lee un libro completo.
+        self.panel_lectura.on_scroll = (
+            self._al_desplazar_libro_completo
+            if self.modo_vista == "Libro"
+            else None
+        )
 
         if not self.libros:
             return
@@ -4095,7 +4286,7 @@ class BibliaView:
                     ft.Container(
                         expand=True,
                         padding=ft.Padding(left=22, top=0, right=0, bottom=0),
-                        border=ft.Border(left=ft.BorderSide(1.2, AZUL_LECTURA)),
+                        border=ft.Border(left=ft.BorderSide(1.2, ft.Colors.BLACK)),
                         content=ft.Column(spacing=12, controls=derecha),
                     ),
                 ],
@@ -4236,6 +4427,74 @@ class BibliaView:
 
         self._agregar_tramo_libro_completo()
 
+    def _bloques_libro_completo_movil(self, bloques):
+        """Mantiene una separacion visible y estable entre capitulos."""
+        return [
+            ft.Container(
+                border=ft.Border(bottom=ft.BorderSide(1.2, ft.Colors.BLACK)),
+                content=bloque,
+            )
+            for bloque in bloques
+        ]
+
+    def _agregar_tramo_libro_completo(self):
+        libro = self._libro_actual()
+        if not libro or libro["nombre"] != self._libro_completo_cargado:
+            return False
+
+        capitulos = libro.get("capitulos", [])
+        inicio = self._siguiente_capitulo_libro
+        if inicio > len(capitulos):
+            return False
+
+        # Pocos capitulos por lote mantienen la respuesta de las herramientas
+        # inmediata, incluso en los libros mas extensos. La lectura siempre se
+        # muestra en una sola columna para que los bloques ya visibles no se
+        # reordenen cuando se agrega contenido al final.
+        cantidad = 2 if self.responsive.is_mobile() else 3
+        fin = min(len(capitulos), inicio + cantidad - 1)
+        bloques = [
+            self._crear_bloque_capitulo_libro_completo(
+                libro,
+                numero_capitulo,
+                capitulos[numero_capitulo - 1],
+            )
+            for numero_capitulo in range(inicio, fin + 1)
+        ]
+        self._siguiente_capitulo_libro = fin + 1
+        self.panel_lectura.controls.extend(
+            self._bloques_libro_completo_movil(bloques)
+        )
+        return True
+
+    def _al_desplazar_libro_completo(self, evento):
+        if (
+            self.modo_vista != "Libro"
+            or self._cargando_tramo_libro
+        ):
+            return
+
+        try:
+            posicion_actual = max(0, float(evento.pixels))
+            cerca_del_final = (
+                posicion_actual + evento.viewport_dimension
+                >= evento.max_scroll_extent - 260
+            )
+        except (AttributeError, TypeError, ValueError):
+            return
+
+        if not cerca_del_final:
+            return
+
+        self._cargando_tramo_libro = True
+        try:
+            if self._agregar_tramo_libro_completo():
+                self.panel_lectura.update()
+        except (RuntimeError, AssertionError):
+            pass
+        finally:
+            self._cargando_tramo_libro = False
+
     def _crear_bloque_capitulo_libro_completo(
         self,
         libro,
@@ -4243,7 +4502,7 @@ class BibliaView:
         versiculos,
     ):
         parrafos = self._parrafos_capitulo_libro(libro, numero_capitulo, versiculos)
-        spans, peso = self._spans_capitulo_libro_completo(
+        spans, peso, rangos_seleccion = self._spans_capitulo_libro_completo(
             parrafos,
             libro["nombre"],
             numero_capitulo,
@@ -4270,6 +4529,7 @@ class BibliaView:
             for segmento in bloque.get("segmentos", [])
             if isinstance(segmento, dict) and str(segmento.get("versiculo") or "").isdigit()
         ]
+        self._registrar_rangos_seleccion_lectura(texto_capitulo, rangos_seleccion)
 
         def actualizar_texto_capitulo(
             control=texto_capitulo,
@@ -4277,11 +4537,13 @@ class BibliaView:
             nombre_libro=libro["nombre"],
             capitulo=numero_capitulo,
         ):
-            control.spans = self._spans_capitulo_libro_completo(
+            spans_actualizados, _peso, rangos_actualizados = self._spans_capitulo_libro_completo(
                 parrafos_capitulo,
                 nombre_libro,
                 capitulo,
-            )[0]
+            )
+            control.spans = spans_actualizados
+            self._registrar_rangos_seleccion_lectura(control, rangos_actualizados)
             control.style = self._estilo_texto_lectura(
                 nombre_libro,
                 capitulo,
@@ -4327,76 +4589,9 @@ class BibliaView:
             ),
         )
 
-    def _agregar_tramo_libro_completo(self):
-        libro = self._libro_actual()
-        if not libro or libro["nombre"] != self._libro_completo_cargado:
-            return False
-
-        capitulos = libro.get("capitulos", [])
-        inicio = self._siguiente_capitulo_libro
-        if inicio > len(capitulos):
-            return False
-
-        cantidad = 4 if self.responsive.is_mobile() else 6
-        fin = min(len(capitulos), inicio + cantidad - 1)
-        bloques = [
-            self._crear_bloque_capitulo_libro_completo(
-                libro,
-                numero_capitulo,
-                capitulos[numero_capitulo - 1],
-            )
-            for numero_capitulo in range(inicio, fin + 1)
-        ]
-        self._siguiente_capitulo_libro = fin + 1
-
-        if self.responsive.is_mobile() or len(bloques) < 2:
-            self.panel_lectura.controls.extend(bloques)
-            return True
-
-        izquierda, derecha = self._dividir_bloques_lectura(bloques)
-        self.panel_lectura.controls.append(
-            ft.Row(
-                spacing=22,
-                vertical_alignment=ft.CrossAxisAlignment.START,
-                controls=[
-                    ft.Column(expand=True, spacing=8, controls=izquierda),
-                    ft.Container(
-                        expand=True,
-                        padding=ft.Padding(left=22, top=0, right=0, bottom=0),
-                        border=ft.Border(left=ft.BorderSide(1.2, AZUL_LECTURA)),
-                        content=ft.Column(spacing=8, controls=derecha),
-                    ),
-                ],
-            )
-        )
-        return True
-
-    def _al_desplazar_libro_completo(self, evento):
-        if self.modo_vista != "Libro" or self._cargando_tramo_libro:
-            return
-
-        try:
-            cerca_del_final = (
-                evento.pixels + evento.viewport_dimension
-                >= evento.max_scroll_extent - 260
-            )
-        except (AttributeError, TypeError):
-            return
-
-        if not cerca_del_final:
-            return
-
-        self._cargando_tramo_libro = True
-        try:
-            if self._agregar_tramo_libro_completo():
-                self.panel_lectura.update()
-        except (RuntimeError, AssertionError):
-            pass
-        finally:
-            self._cargando_tramo_libro = False
-
     def _titulo_capitulo_lectura(self, libro, capitulo, tamano):
         color = self._color_capitulo_directo(libro, capitulo)
+        clave_comentario = self._clave_capitulo(libro, capitulo)
         titulo = ft.Text(
             f"Capitulo {capitulo}",
             size=tamano,
@@ -4422,7 +4617,29 @@ class BibliaView:
             content=ft.Container(
                 padding=ft.Padding(left=0, top=3 if color else 0, right=0, bottom=3 if color else 0),
                 bgcolor=self._fondo_resaltado_lectura(color),
-                content=titulo,
+                content=ft.Row(
+                    tight=True,
+                    spacing=2,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        titulo,
+                        *(
+                            [
+                                ft.IconButton(
+                                    icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
+                                    tooltip="Ver comentario del capitulo",
+                                    icon_size=16,
+                                    icon_color=NARANJA_ACCENTO,
+                                    width=28,
+                                    height=28,
+                                    on_click=lambda e, clave=clave_comentario: self.dialog_comentario_biblia(clave),
+                                )
+                            ]
+                            if self._tiene_comentario(clave_comentario)
+                            else []
+                        ),
+                    ],
+                ),
             ),
         )
 
@@ -4470,6 +4687,8 @@ class BibliaView:
     def _spans_capitulo_libro_completo(self, parrafos, libro_nombre, numero_capitulo):
         spans = []
         peso = 0
+        posicion = 0
+        rangos_seleccion = []
         for bloque in parrafos:
             tipo = bloque.get("tipo")
             if tipo == "titulo":
@@ -4477,6 +4696,7 @@ class BibliaView:
                 if texto:
                     if spans:
                         spans.append(ft.TextSpan("\n"))
+                        posicion += 1
                     spans.append(
                         ft.TextSpan(
                             f"{texto}\n",
@@ -4486,6 +4706,7 @@ class BibliaView:
                             ),
                         )
                     )
+                    posicion += len(texto) + 1
                     peso += max(1, len(texto) // 120)
                 continue
 
@@ -4527,6 +4748,10 @@ class BibliaView:
                             on_click=lambda e, v=vid: self.tocar_versiculo(v, e) if v else None,
                         )
                     )
+                    posicion += len(f"{numero} ")
+                    if vid and self._tiene_comentario(vid):
+                        spans.append(self._span_indicador_comentario(vid))
+                        posicion += len(MARCADOR_COMENTARIO)
                 color_texto = ft.Colors.BLACK
                 fondo = self._fondo_resaltado_lectura(resaltado)
                 if seleccionado_multiple:
@@ -4534,6 +4759,7 @@ class BibliaView:
                 elif seleccionado:
                     fondo = MARRON_PERLA
 
+                inicio_texto = posicion
                 spans.extend(
                     self._spans_texto_lectura(
                         texto,
@@ -4545,11 +4771,23 @@ class BibliaView:
                         libro_nombre=libro_nombre,
                     )
                 )
+                posicion += len(texto)
+                if vid:
+                    rangos_seleccion.append(
+                        {
+                            "verso": vid,
+                            "inicio": inicio_texto,
+                            "fin": posicion,
+                            "texto": texto,
+                        }
+                    )
                 spans.append(ft.TextSpan(" "))
+                posicion += 1
                 peso += max(1, len(texto) // 160)
             spans.append(ft.TextSpan("\n\n"))
+            posicion += 2
 
-        return spans, max(1, peso)
+        return spans, max(1, peso), rangos_seleccion
 
     def _control_bloque_lectura(self, bloque):
         tipo = bloque.get("tipo")
@@ -4605,6 +4843,14 @@ class BibliaView:
             for segmento in segmentos
             if isinstance(segmento, dict) and str(segmento.get("versiculo") or "").isdigit()
         ]
+        self._registrar_rangos_seleccion_lectura(
+            control,
+            self._rangos_versiculos_parrafo(
+                segmentos,
+                self.libro_actual,
+                self.capitulo_actual,
+            ),
+        )
 
         def actualizar_texto_parrafo(
             texto_control=control,
@@ -4621,6 +4867,14 @@ class BibliaView:
                 nombre_libro,
                 capitulo,
                 [{"segmentos": segmentos_parrafo}],
+            )
+            self._registrar_rangos_seleccion_lectura(
+                texto_control,
+                self._rangos_versiculos_parrafo(
+                    segmentos_parrafo,
+                    nombre_libro,
+                    capitulo,
+                ),
             )
             texto_control.update()
 
@@ -4692,6 +4946,8 @@ class BibliaView:
                         on_click=lambda e, v=vid: self.tocar_versiculo(v, e),
                     )
                 )
+                if self._tiene_comentario(vid):
+                    spans.append(self._span_indicador_comentario(vid))
 
             color_texto = ft.Colors.BLACK
             fondo = self._fondo_resaltado_lectura(resaltado)
@@ -4832,6 +5088,21 @@ class BibliaView:
                             seleccionado=numero_seleccionado,
                             sufijo=".",
                             alto=30,
+                        ),
+                        *(
+                            [
+                                ft.IconButton(
+                                    icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
+                                    tooltip="Ver comentario del versiculo",
+                                    icon_size=16,
+                                    icon_color=NARANJA_ACCENTO,
+                                    width=28,
+                                    height=28,
+                                    on_click=lambda e, clave=vid: self.dialog_comentario_biblia(clave),
+                                )
+                            ]
+                            if self._tiene_comentario(vid)
+                            else []
                         ),
                         self._texto_versiculo_visual(
                             self.libro_actual,
@@ -7469,7 +7740,8 @@ class BibliaView:
         self._version_guardado_resaltados += 1
         self.libros = BibliaService.libros()
         self.resaltados = cargar_resaltados()
-        self._cache_capitulos_normalizados.clear()
+        self.comentarios = cargar_comentarios()
+        self._rangos_seleccion_lectura.clear()
         self._random_candidatos_cache.clear()
         self._random_usados_por_categoria.clear()
         self.libro_actual = self.libros[0]["nombre"] if self.libros else None
