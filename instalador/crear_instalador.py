@@ -23,6 +23,7 @@ EXCLUSIONES_PAQUETE = [
     "build",
     "dist",
     "dist_windows",
+    "release",
     "backups",
     "logs",
     "storage",
@@ -31,6 +32,8 @@ EXCLUSIONES_PAQUETE = [
     "*.pyc",
     "README.md",
     ".gitignore",
+    "CODIGO-ESCONDIDO-19-*.apk",
+    "CODIGO-ESCONDIDO-19-*.zip",
     "datos/exportaciones",
     "datos/historial.json",
     "datos/guardados.json",
@@ -134,9 +137,6 @@ def comando_build(destino):
         "--exclude",
         *EXCLUSIONES_PAQUETE,
     ]
-
-    if destino in {"apk", "aab"}:
-        comando.extend(["--arch", "arm64"])
 
     return comando
 
@@ -395,8 +395,7 @@ def _ruta_excluida_app_zip(rel):
     return False
 
 
-def recrear_app_zip_windows(carpeta_release):
-    app_dir = carpeta_release / "data" / "flutter_assets" / "app"
+def recrear_app_zip(app_dir):
     app_dir.mkdir(parents=True, exist_ok=True)
     zip_path = app_dir / "app.zip"
     temporal = app_dir / "app.zip.tmp"
@@ -432,6 +431,11 @@ def recrear_app_zip_windows(carpeta_release):
         encoding="utf-8",
     )
     return zip_path
+
+
+def recrear_app_zip_windows(carpeta_release):
+    app_dir = carpeta_release / "data" / "flutter_assets" / "app"
+    return recrear_app_zip(app_dir)
 
 
 def copiar_salida_android():

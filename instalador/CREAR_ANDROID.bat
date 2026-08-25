@@ -15,7 +15,6 @@ cd /d "%~dp0\.."
  --no-rich-output ^
  --yes ^
  --skip-flutter-doctor ^
- --arch arm64 ^
  --cleanup-app ^
- --exclude .git .github .venv env build dist dist_windows backups logs storage instalador __pycache__ "*.pyc" README.md .gitignore datos/exportaciones datos/historial.json datos/guardados.json datos/carpetas.json datos/config_tiempo.json datos/analisis_colores_historial.json datos/historial_referencias_biblia.json datos/favoritos_biblia.json datos/notas_biblia.json datos/resaltados_biblia.json datos/ultima_lectura_biblia.json
+ --exclude .git .github .venv env build dist dist_windows release backups logs storage instalador __pycache__ "*.pyc" README.md .gitignore "CODIGO-ESCONDIDO-19-*.apk" "CODIGO-ESCONDIDO-19-*.zip" datos/exportaciones datos/historial.json datos/guardados.json datos/carpetas.json datos/config_tiempo.json datos/analisis_colores_historial.json datos/historial_referencias_biblia.json datos/favoritos_biblia.json datos/notas_biblia.json datos/resaltados_biblia.json datos/ultima_lectura_biblia.json
 pause

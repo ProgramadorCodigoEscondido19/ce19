@@ -9,6 +9,8 @@ build/
 dist/
 dist_windows/
 release/
+CODIGO-ESCONDIDO-19-*.apk
+CODIGO-ESCONDIDO-19-*.zip
 __pycache__/
 *.py[cod]
 *.pyo
