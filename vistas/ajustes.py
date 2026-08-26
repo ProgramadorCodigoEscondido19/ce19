@@ -9,6 +9,7 @@ from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
 GITHUB_RELEASES = "https://github.com/ProgramadorCodigoEscondido19/ce19/releases"
 GITHUB_LATEST = f"{GITHUB_RELEASES}/latest"
+GITHUB_RAW_MAIN = "https://github.com/ProgramadorCodigoEscondido19/ce19/raw/main"
 RELEASE_TAG = f"v{APP_VERSION}"
 DESCARGAS_APP = {
     "android": {
@@ -20,7 +21,7 @@ DESCARGAS_APP = {
     "windows": {
         "label": "Windows",
         "icono": ft.Icons.DESKTOP_WINDOWS,
-        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Windows-{RELEASE_TAG}.zip",
+        "url": f"{GITHUB_RAW_MAIN}/CODIGO-ESCONDIDO-19-Windows-{RELEASE_TAG}.zip",
         "detalle": "Descarga el ZIP, descomprímelo y ejecuta CODIGO ESCONDIDO 19.exe.",
     },
     "iphone": {
