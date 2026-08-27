@@ -6,6 +6,7 @@ import shutil
 import fnmatch
 import hashlib
 import zipfile
+import ast
 from pathlib import Path
 
 
@@ -13,8 +14,26 @@ APP_NOMBRE = "CODIGO ESCONDIDO 19"
 PROJECT_NAME = "codigo_escondido_19"
 BUNDLE_ID = "com.flet.app_ce_19"
 ORG = "com.flet"
-VERSION = "1.8"
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def leer_version_app():
+    tema = ROOT / "ui" / "tema.py"
+    try:
+        arbol = ast.parse(tema.read_text(encoding="utf-8"))
+        for nodo in arbol.body:
+            if (
+                isinstance(nodo, ast.Assign)
+                and any(getattr(objetivo, "id", None) == "APP_VERSION" for objetivo in nodo.targets)
+                and isinstance(nodo.value, ast.Constant)
+            ):
+                return str(nodo.value.value)
+    except Exception:
+        pass
+    return "1.9"
+
+
+VERSION = leer_version_app()
 EXCLUSIONES_PAQUETE = [
     ".agents",
     ".codex",
@@ -30,6 +49,7 @@ EXCLUSIONES_PAQUETE = [
     "logs",
     "storage",
     "instalador",
+    "ejecutador_paquetes",
     "__pycache__",
     "*.pyc",
     "README.md",

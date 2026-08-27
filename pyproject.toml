@@ -1,6 +1,6 @@
 [project]
 name = "codigo-escondido-19"
-version = "1.8"
+version = "1.9"
 description = "CODIGO ESCONDIDO 19"
 dependencies = [
     "flet",
@@ -32,6 +32,7 @@ exclude = [
     "logs",
     "storage",
     "instalador",
+    "ejecutador_paquetes",
     "__pycache__",
     "*.pyc",
     "README.md",

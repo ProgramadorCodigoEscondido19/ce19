@@ -9,6 +9,6 @@ Esta carpeta contiene los accesos para crear instaladores de la app.
 Los archivos generados quedan fuera de esta carpeta, en las salidas normales de Flet:
 
 - Android: `build/apk`
-- Windows: `build/windows`, `dist_windows` y `CODIGO-ESCONDIDO-19-Windows-v1.8.zip`
+- Windows: `build/windows`, `dist_windows` y `CODIGO-ESCONDIDO-19-Windows-v1.9.zip`
 
 Nota: Windows necesita Visual Studio Build Tools con desarrollo de escritorio en C++.

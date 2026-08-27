@@ -10,12 +10,13 @@ from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 GITHUB_RELEASES = "https://github.com/ProgramadorCodigoEscondido19/ce19/releases"
 GITHUB_LATEST = f"{GITHUB_RELEASES}/latest"
 GITHUB_RAW_MAIN = "https://github.com/ProgramadorCodigoEscondido19/ce19/raw/main"
+GITHUB_MEDIA_MAIN = "https://media.githubusercontent.com/media/ProgramadorCodigoEscondido19/ce19/main"
 RELEASE_TAG = f"v{APP_VERSION}"
 DESCARGAS_APP = {
     "android": {
         "label": "Android",
         "icono": ft.Icons.ANDROID,
-        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Android-{RELEASE_TAG}.apk",
+        "url": f"{GITHUB_MEDIA_MAIN}/CODIGO-ESCONDIDO-19-Android-{RELEASE_TAG}.apk",
         "detalle": "Descarga el APK para instalarlo localmente en Android.",
     },
     "windows": {
@@ -187,7 +188,7 @@ class AjustesView:
             ],
         )
         valor = ft.TextField(label="Valor", width=112, input_filter=ft.NumbersOnlyInputFilter())
-        estado = ft.Text("Seleccione uno o varios cuadros.", size=12, color="#6E6374")
+        estado = ft.Text("Selecciona uno o varios cuadros.", size=12, color="#6E6374")
         error = ft.Text("", color=ft.Colors.RED, size=12, visible=False)
         grilla = ft.Row(wrap=True, spacing=7, run_spacing=7)
 
@@ -226,7 +227,7 @@ class AjustesView:
             estado.value = (
                 f"{len(seleccionados)} caracteres seleccionados."
                 if seleccionados
-                else "Seleccione uno o varios cuadros."
+                else "Selecciona uno o varios cuadros."
             )
             self.page.update()
 
@@ -251,16 +252,16 @@ class AjustesView:
             try:
                 numero = int(valor.value or "")
             except ValueError as problema:
-                raise ValueError("Ingrese un valor numerico mayor que cero.") from problema
+                raise ValueError("Ingresa un valor numérico mayor que cero.") from problema
             if numero <= 0:
-                raise ValueError("Ingrese un valor numerico mayor que cero.")
+                raise ValueError("Ingresa un valor numérico mayor que cero.")
             return numero
 
         def aplicar_valor(ev=None, consecutivos=False):
             try:
                 inicio = valor_ingresado()
                 if not seleccionados:
-                    raise ValueError("Seleccione al menos un caracter de la tabla.")
+                    raise ValueError("Selecciona al menos un carácter de la tabla.")
             except ValueError as problema:
                 error.value = str(problema)
                 error.visible = True
@@ -274,7 +275,7 @@ class AjustesView:
 
         def quitar_valor(ev=None):
             if not seleccionados:
-                error.value = "Seleccione los caracteres a dejar sin valor."
+                error.value = "Selecciona los caracteres que quieres dejar sin valor."
                 error.visible = True
                 self.page.update()
                 return
@@ -307,7 +308,7 @@ class AjustesView:
             content=ft.Container(
                 width=640,
                 content=ft.Column(tight=True, spacing=12, controls=[
-                    ft.Text("Marque uno o varios caracteres, indique un valor y aplique el cambio.", size=12),
+                    ft.Text("Marca uno o varios caracteres, indica un valor y aplica el cambio.", size=12),
                     nombre,
                     ft.Row(wrap=True, spacing=10, controls=[
                         plantilla,
@@ -388,7 +389,7 @@ class AjustesView:
                         ],
                     ),
                     ft.Text(
-                        "Elija el sistema operativo para instalar o actualizar Codigo Escondido 19 en el dispositivo.",
+                        "Elige el sistema operativo para instalar o actualizar Código Escondido 19 en el dispositivo.",
                         size=12,
                         color="#6E6374",
                     ),
