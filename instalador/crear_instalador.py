@@ -89,6 +89,17 @@ ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP = [
     "datos/biblia_rvr1960.json.gz",
     "assets/icon.png",
 ]
+ARCHIVOS_REQUERIDOS_ANDROID_APP_ZIP = [
+    "main.pyc",
+    "core/__init__.pyc",
+    "core/app_state.pyc",
+    "ui/__init__.pyc",
+    "ui/tema.pyc",
+    "vistas/analizador_colores.pyc",
+    "logica/analizador_colores.pyc",
+    "datos/biblia_rvr1960.json.gz",
+    "assets/icon.png",
+]
 MARCADORES_REQUERIDOS_APP_ZIP = {
     "logica/analizador_colores.py": [
         "valores_terciarios_colores",
@@ -170,6 +181,31 @@ def dart_ejecutable():
     raise RuntimeError(
         "No se encontro dart. Ejecute primero flet build para preparar Flutter, "
         "o agregue Dart al PATH."
+    )
+
+
+def flutter_ejecutable():
+    flutter = shutil.which("flutter")
+    if flutter:
+        return Path(flutter)
+
+    candidatos = []
+    home = Path.home()
+    flutter_base = home / "flutter"
+    if flutter_base.exists():
+        candidatos.extend(
+            flutter_base.glob("*/bin/flutter.bat")
+            if platform.system() == "Windows"
+            else flutter_base.glob("*/bin/flutter")
+        )
+
+    for candidato in candidatos:
+        if candidato.exists():
+            return candidato
+
+    raise RuntimeError(
+        "No se encontro flutter. Ejecute primero flet build para preparar Flutter, "
+        "o agregue Flutter al PATH."
     )
 
 
@@ -534,15 +570,15 @@ def copiar_fuente_limpia(destino):
             shutil.copy2(ruta, salida)
 
 
-def recrear_app_zip_windows_compilado(app_dir):
+def recrear_app_zip_compilado(app_dir, plataforma):
     flutter_dir = ROOT / "build" / "flutter"
     if not (flutter_dir / "pubspec.yaml").exists():
         raise RuntimeError(
-            "Falta build/flutter/pubspec.yaml. Cree primero el build Windows con Flet."
+            "Falta build/flutter/pubspec.yaml. Cree primero el build con Flet."
         )
 
     app_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="ce19_windows_app_") as temp:
+    with tempfile.TemporaryDirectory(prefix=f"ce19_{plataforma.lower()}_app_") as temp:
         fuente = Path(temp) / "app"
         copiar_fuente_limpia(fuente)
 
@@ -553,7 +589,7 @@ def recrear_app_zip_windows_compilado(app_dir):
             "package",
             str(fuente),
             "-p",
-            "Windows",
+            plataforma,
             "--asset",
             "app/app.zip",
             "--skip-site-packages",
@@ -562,35 +598,50 @@ def recrear_app_zip_windows_compilado(app_dir):
         ]
         resultado = subprocess.run(comando, cwd=flutter_dir)
         if resultado.returncode != 0:
-            raise RuntimeError("No se pudo recrear app.zip compilado para Windows.")
+            raise RuntimeError(f"No se pudo recrear app.zip compilado para {plataforma}.")
 
     generado = flutter_dir / "app" / "app.zip"
     generado_hash = flutter_dir / "app" / "app.zip.hash"
     zip_path = app_dir / "app.zip"
     hash_path = app_dir / "app.zip.hash"
-    shutil.copy2(generado, zip_path)
-    shutil.copy2(generado_hash, hash_path)
+    if generado.resolve() != zip_path.resolve():
+        shutil.copy2(generado, zip_path)
+    if generado_hash.resolve() != hash_path.resolve():
+        shutil.copy2(generado_hash, hash_path)
+    return zip_path
+
+
+def recrear_app_zip_windows_compilado(app_dir):
+    zip_path = recrear_app_zip_compilado(app_dir, "Windows")
     validar_app_zip_windows(zip_path)
     return zip_path
 
 
-def validar_app_zip_bytes(datos, origen, windows_compilado=False):
+def recrear_app_zip_android_compilado(app_dir):
+    zip_path = recrear_app_zip_compilado(app_dir, "Android")
+    validar_app_zip_android(zip_path)
+    return zip_path
+
+
+def validar_app_zip_bytes(datos, origen, plataforma=None):
     import io
 
     errores = []
     with zipfile.ZipFile(io.BytesIO(datos)) as paquete:
         nombres = set(paquete.namelist())
+        plataforma = plataforma or "source"
 
-        requeridos = (
-            ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP
-            if windows_compilado
-            else ARCHIVOS_REQUERIDOS_APP_ZIP
-        )
+        if plataforma == "windows":
+            requeridos = ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP
+        elif plataforma == "android":
+            requeridos = ARCHIVOS_REQUERIDOS_ANDROID_APP_ZIP
+        else:
+            requeridos = ARCHIVOS_REQUERIDOS_APP_ZIP
         for requerido in requeridos:
             if requerido not in nombres:
                 errores.append(f"Falta {requerido} en {origen}")
 
-        if not windows_compilado:
+        if plataforma == "source":
             for archivo, marcadores in MARCADORES_REQUERIDOS_APP_ZIP.items():
                 if archivo not in nombres:
                     continue
@@ -603,6 +654,8 @@ def validar_app_zip_bytes(datos, origen, windows_compilado=False):
             nombre
             for nombre in nombres
             if nombre.startswith((".git/", ".codex/", ".agents/", "env/", "build/"))
+            or fnmatch.fnmatch(nombre.rsplit("/", 1)[-1], "CODIGO-ESCONDIDO-19-*.apk")
+            or fnmatch.fnmatch(nombre.rsplit("/", 1)[-1], "CODIGO-ESCONDIDO-19-*.zip")
         ]
         if prohibidos:
             errores.append(f"El paquete incluye rutas excluidas: {prohibidos[:3]}")
@@ -616,7 +669,11 @@ def validar_app_zip(ruta):
 
 
 def validar_app_zip_windows(ruta):
-    validar_app_zip_bytes(Path(ruta).read_bytes(), str(ruta), windows_compilado=True)
+    validar_app_zip_bytes(Path(ruta).read_bytes(), str(ruta), plataforma="windows")
+
+
+def validar_app_zip_android(ruta):
+    validar_app_zip_bytes(Path(ruta).read_bytes(), str(ruta), plataforma="android")
 
 
 def validar_zip_windows(zip_path):
@@ -631,7 +688,7 @@ def validar_zip_windows(zip_path):
         faltantes = [nombre for nombre in requeridos if nombre not in nombres]
         if faltantes:
             raise RuntimeError("Faltan archivos en Windows ZIP: " + ", ".join(faltantes))
-        validar_app_zip_bytes(paquete.read(app_zip), app_zip, windows_compilado=True)
+        validar_app_zip_bytes(paquete.read(app_zip), app_zip, plataforma="windows")
 
 
 def validar_apk_android(apk_path):
@@ -640,7 +697,7 @@ def validar_apk_android(apk_path):
         nombres = set(paquete.namelist())
         if app_zip not in nombres:
             raise RuntimeError(f"Falta {app_zip} dentro del APK")
-        validar_app_zip_bytes(paquete.read(app_zip), app_zip)
+        validar_app_zip_bytes(paquete.read(app_zip), app_zip, plataforma="android")
 
 
 def recrear_app_zip_windows(carpeta_release):
@@ -649,8 +706,39 @@ def recrear_app_zip_windows(carpeta_release):
     return zip_path
 
 
+def recrear_app_zip_android():
+    app_dir = ROOT / "build" / "flutter" / "app"
+    return recrear_app_zip_android_compilado(app_dir)
+
+
+def reconstruir_apk_android_con_app_zip_actualizado():
+    flutter_dir = ROOT / "build" / "flutter"
+    if not (flutter_dir / "pubspec.yaml").exists():
+        raise RuntimeError(
+            "Falta build/flutter/pubspec.yaml. Cree primero el build Android con Flet."
+        )
+
+    comando = [
+        str(flutter_ejecutable()),
+        "build",
+        "apk",
+        "--release",
+        "--no-tree-shake-icons",
+    ]
+    entorno = os.environ.copy()
+    entorno["SERIOUS_PYTHON_SITE_PACKAGES"] = str(ROOT / "build" / "site-packages")
+    resultado = subprocess.run(comando, cwd=flutter_dir, env=entorno)
+    if resultado.returncode != 0:
+        raise RuntimeError("No se pudo reconstruir el APK Android con el app.zip corregido.")
+
+
 def copiar_salida_android():
-    origen = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
+    recrear_app_zip_android()
+    reconstruir_apk_android_con_app_zip_actualizado()
+
+    origen = ROOT / "build" / "flutter" / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk"
+    if not origen.exists():
+        origen = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
     if not origen.exists():
         return None
 
