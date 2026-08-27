@@ -421,7 +421,7 @@ def total_secundario_colores(resultado):
 
 
 def valores_terciarios_colores(resultado):
-    """Devuelve los digitos tal como aparecen en todo el analisis primario."""
+    """Devuelve los dígitos tal como aparecen en todo el análisis primario."""
     resultado = resultado or {}
     total = resultado.get("total_codigo", 0)
     pasos = list(resultado.get("pasos_reduccion") or [])
@@ -430,7 +430,7 @@ def valores_terciarios_colores(resultado):
     def digitos(valor):
         return [int(digito) for digito in str(abs(int(valor or 0)))]
 
-    # El panel primario muestra el total, ambos lados de cada reduccion y el
+    # El panel primario muestra el total, ambos lados de cada reducción y el
     # resultado final. El terciario suma todos esos bloques visibles.
     valores = digitos(total)
     if len(pasos) <= 1:
@@ -575,8 +575,8 @@ def _pdf_pagina_resumen(resultado, titulo):
     comandos = [
         b"0.988 0.980 1.000 rg 0 0 842 595 re f",
     ]
-    _pdf_texto(comandos, "CODIGO ESCONDIDO 19 - COLORES", 421, 558, 18, "#17131D", True, True)
-    _pdf_texto(comandos, titulo or "Analisis de colores", 421, 536, 10, "#6F6677", False, True)
+    _pdf_texto(comandos, "CÓDIGO ESCONDIDO 19 - COLORES", 421, 558, 18, "#17131D", True, True)
+    _pdf_texto(comandos, titulo or "Análisis de colores", 421, 536, 10, "#6F6677", False, True)
 
     texto = resultado.get("texto_limpio", "")
     _pdf_rect(comandos, 32, 485, 778, 38, "#FFFEFC", "#EFD7DB")
@@ -595,10 +595,10 @@ def _pdf_pagina_resumen(resultado, titulo):
     terciario_y = 50
 
     _pdf_rect(comandos, panel_x, primario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
-    _pdf_texto(comandos, "ANALISIS PRIMARIO", panel_x + panel_ancho / 2, primario_y + panel_alto - 22, 12, "#17131D", True, True)
-    _pdf_texto(comandos, "TOTAL DE CODIGOS:", 146, primario_y + panel_alto - 56, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "ANÁLISIS PRIMARIO", panel_x + panel_ancho / 2, primario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "TOTAL DE CÓDIGOS:", 146, primario_y + panel_alto - 56, 12, "#17131D", True, True)
     _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), 146, primario_y + panel_alto - 93, 27, 14)
-    _pdf_texto(comandos, "PROCESO DE REDUCCION", 418, primario_y + panel_alto - 56, 9, "#6F6677", True, True)
+    _pdf_texto(comandos, "PROCESO DE REDUCCIÓN", 418, primario_y + panel_alto - 56, 9, "#6F6677", True, True)
     y = primario_y + panel_alto - 92
     if len(pasos) <= 1:
         _pdf_fila_digitos(comandos, _pdf_digitos_numero(total), 418, y, 23, 8)
@@ -620,20 +620,20 @@ def _pdf_pagina_resumen(resultado, titulo):
     valores = valores_secundarios_colores(resultado)
     total_secundario = sum(valores)
     _pdf_rect(comandos, panel_x, secundario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
-    _pdf_texto(comandos, "ANALISIS SECUNDARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
-    _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DIGITO:", panel_x + panel_ancho / 2, secundario_y + panel_alto - 48, 10, "#17131D", True, True)
+    _pdf_texto(comandos, "ANÁLISIS SECUNDARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DÍGITO:", panel_x + panel_ancho / 2, secundario_y + panel_alto - 48, 10, "#17131D", True, True)
     visibles = valores[:40]
     y_sec = _pdf_fila_suma(comandos, visibles, panel_x + panel_ancho / 2, secundario_y + panel_alto - 78, 19, panel_ancho - 72)
     if len(valores) > len(visibles):
-        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores mas en el detalle", panel_x + panel_ancho / 2, y_sec - 18, 8, "#6F6677", False, True)
+        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores más en el detalle", panel_x + panel_ancho / 2, y_sec - 18, 8, "#6F6677", False, True)
     _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, secundario_y + 22, 9, "#6F6677", True, True)
     _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), 500, secundario_y + 14, 22, 6)
 
     valores_terciarios = valores_terciarios_colores(resultado)
     total_terciario = sum(valores_terciarios)
     _pdf_rect(comandos, panel_x, terciario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
-    _pdf_texto(comandos, "ANALISIS TERCIARIO", panel_x + panel_ancho / 2, terciario_y + panel_alto - 22, 12, "#17131D", True, True)
-    _pdf_texto(comandos, "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:", panel_x + panel_ancho / 2, terciario_y + panel_alto - 48, 9, "#6F6677", True, True)
+    _pdf_texto(comandos, "ANÁLISIS TERCIARIO", panel_x + panel_ancho / 2, terciario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "SUMA DE TODOS LOS NÚMEROS DEL ANÁLISIS PRIMARIO:", panel_x + panel_ancho / 2, terciario_y + panel_alto - 48, 9, "#6F6677", True, True)
     _pdf_fila_suma(comandos, valores_terciarios[:42], panel_x + panel_ancho / 2, terciario_y + panel_alto - 77, 18, panel_ancho - 72)
     if len(valores_terciarios) > 42:
         _pdf_texto(comandos, f"+ {len(valores_terciarios) - 42} valores incluidos", panel_x + panel_ancho / 2, terciario_y + 40, 8, "#6F6677", False, True)
@@ -649,7 +649,7 @@ def _pdf_paginas_detalle(resultado):
     por_pagina = 30
     for inicio in range(0, len(detalle), por_pagina):
         comandos = [b"0.988 0.980 1.000 rg 0 0 842 595 re f"]
-        _pdf_texto(comandos, "DETALLE DEL ANALISIS", 36, 560, 16, "#17131D", True)
+        _pdf_texto(comandos, "DETALLE DEL ANÁLISIS", 36, 560, 16, "#17131D", True)
         _pdf_texto(comandos, f"Bloques {inicio + 1} - {min(inicio + por_pagina, len(detalle))} de {len(detalle)}", 36, 540, 9, "#6F6677")
         y = 506
         for indice, item in enumerate(detalle[inicio:inicio + por_pagina], start=inicio + 1):
@@ -707,7 +707,7 @@ def _pdf_guardar(paginas, archivo):
 
 
 def exportar_pdf_colores(resultado, titulo=None, archivo=None):
-    titulo = str(titulo or (resultado or {}).get("texto_limpio") or "Analisis de colores").strip()
+    titulo = str(titulo or (resultado or {}).get("texto_limpio") or "Análisis de colores").strip()
     if archivo is None:
         archivo = ruta_exportacion(f"analisis_colores_{_slug_colores(titulo)}_{int(time.time() * 1000)}.pdf")
     Path(archivo).parent.mkdir(parents=True, exist_ok=True)

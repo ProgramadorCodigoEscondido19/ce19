@@ -17,13 +17,13 @@ except Exception:
 
 
 class DialogManager:
-    """Punto comun para las ventanas flotantes de la aplicacion."""
+    """Punto común para las ventanas flotantes de la aplicación."""
 
     def __init__(self, page: ft.Page):
         self.page = page
 
     def mostrar(self, dialogo: ft.AlertDialog, cerrar_al_tocar_fuera=True):
-        """Abre un dialogo nativo y permite cerrar tocando fuera por defecto."""
+        """Abre un diálogo nativo y permite cerrar tocando fuera por defecto."""
         dialogo.modal = not cerrar_al_tocar_fuera
         mostrar_nativo = getattr(self.page, "show_dialog", None)
         if callable(mostrar_nativo):
@@ -31,7 +31,7 @@ class DialogManager:
                 mostrar_nativo(dialogo)
                 return dialogo
             except RuntimeError:
-                # Si Flet conserva el dialogo en su pila interna, creamos uno
+                # Si Flet conserva el diálogo en su pila interna, creamos uno
                 # nuevo desde el llamador o caemos al overlay de compatibilidad.
                 pass
             except Exception:
@@ -47,7 +47,7 @@ class DialogManager:
             return dialogo
 
     def cerrar(self, dialogo: ft.AlertDialog | None = None):
-        """Cierra correctamente dialogos nativos y los de compatibilidad."""
+        """Cierra correctamente diálogos nativos y los de compatibilidad."""
         cerrar_nativo = getattr(self.page, "pop_dialog", None)
         if callable(cerrar_nativo):
             try:

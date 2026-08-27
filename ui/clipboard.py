@@ -1,5 +1,7 @@
 import flet as ft
 
+from ui.mensajes import COPIADO_CORRECTAMENTE
+
 
 async def _copiar_async(page, texto):
     clipboard = getattr(page, "clipboard", None)
@@ -14,7 +16,7 @@ async def _copiar_async(page, texto):
 def copiar_al_portapapeles(page, texto):
     try:
         page.snack_bar = ft.SnackBar(
-            content=ft.Text("Copiado correctamente"),
+            content=ft.Text(COPIADO_CORRECTAMENTE),
             duration=1500,
             behavior=ft.SnackBarBehavior.FLOATING,
             margin=ft.Margin(left=18, top=0, right=18, bottom=72),

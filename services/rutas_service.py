@@ -26,7 +26,7 @@ class RutasService:
     META_RUTAS = {
         "inicio": {"label": "Inicio", "icon": ft.Icons.HOME},
         "pizarra": {"label": "Pizarra", "icon": ft.Icons.EDIT},
-        "colores": {"label": "Resaltado", "icon": ft.Icons.COLOR_LENS},
+        "colores": {"label": "Codicolor", "icon": ft.Icons.COLOR_LENS},
         "biblia": {"label": "Biblia", "icon": ft.Icons.BOOK},
         "tiempo": {"label": "Tiempo", "icon": ft.Icons.SCHEDULE},
         "calculadora": {"label": "Calc", "icon": ft.Icons.CALCULATE},

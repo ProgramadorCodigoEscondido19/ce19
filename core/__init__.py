@@ -1,1 +1,1 @@
-"""Estado, rutas y servicios base de la aplicacion."""
+"""Estado, rutas y servicios base de la aplicación."""

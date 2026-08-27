@@ -1,1 +1,1 @@
-"""Componentes de interfaz compartidos de la aplicacion."""
+"""Componentes de interfaz compartidos de la aplicación."""

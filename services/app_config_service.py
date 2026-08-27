@@ -17,5 +17,8 @@ class AppConfigService:
     def guardar_json(ruta, datos):
         path = Path(ruta)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
+        texto = json.dumps(datos, ensure_ascii=False, indent=2)
+        temporal = path.with_name(f".{path.name}.tmp")
+        temporal.write_text(texto, encoding="utf-8")
+        temporal.replace(path)
         return datos

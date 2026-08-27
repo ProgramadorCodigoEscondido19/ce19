@@ -213,7 +213,7 @@ def pedir_nombre_y_carpeta_guardado(
         if raiz:
             agregar_rama(raiz, 0)
         else:
-            lista.controls.append(ft.Text("No se encontro la carpeta destino."))
+            lista.controls.append(ft.Text("No se encontró la carpeta destino."))
 
         actualizar_destino()
         try:

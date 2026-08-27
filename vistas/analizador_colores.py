@@ -116,8 +116,8 @@ class AnalizadorColoresView:
                 ft.dropdown.Option("Texto escrito"),
                 ft.dropdown.Option("Biblia completa"),
                 ft.dropdown.Option("Libro"),
-                ft.dropdown.Option("Capitulo"),
-                ft.dropdown.Option("Versiculos"),
+                ft.dropdown.Option("Capitulo", text="Capítulo"),
+                ft.dropdown.Option("Versiculos", text="Versículos"),
             ],
             on_select=self._actualizar_importador,
         )
@@ -136,14 +136,14 @@ class AnalizadorColoresView:
             on_select=self._actualizar_importador,
         )
         self.capitulo_biblia = ft.Dropdown(
-            label="Capitulo desde",
+            label="Capítulo desde",
             value="1",
             dense=True,
             options=[],
             on_select=self._actualizar_importador,
         )
         self.capitulo_hasta_biblia = ft.Dropdown(
-            label="Capitulo hasta",
+            label="Capítulo hasta",
             value="1",
             dense=True,
             options=[],
@@ -254,7 +254,7 @@ class AnalizadorColoresView:
                 ft.ElevatedButton("Texto", icon=ft.Icons.TEXT_FIELDS, on_click=self.abrir_texto),
                 ft.OutlinedButton("Importar", icon=ft.Icons.DOWNLOAD, on_click=self.abrir_importar),
                 ft.ElevatedButton("Analizar", icon=ft.Icons.PLAY_ARROW, on_click=self.analizar),
-                ft.IconButton(icon=ft.Icons.CLEAR, tooltip="Limpiar analisis", on_click=self.limpiar),
+                ft.IconButton(icon=ft.Icons.CLEAR, tooltip="Limpiar análisis", on_click=self.limpiar),
                 ft.IconButton(icon=ft.Icons.ZOOM_OUT, tooltip="Achicar vista", on_click=lambda e: self._cambiar_escala(-0.08)),
                 ft.Text(f"{int(self.escala_vista * 100)}%", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
                 ft.IconButton(icon=ft.Icons.ZOOM_IN, tooltip="Agrandar vista", on_click=lambda e: self._cambiar_escala(0.08)),
@@ -282,7 +282,7 @@ class AnalizadorColoresView:
                                 alignment=ft.Alignment(0, 0),
                                 content=ft.Icon(ft.Icons.COLOR_LENS, color=PURPURA_IOS, size=22),
                             ),
-                            ft.Text("Resaltado", size=24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                            ft.Text("Codicolor", size=24, weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
                         ],
                     ),
                     controles,
@@ -504,7 +504,7 @@ class AnalizadorColoresView:
         capitulo_hasta = int(self.capitulo_hasta_biblia.value or capitulo)
 
         if modo == "Texto escrito":
-            self._snack("Seleccione Biblia completa, Libro, Capitulo o Versiculos.")
+            self._snack("Selecciona Biblia completa, Libro, Capítulo o Versículos.")
             return
 
         if modo == "Biblia completa":
@@ -860,11 +860,11 @@ class AnalizadorColoresView:
         )
 
         return self._panel_analisis(
-            "ANALISIS PRIMARIO",
+            "ANÁLISIS PRIMARIO",
             [
-                ft.Text("TOTAL DE CODIGOS:", size=self._tam(17, 11), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
+                ft.Text("TOTAL DE CÓDIGOS:", size=self._tam(17, 11), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL),
                 self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(18, 7)),
-                ft.Text("PROCESO DE REDUCCION", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                ft.Text("PROCESO DE REDUCCIÓN", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
                 ft.Column(
                     tight=True,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -888,7 +888,7 @@ class AnalizadorColoresView:
         if faltantes > 0:
             controles_suma.append(
                 ft.Text(
-                    f"+ {faltantes} valores mas incluidos en el total",
+                    f"+ {faltantes} valores más incluidos en el total",
                     size=self._tam(11, 8),
                     color=TEXTO_SECUNDARIO,
                     text_align=ft.TextAlign.CENTER,
@@ -896,9 +896,9 @@ class AnalizadorColoresView:
             )
 
         return self._panel_analisis(
-            "ANALISIS SECUNDARIO",
+            "ANÁLISIS SECUNDARIO",
             [
-                ft.Text("SUMA DE RESULTADOS EN 1 DIGITO:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, text_align=ft.TextAlign.CENTER),
+                ft.Text("SUMA DE RESULTADOS EN 1 DÍGITO:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, text_align=ft.TextAlign.CENTER),
                 ft.Column(
                     tight=True,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -915,10 +915,10 @@ class AnalizadorColoresView:
         total = sum(valores)
 
         return self._panel_analisis(
-            "ANALISIS TERCIARIO",
+            "ANÁLISIS TERCIARIO",
             [
                 ft.Text(
-                    "SUMA DE TODOS LOS NUMEROS DEL ANALISIS PRIMARIO:",
+                    "SUMA DE TODOS LOS NÚMEROS DEL ANÁLISIS PRIMARIO:",
                     size=self._tam(12, 8),
                     weight=ft.FontWeight.BOLD,
                     color=TEXTO_PRINCIPAL,
@@ -1102,8 +1102,8 @@ class AnalizadorColoresView:
         return datos
 
     def _titulo_resultado(self):
-        etiqueta = self.texto.label if self.texto.label and self.texto.label != "Texto" else "Analisis de colores"
-        return etiqueta or "Analisis de colores"
+        etiqueta = self.texto.label if self.texto.label and self.texto.label != "Texto" else "Análisis de colores"
+        return etiqueta or "Análisis de colores"
 
     def _texto_resumen(self):
         if not self.resultado:
@@ -1123,11 +1123,11 @@ class AnalizadorColoresView:
 
         caracteres = " | ".join(partes)
         return (
-            "CODIGO ESCONDIDO 19 - COLORES\n\n"
+            "CÓDIGO ESCONDIDO 19 - COLORES\n\n"
             f"Texto: {self._titulo_resultado()}\n"
             f"Caracteres: {caracteres}\n"
-            f"Total de codigos: {self.resultado.get('total_codigo', 0)}\n"
-            f"Proceso de reduccion: {pasos}\n"
+            f"Total de códigos: {self.resultado.get('total_codigo', 0)}\n"
+            f"Proceso de reducción: {pasos}\n"
             f"Resultado final: {self.resultado.get('resultado_final', 0)} "
             f"{_icono_color(self.resultado.get('color_final', ''))} "
             f"({_nombre_color_publico(self.resultado.get('color_final', ''))})"
@@ -1135,7 +1135,7 @@ class AnalizadorColoresView:
 
     def guardar_resultado(self, e=None):
         if not self.resultado:
-            self._snack("Primero realice un analisis.")
+            self._snack("Primero realiza un análisis.")
             return
         pedir_nombre_y_carpeta_guardado(
             self.page,
@@ -1144,7 +1144,7 @@ class AnalizadorColoresView:
             state.carpetas,
             "COLORES",
             self._guardar_resultado_con_nombre,
-            "Se guardara como tarjeta visual dentro de COLORES.",
+            "Se guardará como tarjeta visual dentro de COLORES.",
         )
 
     def _guardar_resultado_con_nombre(self, nombre, carpeta=None):
@@ -1161,7 +1161,7 @@ class AnalizadorColoresView:
                 "nombre": nombre,
                 "palabra": nombre or self._titulo_resultado(),
                 "referencia": self._titulo_resultado(),
-                "alfabeto": "Resaltado",
+                "alfabeto": "Codicolor",
                 "suma": resumen,
                 "resultado": self.resultado.get("resultado_final", ""),
                 "contenido": contenido,
@@ -1189,7 +1189,7 @@ class AnalizadorColoresView:
 
     def descargar_pdf_resultado(self, e=None):
         if not self.resultado:
-            self._snack("Primero realice un analisis.")
+            self._snack("Primero realiza un análisis.")
             return
 
         try:
@@ -1205,7 +1205,7 @@ class AnalizadorColoresView:
         compartir_archivo(
             self.page,
             archivo,
-            "Analisis de colores PDF",
+            "Análisis de colores PDF",
             "application/pdf",
         )
 
@@ -1220,7 +1220,7 @@ class AnalizadorColoresView:
         picker = self._obtener_file_picker_pdf()
         try:
             destino = await picker.save_file(
-                dialog_title="Guardar analisis de colores PDF",
+                dialog_title="Guardar análisis de colores PDF",
                 file_name=ruta.name,
                 file_type=ft.FilePickerFileType.CUSTOM,
                 allowed_extensions=["pdf"],
@@ -1249,7 +1249,7 @@ class AnalizadorColoresView:
                 destino_path.write_bytes(datos)
                 destino = str(destino_path)
             except Exception:
-                self._snack("No se pudo guardar el PDF en esa ubicacion.")
+                self._snack("No se pudo guardar el PDF en esa ubicación.")
                 return
 
         self._snack(f"PDF guardado: {destino}")
@@ -1413,21 +1413,21 @@ class AnalizadorColoresView:
         )
 
         lineas = [
-            "Analisis primario:",
-            f"Total de codigos: {self._suma_digitos_numero_copiado(total, opciones)}",
-            "Proceso de reduccion:",
+            "Análisis primario:",
+            f"Total de códigos: {self._suma_digitos_numero_copiado(total, opciones)}",
+            "Proceso de reducción:",
         ]
         lineas.extend(proceso or [self._digitos_numero_copiado(final, opciones)])
         lineas.extend(
             [
                 f"Resultado primario: {self._digitos_numero_copiado(final, opciones)}",
                 "",
-                "Analisis secundario:",
-                f"Suma de resultados en 1 digito: {suma_secundaria}",
+                "Análisis secundario:",
+                f"Suma de resultados en 1 dígito: {suma_secundaria}",
                 f"Resultado secundario: {self._digitos_numero_copiado(total_secundario, opciones)}",
                 "",
-                "Analisis terciario:",
-                f"Suma de numeros del analisis primario: {suma_terciaria}",
+                "Análisis terciario:",
+                f"Suma de números del análisis primario: {suma_terciaria}",
                 f"Resultado terciario sin reducir: {self._digitos_numero_copiado(total_terciario, opciones)}",
             ]
         )
@@ -1478,7 +1478,7 @@ class AnalizadorColoresView:
 
         referencia = self._titulo_resultado()
         texto_limpio = self.resultado.get("texto_limpio", "")
-        texto = texto_limpio if referencia == "Analisis de colores" else f"{referencia}\n{texto_limpio}"
+        texto = texto_limpio if referencia == "Análisis de colores" else f"{referencia}\n{texto_limpio}"
         leyenda = self._leyenda_colores_copiado(opciones)
         if leyenda:
             secciones.append(leyenda)
@@ -1496,31 +1496,31 @@ class AnalizadorColoresView:
 
         contenido = "\n\n".join(secciones)
         if incluir_encabezado:
-            return "CODIGO ESCONDIDO 19 - COLORES\n\n" + contenido
+            return "CÓDIGO ESCONDIDO 19 - COLORES\n\n" + contenido
         return contenido
 
     def compartir_resultado(self, e=None):
         if not self.resultado:
-            self._snack("Primero realice un analisis.")
+            self._snack("Primero realiza un análisis.")
             return
         compartir_texto(self.page, self._texto_resumen(), self._titulo_resultado())
 
     def abrir_opciones_copiado(self, e=None):
         if not self.resultado:
-            self._snack("Primero realice un analisis.")
+            self._snack("Primero realiza un análisis.")
             return
 
         opciones_iniciales = self._opciones_copiado_base()
         check_letras = ft.Checkbox(
-            label="Letras junto a numeros",
+            label="Letras junto a números",
             value=opciones_iniciales["letras_numeros"],
         )
         check_resultados = ft.Checkbox(
-            label="Incluir analisis primario y secundario",
+            label="Incluir análisis primario, secundario y terciario",
             value=opciones_iniciales["resultados"],
         )
         check_sumas = ft.Checkbox(
-            label="Incluir suma de numeros",
+            label="Incluir suma de números",
             value=opciones_iniciales["sumas"],
         )
         check_cuadritos = ft.Checkbox(

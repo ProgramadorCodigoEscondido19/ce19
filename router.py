@@ -39,7 +39,7 @@ class Router:
     }
 
     # Las vistas consultan estas capacidades para proteger sus acciones, no solo
-    # para ocultar botones del menu.
+    # para ocultar botones del menú.
     CAPACIDADES_POR_NIVEL = {
         "inicio_diccionarios": 4,
         "inicio_comparar": 4,
@@ -440,7 +440,7 @@ class Router:
     def _encabezado_menu(self, compacto):
         boton_toggle = ft.IconButton(
             icon=ft.Icons.MENU_OPEN if compacto else ft.Icons.CHEVRON_LEFT,
-            tooltip="Abrir menu" if compacto else "Cerrar menu",
+            tooltip="Abrir menú" if compacto else "Cerrar menú",
             icon_color=TEXTO_MUTED,
             on_click=self._alternar_menu_lateral,
         )
@@ -464,7 +464,7 @@ class Router:
                 ft.Row(alignment=ft.MainAxisAlignment.END, controls=[boton_toggle]),
                 icono_estrella(42),
                 ft.Text("Código Escondido", size=16, weight=ft.FontWeight.BOLD, color=TEXTO, text_align=ft.TextAlign.CENTER),
-                ft.Text(f"Version {APP_VERSION}", size=10, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"Versión {APP_VERSION}", size=10, color=TEXTO_MUTED, text_align=ft.TextAlign.CENTER),
             ],
         )
 
@@ -514,7 +514,7 @@ class Router:
             self.navegar(self.orden_navegacion[indice])
 
     def _actualizar_barra_inferior(self):
-        # En escritorio/web se usa menu lateral; en celular queda la barra inferior.
+        # En escritorio/web se usa menú lateral; en celular queda la barra inferior.
         if not self.page.navigation_bar:
             return
         visible = self._es_movil()

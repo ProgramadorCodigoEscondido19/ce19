@@ -9,6 +9,17 @@ import flet as ft
 from flet.controls.services.url_launcher import LaunchMode
 
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
+from ui.mensajes import (
+    COPIADO_CORRECTAMENTE,
+    NO_SE_ENCONTRO_ARCHIVO_COMPARTIR,
+    NO_SE_ENCONTRO_ARCHIVO_DESCARGAR,
+    NO_SE_PUDO_ABRIR_COMPARTIR,
+    NO_SE_PUDO_ABRIR_ENLACE,
+    NO_SE_PUDO_COPIAR,
+    NO_SE_PUDO_DESCARGAR_ARCHIVO,
+    NO_SE_PUDO_LEER_ARCHIVO_DESCARGAR,
+    RUTA_COPIADA,
+)
 
 
 def _snack(page, mensaje):
@@ -37,7 +48,7 @@ def _programar(page, tarea, *args):
                     error = None
 
                 if error:
-                    _snack(page, "No se pudo abrir el panel de compartir.")
+                    _snack(page, NO_SE_PUDO_ABRIR_COMPARTIR)
 
             try:
                 futuro.add_done_callback(avisar_error)
@@ -117,7 +128,7 @@ async def _abrir_url_async(page, url, modo=LaunchMode.EXTERNAL_APPLICATION):
         await page.launch_url(url, web_popup_window=True)
         return True
     except Exception:
-        _snack(page, "No se pudo abrir el enlace.")
+        _snack(page, NO_SE_PUDO_ABRIR_ENLACE)
         return False
 
 
@@ -125,7 +136,7 @@ def _abrir_url(page, url, modo=LaunchMode.EXTERNAL_APPLICATION):
     return _programar(page, _abrir_url_async, page, url, modo)
 
 
-async def _copiar_texto_async(page, texto, mensaje="Copiado correctamente"):
+async def _copiar_texto_async(page, texto, mensaje=COPIADO_CORRECTAMENTE):
     try:
         clipboard = getattr(page, "clipboard", None)
 
@@ -136,11 +147,11 @@ async def _copiar_texto_async(page, texto, mensaje="Copiado correctamente"):
     except Exception:
         pass
 
-    _snack(page, "No se pudo copiar el contenido.")
+    _snack(page, NO_SE_PUDO_COPIAR)
     return False
 
 
-def _copiar_texto(page, texto, mensaje="Copiado correctamente"):
+def _copiar_texto(page, texto, mensaje=COPIADO_CORRECTAMENTE):
     return _programar(page, _copiar_texto_async, page, texto, mensaje)
 
 
@@ -152,7 +163,7 @@ async def _servicio_compartir_texto_async(page, texto, titulo):
         await servicio.share_text(texto, title=titulo)
         return True
     except Exception:
-        _snack(page, "No se pudo abrir el panel de compartir.")
+        _snack(page, NO_SE_PUDO_ABRIR_COMPARTIR)
         return False
 
 
@@ -173,14 +184,14 @@ def _mostrar_dialogo_compartir_texto(page, texto, titulo, urls):
         _servicio_compartir_texto(page, texto, titulo)
 
     def copiar_enlace(e=None):
-        _copiar_texto(page, urls[-1], "Copiado correctamente")
+        _copiar_texto(page, urls[-1], COPIADO_CORRECTAMENTE)
 
     def copiar_texto(e=None):
         _copiar_texto(page, texto)
 
     dialog = ft.AlertDialog(
         title=ft.Text("Compartir"),
-        content=ft.Text("Elija como quiere compartir este contenido."),
+        content=ft.Text("Elige cómo quieres compartir este contenido."),
         actions=[
             ft.ElevatedButton(
                 "WhatsApp",
@@ -235,13 +246,13 @@ def _mostrar_exportado(page, ruta, titulo="Archivo listo"):
         _abrir_url(page, ruta.as_uri(), LaunchMode.EXTERNAL_APPLICATION)
 
     def copiar(e=None):
-        _copiar_texto(page, ruta, "Ruta copiada.")
+        _copiar_texto(page, ruta, RUTA_COPIADA)
 
     dialog = ft.AlertDialog(
         title=ft.Text(titulo),
         content=ft.Text(
-            "El archivo se guardo correctamente. Si el panel de compartir no se abre en este equipo, "
-            "puede abrir el archivo o copiar su ruta."
+            "El archivo se guardó correctamente. Si el panel de compartir no se abre en este equipo, "
+            "puedes abrir el archivo o copiar su ruta."
         ),
         actions=[
             ft.ElevatedButton(
@@ -310,7 +321,7 @@ def descargar_archivo_directo(page, archivo, titulo="Archivo descargado"):
     ruta = Path(archivo)
 
     if not ruta.exists():
-        _snack(page, "No se encontro el archivo para descargar.")
+        _snack(page, NO_SE_ENCONTRO_ARCHIVO_DESCARGAR)
         return False
 
     destino = _ruta_unica_descarga(ruta.name)
@@ -323,7 +334,7 @@ def descargar_archivo_directo(page, archivo, titulo="Archivo descargado"):
             destino.parent.mkdir(parents=True, exist_ok=True)
             destino.write_bytes(ruta.read_bytes())
         except Exception:
-            _snack(page, "No se pudo descargar el archivo.")
+            _snack(page, NO_SE_PUDO_DESCARGAR_ARCHIVO)
             return False
 
     _snack(page, f"{titulo}: {destino}")
@@ -336,7 +347,7 @@ async def _descargar_archivo_async(page, archivo, titulo):
     try:
         datos = ruta.read_bytes()
     except Exception:
-        _snack(page, "No se pudo leer el archivo para descargar.")
+        _snack(page, NO_SE_PUDO_LEER_ARCHIVO_DESCARGAR)
         return False
 
     extension = ruta.suffix.lower().lstrip(".")
@@ -406,7 +417,7 @@ def _mostrar_dialogo_compartir_archivo(
 
     def compartir_sistema(e=None):
         cerrar()
-        _snack(page, "Abriendo WhatsApp / apps...")
+        _snack(page, "Abriendo WhatsApp o apps...")
         iniciado = _programar(
             page,
             _compartir_archivo_async,
@@ -433,17 +444,17 @@ def _mostrar_dialogo_compartir_archivo(
         _abrir_url(page, ruta.as_uri(), LaunchMode.EXTERNAL_APPLICATION)
 
     def copiar_ruta(e=None):
-        _copiar_texto(page, ruta, "Ruta copiada.")
+        _copiar_texto(page, ruta, RUTA_COPIADA)
 
     dialog = ft.AlertDialog(
         title=ft.Text("Compartir archivo"),
         content=ft.Text(
-            "El archivo esta listo. Abra WhatsApp desde el panel de apps "
-            "o use abrir archivo si su equipo no muestra el panel."
+            "El archivo está listo. Abre WhatsApp desde el panel de apps "
+            "o usa Abrir archivo si tu equipo no muestra el panel."
         ),
         actions=[
             ft.ElevatedButton(
-                "Compartir online / apps",
+                "Compartir con apps",
                 icon=ft.Icons.SHARE,
                 on_click=compartir_sistema,
             ),
@@ -513,7 +524,7 @@ def compartir_archivo(
     ruta = Path(archivo)
 
     if not ruta.exists():
-        _snack(page, "No se encontro el archivo para compartir.")
+        _snack(page, NO_SE_ENCONTRO_ARCHIVO_COMPARTIR)
         return False
 
     return _mostrar_dialogo_compartir_archivo(

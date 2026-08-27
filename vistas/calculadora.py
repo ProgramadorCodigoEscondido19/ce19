@@ -48,8 +48,8 @@ class CalculadoraView:
             label="Tipo de suma",
             value="Versiculos",
             options=[
-                ft.dropdown.Option("Versiculos"),
-                ft.dropdown.Option("Capitulos"),
+                ft.dropdown.Option("Versiculos", text="Versículos"),
+                ft.dropdown.Option("Capitulos", text="Capítulos"),
                 ft.dropdown.Option("Libros"),
                 ft.dropdown.Option("Biblia completa"),
             ],
@@ -73,12 +73,12 @@ class CalculadoraView:
             value=self.libros_biblia[0].get("nombre", "") if self.libros_biblia else None,
         )
         self.capitulo_inicio_suma_biblia = ft.Dropdown(
-            label="Capitulo",
+            label="Capítulo",
             on_select=self._cambiar_capitulo_suma_biblia,
         )
-        self.capitulo_fin_suma_biblia = ft.Dropdown(label="Hasta capitulo")
-        self.versiculo_inicio_suma_biblia = ft.Dropdown(label="Versiculo")
-        self.versiculo_fin_suma_biblia = ft.Dropdown(label="Hasta versiculo")
+        self.capitulo_fin_suma_biblia = ft.Dropdown(label="Hasta capítulo")
+        self.versiculo_inicio_suma_biblia = ft.Dropdown(label="Versículo")
+        self.versiculo_fin_suma_biblia = ft.Dropdown(label="Hasta versículo")
         self.resultado_suma_biblia = ft.Text(
             "0",
             size=38,
@@ -86,7 +86,7 @@ class CalculadoraView:
             color=PURPURA_IOS,
         )
         self.detalle_suma_biblia = ft.Text(
-            "Seleccione un alcance y presione Calcular.",
+            "Selecciona un alcance y presiona Calcular.",
             size=12,
             color=TEXTO_SECUNDARIO,
         )
@@ -182,7 +182,7 @@ class CalculadoraView:
                 bgcolor=SUPERFICIE_PERLADA,
                 border_radius=18,
                 border=ft.Border.all(1, PERLA_BORDE),
-                content=ft.Text("No se encontro la Biblia cargada."),
+                content=ft.Text("No se encontró la Biblia cargada."),
             )
 
         controles = ft.Column(
@@ -383,7 +383,7 @@ class CalculadoraView:
                     self.versiculo_fin_suma_biblia.value,
                 )
         except (TypeError, ValueError, IndexError):
-            self._snack("Seleccione una parte valida de la Biblia.")
+            self._snack("Selecciona una parte válida de la Biblia.")
             return
 
         self.ultimo_resultado_suma = resultado
@@ -436,12 +436,12 @@ class CalculadoraView:
 
         pedir_nombre_y_carpeta_guardado(
             self.page,
-            "Guardar suma biblica",
+            "Guardar suma bíblica",
             nombre_default,
             state.carpetas,
             "CALCULADORA",
             guardar_con_nombre,
-            "Se guardara en CALCULADORA.",
+            "Se guardará en CALCULADORA.",
         )
 
     def _mostrar_guardado_correcto(self, nombre):

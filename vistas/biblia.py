@@ -1190,7 +1190,6 @@ class BibliaView:
                     activo=self.modo_color_directo or bool(self.seleccion_texto_resaltado),
                 ),
                 self._boton_lateral(ft.Icons.SAVE_ALT, "Guardar", lambda e: self.dialog_guardar_biblia(), color=NARANJA_ACCENTO),
-                self._boton_lateral(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), lambda e: self.copiar_contexto_lectura(), color=AZUL_ACCENTO),
                 self._boton_lateral(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", lambda e: self.dialog_comentario_contextual(), color=NARANJA_ACCENTO),
             ]
         )
@@ -1329,21 +1328,10 @@ class BibliaView:
                 ]
             )
 
-        boton_seleccion_multiple = self._boton_lateral(
-            ft.Icons.SELECT_ALL,
-            "Seleccion multiple",
-            lambda e: self.toggle_modo_compartir_multiple(),
-            color=NARANJA_ACCENTO,
-            activo=self.modo_compartir_multiple or bool(self.versos_compartir),
-        )
-        self._boton_seleccion_multiple_control = boton_seleccion_multiple
+        self._boton_seleccion_multiple_control = None
         botones.extend(
             [
                 self._boton_lateral(ft.Icons.SAVE_ALT, "Guardar", lambda e: self.dialog_guardar_biblia(), color=NARANJA_ACCENTO),
-                self._boton_lateral(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), lambda e: self.copiar_contexto_lectura(), color=AZUL_ACCENTO),
-                boton_seleccion_multiple,
-                self._boton_lateral(ft.Icons.SHARE, "Compartir", lambda e: self.dialog_compartir_biblia(), color=PURPURA_ACCENTO),
-                self._boton_lateral(ft.Icons.DOWNLOAD, "Descargar codificada", lambda e: self.dialog_exportar_biblia_codificada(), color=PURPURA_ACCENTO),
             ]
         )
         if puede_diccionario:
@@ -1607,7 +1595,6 @@ class BibliaView:
                 ),
             ),
             actions=[
-                ft.TextButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=self.copiar_versiculo_random),
                 ft.TextButton("Ver", icon=ft.Icons.OPEN_IN_NEW, on_click=lambda ev: ver_en_lectura(dialog)),
                 ft.ElevatedButton("Nuevo", icon=ft.Icons.REFRESH, on_click=refrescar_local),
                 ft.TextButton("Cerrar", on_click=lambda ev: cerrar(dialog)),
@@ -1656,11 +1643,6 @@ class BibliaView:
                         wrap=True,
                         spacing=8,
                         controls=[
-                            ft.TextButton(
-                                "Copiar",
-                                icon=ft.Icons.CONTENT_COPY,
-                                on_click=self.copiar_versiculo_random,
-                            ),
                             ft.TextButton(
                                 "Ver en lectura",
                                 icon=ft.Icons.OPEN_IN_NEW,
@@ -2494,11 +2476,6 @@ class BibliaView:
                 controls=[
                     ft.TextButton("Seleccionar todo", on_click=seleccionar_todos),
                     ft.TextButton("Deseleccionar todo", on_click=deseleccionar_todos),
-                    ft.ElevatedButton(
-                        "Compartir seleccion",
-                        icon=ft.Icons.SHARE,
-                        on_click=compartir,
-                    ),
                     ft.TextButton("Cerrar", on_click=cerrar),
                 ],
             ),
@@ -2556,28 +2533,19 @@ class BibliaView:
         def crear_acciones_principales():
             return [
                 accion(ft.Icons.SAVE_ALT, "Guardar", NARANJA_ACCENTO, self.dialog_guardar_biblia),
-                accion(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), AZUL_ACCENTO, self.copiar_contexto_lectura),
                 accion(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", NARANJA_ACCENTO, self.dialog_comentario_contextual),
-                accion(
-                    ft.Icons.SELECT_ALL,
-                    "Activar/desactivar seleccion multiple",
-                    NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO,
-                    self.toggle_modo_compartir_multiple,
-                ),
-                accion(ft.Icons.SHARE, "Compartir", PURPURA_ACCENTO, self.dialog_compartir_biblia),
             ]
 
         def crear_menu_extra():
-            items = [
-                ft.PopupMenuItem(content="Compartir", icon=ft.Icons.SHARE, on_click=lambda e: self.dialog_compartir_biblia()),
-                ft.PopupMenuItem(content="Descargar Biblia codificada", icon=ft.Icons.DOWNLOAD, on_click=lambda e: self.dialog_exportar_biblia_codificada()),
-            ]
+            items = []
             if puede_diccionario:
                 items.append(ft.PopupMenuItem(content="Diccionario hebreo", icon=ft.Icons.MENU_BOOK, on_click=lambda e: self.dialog_diccionario_hebreo()))
             if puede_cordero:
                 items.append(ft.PopupMenuItem(content="Palabras del Cordero", icon=ft.Icons.RECORD_VOICE_OVER, on_click=lambda e: self.dialog_palabras_cordero()))
             if puede_marcas:
                 items.append(ft.PopupMenuItem(content="Ver resaltados", icon=ft.Icons.FILTER_ALT, on_click=lambda e: self.dialog_versiculos_por_color()))
+            if not items:
+                return None
             return ft.PopupMenuButton(
                 icon=ft.Icons.MORE_VERT,
                 icon_color=TEXTO_SECUNDARIO,
@@ -2627,21 +2595,10 @@ class BibliaView:
         if movil:
             acciones_movil = [
                 accion(ft.Icons.SAVE_ALT, "Guardar", NARANJA_ACCENTO, self.dialog_guardar_biblia),
-                accion(ft.Icons.CONTENT_COPY, self._ayuda_copiar_contexto(), AZUL_ACCENTO, self.copiar_contexto_lectura),
-                accion(
-                    ft.Icons.SELECT_ALL,
-                    "Activar/desactivar seleccion multiple",
-                    NARANJA_ACCENTO if self.modo_compartir_multiple or self.versos_compartir else TEXTO_SECUNDARIO,
-                    self.toggle_modo_compartir_multiple,
-                ),
-                accion(
-                    ft.Icons.DOWNLOAD,
-                    "Descargar Biblia codificada (PDF/TXT)",
-                    PURPURA_ACCENTO,
-                    self.dialog_exportar_biblia_codificada,
-                ),
-                crear_menu_extra(),
             ]
+            menu_extra = crear_menu_extra()
+            if menu_extra is not None:
+                acciones_movil.append(menu_extra)
             return ft.Container(
                 padding=ft.Padding(left=10, top=8, right=10, bottom=7),
                 bgcolor=ft.Colors.with_opacity(0.45, ft.Colors.WHITE),
@@ -2656,9 +2613,7 @@ class BibliaView:
                 ),
             )
 
-        acciones = crear_acciones_principales() + [
-            accion(ft.Icons.DOWNLOAD, "Descargar Biblia codificada (PDF/TXT)", PURPURA_ACCENTO, self.dialog_exportar_biblia_codificada),
-        ]
+        acciones = crear_acciones_principales()
         if puede_diccionario:
             acciones.append(accion(ft.Icons.MENU_BOOK, "Diccionario hebreo", PURPURA_ACCENTO, self.dialog_diccionario_hebreo))
         if puede_cordero:
@@ -3721,23 +3676,7 @@ class BibliaView:
         if not libro:
             return
 
-        self.panel_lectura.controls.append(
-            ft.Row(
-                tight=True,
-                spacing=2,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    ft.Text(
-                        f"{libro['nombre']}: capitulos",
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    self._boton_comentario_titulo(
-                        self._clave_libro(libro["nombre"]),
-                        "Agregar o ver comentario del libro",
-                    ),
-                ],
-            )
-        )
+        self.panel_lectura.controls.append(self._encabezado_libro_capitulos(libro))
 
         self.panel_lectura.controls.append(
             ft.ElevatedButton(
@@ -3748,19 +3687,126 @@ class BibliaView:
         )
 
         self.panel_lectura.controls.append(
-            ft.Row(
-                wrap=True,
+            ft.Column(
+                tight=True,
                 spacing=8,
-                run_spacing=8,
                 controls=[
-                    self._boton_capitulo(
+                    self._tarjeta_capitulo_lista(
                         libro["nombre"],
                         indice,
-                        lambda e, i=indice: self.ir_a_capitulo(i),
                     )
                     for indice in range(1, len(libro["capitulos"]) + 1)
                 ],
             )
+        )
+
+    def _encabezado_libro_capitulos(self, libro):
+        nombre = libro["nombre"]
+        clave = self._clave_libro(nombre)
+        color = self._color_libro_resaltado(nombre)
+        seleccionado = self._esta_marcado_para_color(clave)
+
+        def tocar_libro(e=None):
+            if self.modo_color_directo:
+                self._procesar_objetivos_rodillo({clave})
+                return
+            self.seleccionar_libro_para_color(nombre)
+
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=tocar_libro,
+            on_long_press=tocar_libro,
+            content=ft.Container(
+                padding=ft.Padding(left=12, top=10, right=10, bottom=10),
+                border_radius=12,
+                bgcolor=self._hex_color(color, MARRON_PERLA if seleccionado else ft.Colors.WHITE),
+                border=(
+                    ft.Border.all(2, MARRON_ACENTO)
+                    if seleccionado
+                    else self._borde_por_color(color, default=BORDE_SUAVE, ancho=1)
+                ),
+                content=ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        self._icono_marcado(visible=seleccionado, size=16),
+                        ft.Text(
+                            f"{nombre}: capítulos",
+                            expand=True,
+                            weight=ft.FontWeight.BOLD,
+                            color=self._texto_color(color),
+                            font_family=FUENTE_LECTURA_BIBLIA,
+                        ),
+                        self._boton_comentario_titulo(
+                            clave,
+                            "Agregar o ver comentario del libro",
+                        ),
+                    ],
+                ),
+            ),
+        )
+
+    def _tarjeta_capitulo_lista(self, libro, capitulo):
+        clave = self._clave_capitulo(libro, capitulo)
+        color = self._color_capitulo_directo(libro, capitulo)
+        color_resuelto = color or self._primer_color_resaltado(f"{libro}|{capitulo}|")
+        seleccionado = self._esta_marcado_para_color(clave)
+
+        def tocar_capitulo(e=None):
+            if self.modo_color_directo:
+                self._procesar_objetivos_rodillo({clave})
+                return
+            self.ir_a_capitulo(capitulo)
+
+        def marcar_capitulo(e=None):
+            self.seleccionar_capitulo_completo_para_color(libro, capitulo)
+
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=tocar_capitulo,
+            on_double_tap=lambda e, l=libro, c=capitulo:
+                self.codificar_capitulo_biblia(l, c),
+            on_long_press=marcar_capitulo,
+            content=ft.Container(
+                padding=ft.Padding(left=10, top=8, right=10, bottom=8),
+                border_radius=12,
+                bgcolor=(
+                    self._hex_color(color_resuelto)
+                    if color_resuelto
+                    else MARRON_PERLA
+                    if seleccionado
+                    else ft.Colors.WHITE
+                ),
+                border=(
+                    ft.Border.all(2, MARRON_ACENTO)
+                    if seleccionado
+                    else self._borde_por_color(color_resuelto, default=BORDE_SUAVE, ancho=1)
+                ),
+                content=ft.Row(
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        self._control_identificador(
+                            capitulo,
+                            color_resuelto,
+                            seleccionado=seleccionado,
+                            ancho=58 if capitulo >= 10 else 48,
+                            alto=34,
+                        ),
+                        ft.Text(
+                            f"Capítulo {capitulo}",
+                            expand=True,
+                            weight=ft.FontWeight.BOLD,
+                            color=self._texto_color(color_resuelto),
+                            font_family=FUENTE_LECTURA_BIBLIA,
+                        ),
+                        self._boton_comentario_titulo(
+                            clave,
+                            "Agregar o ver comentario del capítulo",
+                        ),
+                    ],
+                ),
+            ),
         )
 
     def _boton_capitulo(self, libro, capitulo, on_tap):
@@ -4470,11 +4516,12 @@ class BibliaView:
         movil = self.responsive.is_mobile()
         self._libro_completo_cargado = libro["nombre"]
         self._siguiente_capitulo_libro = 1
+        color_libro = self._color_libro_resaltado(libro["nombre"])
         titulo_libro = ft.Text(
             libro["nombre"],
             size=self.tamano_fuente_lectura + (6 if movil else 8),
             weight=ft.FontWeight.BOLD,
-            color=ft.Colors.BLACK,
+            color=self._texto_color(color_libro) if color_libro else ft.Colors.BLACK,
             font_family=FUENTE_LECTURA_BIBLIA,
         )
         subtitulo_libro = ft.Text(
@@ -4504,17 +4551,9 @@ class BibliaView:
                     tight=True,
                     spacing=2,
                     controls=[
-                        ft.Row(
-                            tight=True,
-                            spacing=2,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                titulo_libro,
-                                self._boton_comentario_titulo(
-                                    self._clave_libro(libro["nombre"]),
-                                    "Agregar o ver comentario del libro",
-                                ),
-                            ],
+                        self._encabezado_libro_lectura(
+                            libro["nombre"],
+                            titulo_libro,
                         ),
                         subtitulo_libro,
                         self._barra_rapida_libros(),
@@ -4524,6 +4563,51 @@ class BibliaView:
         )
 
         self._agregar_tramo_libro_completo()
+
+    def _encabezado_libro_lectura(self, libro_nombre, titulo_control):
+        clave = self._clave_libro(libro_nombre)
+        color = self._color_libro_resaltado(libro_nombre)
+        seleccionado = self._esta_marcado_para_color(clave)
+
+        def tocar_titulo(e=None):
+            if self.modo_color_directo:
+                self._procesar_objetivos_rodillo({clave})
+
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK if self.modo_color_directo else None,
+            on_tap=tocar_titulo,
+            on_long_press=lambda e, l=libro_nombre: self.seleccionar_libro_para_color(l),
+            content=ft.Container(
+                padding=ft.Padding(
+                    left=6 if color or seleccionado else 0,
+                    top=3 if color or seleccionado else 0,
+                    right=6 if color or seleccionado else 0,
+                    bottom=3 if color or seleccionado else 0,
+                ),
+                border_radius=8,
+                bgcolor=(
+                    self._fondo_resaltado_lectura(color)
+                    if color
+                    else MARRON_PERLA
+                    if seleccionado
+                    else None
+                ),
+                border=ft.Border.all(2, MARRON_ACENTO) if seleccionado else None,
+                content=ft.Row(
+                    tight=True,
+                    spacing=2,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        self._icono_marcado(visible=seleccionado, size=16),
+                        titulo_control,
+                        self._boton_comentario_titulo(
+                            clave,
+                            "Agregar o ver comentario del libro",
+                        ),
+                    ],
+                ),
+            ),
+        )
 
     def _bloques_libro_completo_movil(self, bloques):
         """Mantiene una separacion visible y estable entre capitulos."""
@@ -4690,11 +4774,12 @@ class BibliaView:
     def _titulo_capitulo_lectura(self, libro, capitulo, tamano):
         color = self._color_capitulo_directo(libro, capitulo)
         clave_comentario = self._clave_capitulo(libro, capitulo)
+        seleccionado = self._esta_marcado_para_color(clave_comentario)
         titulo = ft.Text(
-            f"Capitulo {capitulo}",
+            f"Capítulo {capitulo}",
             size=tamano,
             weight=ft.FontWeight.BOLD,
-            color=ft.Colors.BLACK,
+            color=self._texto_color(color) if color else ft.Colors.BLACK,
             font_family=FUENTE_LECTURA_BIBLIA,
         )
         diferencia_tamano = tamano - self.tamano_fuente_lectura
@@ -4712,14 +4797,30 @@ class BibliaView:
         return ft.GestureDetector(
             mouse_cursor=ft.MouseCursor.CLICK if self.modo_color_directo else None,
             on_tap=tocar_titulo,
+            on_long_press=lambda e, l=libro, c=capitulo:
+                self.seleccionar_capitulo_completo_para_color(l, c),
             content=ft.Container(
-                padding=ft.Padding(left=0, top=3 if color else 0, right=0, bottom=3 if color else 0),
-                bgcolor=self._fondo_resaltado_lectura(color),
+                padding=ft.Padding(
+                    left=6 if color or seleccionado else 0,
+                    top=3 if color or seleccionado else 0,
+                    right=6 if color or seleccionado else 0,
+                    bottom=3 if color or seleccionado else 0,
+                ),
+                border_radius=8,
+                bgcolor=(
+                    self._fondo_resaltado_lectura(color)
+                    if color
+                    else MARRON_PERLA
+                    if seleccionado
+                    else None
+                ),
+                border=ft.Border.all(2, MARRON_ACENTO) if seleccionado else None,
                 content=ft.Row(
                     tight=True,
                     spacing=2,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     controls=[
+                        self._icono_marcado(visible=seleccionado, size=16),
                         titulo,
                         self._boton_comentario_titulo(
                             clave_comentario,
@@ -5559,9 +5660,18 @@ class BibliaView:
         )
 
     def seleccionar_capitulo_completo_para_color(self, libro, capitulo):
+        clave = self._clave_capitulo(libro, capitulo)
+        if clave in self.resaltados:
+            self.resaltados.pop(clave, None)
+            self._programar_guardado_resaltados()
+            self._limpiar_objetivos_color()
+            self._snack("Resaltado de capítulo quitado.")
+            self._refrescar_lectura_colores({clave})
+            return
+
         self.marcar_para_colorear(
-            self._clave_capitulo(libro, capitulo),
-            "Capitulo marcado. Seleccione un resaltado.",
+            clave,
+            "Capítulo marcado. Selecciona un resaltado.",
         )
 
     def _clave_capitulo(self, libro, capitulo):
@@ -5629,7 +5739,7 @@ class BibliaView:
                     seleccionado=False,
                 )
             else:
-                self._snack("Resaltado de capitulo quitado.")
+                self._snack("Resaltado de capítulo quitado.")
         else:
             self.objetivo_color = clave
             self.objetivo_color_control = control
@@ -5643,7 +5753,7 @@ class BibliaView:
                     seleccionado=True,
                 )
             else:
-                self._snack("Seleccione un resaltado para el capitulo.")
+                self._snack("Selecciona un resaltado para el capítulo.")
 
         if not control:
             self._render_lectura()
@@ -5871,9 +5981,18 @@ class BibliaView:
         return self._texto_color(color) if color else None
 
     def seleccionar_libro_para_color(self, libro):
+        clave = self._clave_libro(libro)
+        if clave in self.resaltados:
+            self.resaltados.pop(clave, None)
+            self._programar_guardado_resaltados()
+            self._limpiar_objetivos_color()
+            self._snack("Resaltado del libro quitado.")
+            self._refrescar_lectura_colores({clave})
+            return
+
         self.marcar_para_colorear(
-            self._clave_libro(libro),
-            "Libro marcado. Seleccione un resaltado.",
+            clave,
+            "Libro marcado. Selecciona un resaltado.",
         )
 
     def quitar_color_libro(self, libro):
@@ -6111,19 +6230,9 @@ class BibliaView:
                         run_spacing=8,
                         controls=[
                             ft.OutlinedButton(
-                                "Compartir resaltado",
-                                icon=ft.Icons.SHARE,
-                                on_click=compartir_color,
-                            ),
-                            ft.OutlinedButton(
                                 "Guardar resaltado",
                                 icon=ft.Icons.SAVE_ALT,
                                 on_click=guardar_color,
-                            ),
-                            ft.TextButton(
-                                "Copiar resaltado",
-                                icon=ft.Icons.CONTENT_COPY,
-                                on_click=copiar_resultados,
                             ),
                         ],
                     ),
@@ -6132,11 +6241,6 @@ class BibliaView:
                         spacing=8,
                         run_spacing=8,
                         controls=[
-                            ft.ElevatedButton(
-                                "Compartir todo",
-                                icon=ft.Icons.SHARE,
-                                on_click=compartir_todos,
-                            ),
                             ft.ElevatedButton(
                                 "Guardar todo",
                                 icon=ft.Icons.SAVE_ALT,
@@ -6934,8 +7038,26 @@ class BibliaView:
         except Exception:
             pass
 
+        try:
+            if hasattr(self.page, "close"):
+                self.page.close(control)
+        except Exception:
+            pass
+
+        try:
+            while control in self.page.overlay:
+                self.page.overlay.remove(control)
+        except Exception:
+            pass
+
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
     def _programar_guardado_resaltados(self):
         """Agrupa cambios seguidos y evita bloquear el gesto de resaltado."""
+        self._cache_primer_resaltado = {}
         self._version_guardado_resaltados += 1
         version = self._version_guardado_resaltados
         try:
@@ -6954,23 +7076,6 @@ class BibliaView:
         except Exception:
             # La vista ya se actualizo; un fallo de disco no debe romper la lectura.
             return
-
-        try:
-            if hasattr(self.page, "close"):
-                self.page.close(control)
-        except Exception:
-            pass
-
-        try:
-            while control in self.page.overlay:
-                self.page.overlay.remove(control)
-        except Exception:
-            pass
-
-        try:
-            self.page.update()
-        except Exception:
-            pass
 
     def _limpiar_flotantes_biblia(self):
         titulos_biblia = {
@@ -7510,11 +7615,6 @@ class BibliaView:
         if modo in (None, "guardar"):
             acciones.append(
                 ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=guardar_imagen)
-            )
-
-        if modo in (None, "compartir"):
-            acciones.append(
-                ft.ElevatedButton("Compartir", icon=ft.Icons.SHARE, on_click=compartir_imagen)
             )
 
         dialog = crear_flotante(

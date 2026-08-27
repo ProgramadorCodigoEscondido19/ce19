@@ -28,7 +28,7 @@ def _pil():
     try:
         from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
     except Exception as exc:
-        raise TarjetaBiblicaError("No se pudo cargar el generador de imagenes.") from exc
+        raise TarjetaBiblicaError("No se pudo cargar el generador de imágenes.") from exc
 
     return Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 

@@ -1,6 +1,7 @@
 import flet as ft
 
 from ui.clipboard import copiar_al_portapapeles
+from ui.mensajes import COPIADO_CORRECTAMENTE
 from ui.tareas import ejecutar_demorado
 from ui.tema import PERLA_BORDE, PERLA_PURPURA, PURPURA_IOS
 from vistas.detalle import mostrar_detalle
@@ -45,7 +46,7 @@ def tarjeta_resultado(
         boton_copiar.icon = ft.Icons.CHECK
         boton_copiar.tooltip = "Copiado"
         page.snack_bar = ft.SnackBar(
-            content=ft.Text("Copiado correctamente"),
+            content=ft.Text(COPIADO_CORRECTAMENTE),
             duration=1500,
             behavior=ft.SnackBarBehavior.FLOATING,
             margin=ft.Margin(left=18, top=0, right=18, bottom=72),

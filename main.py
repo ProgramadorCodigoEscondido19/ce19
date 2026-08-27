@@ -13,6 +13,39 @@ FONDO_REGION_MARRON = "#5F3A2C"
 MARRON_ACENTO = "#87543D"
 MARRON_CLARO = "#F4E4D8"
 MARRON_BORDE = "#E6CCBC"
+CHOCOLATE_NIVEL = "#321B11"
+CHOCOLATE_NIVEL_OSCURO = "#24120A"
+CHOCOLATE_NIVEL_PANEL = "#3B2116"
+NIVEL_TARJETAS = {
+    1: {
+        "imagen": "nivel_1.png",
+        "fondo": CHOCOLATE_NIVEL,
+        "borde": "#E5AF48",
+        "halo": "#F4C95D",
+        "texto": "#F8E3A4",
+    },
+    2: {
+        "imagen": "nivel_2.png",
+        "fondo": CHOCOLATE_NIVEL,
+        "borde": "#D7A044",
+        "halo": "#FFD978",
+        "texto": "#F4D992",
+    },
+    3: {
+        "imagen": "nivel_3.png",
+        "fondo": CHOCOLATE_NIVEL,
+        "borde": "#B8863B",
+        "halo": "#EBC46C",
+        "texto": "#F0D08A",
+    },
+    4: {
+        "imagen": "nivel_4.png",
+        "fondo": CHOCOLATE_NIVEL,
+        "borde": "#D9A94A",
+        "halo": "#8DC7F8",
+        "texto": "#E7C879",
+    },
+}
 
 
 PAISES_HISPANOS = [
@@ -281,7 +314,7 @@ def main(page: ft.Page):
         # para que no se estiren al mostrar un continente ampliado.
         proporcion_mapa = VISTAS_MAPA_CONTINENTE.get(continente_actual, {}).get("proporcion", 2)
         alto_mapa = max(125, int(ancho_mapa / proporcion_mapa))
-        # El selector debe dejar siempre a la vista la accion final. Si la
+        # El selector debe dejar siempre a la vista la acción final. Si la
         # ventana es baja, reducimos el mapa sin alterar su proporcion.
         alto_pantalla = getattr(page, "height", None) or 720
         alto_maximo_mapa = max(180 if es_movil else 250, int(alto_pantalla) - (390 if es_movil else 360))
@@ -692,7 +725,9 @@ def main(page: ft.Page):
         if page.navigation_bar:
             page.navigation_bar.visible = False
         ancho = getattr(page, "width", None) or 900
+        alto = getattr(page, "height", None) or 720
         es_movil = ancho < 700
+        ventana_baja = alto < 760
 
         def adaptar_selector_niveles(evento=None):
             if selector_niveles_activo["valor"]:
@@ -702,21 +737,24 @@ def main(page: ft.Page):
 
         def tarjeta_nivel(nivel):
             autorizado = PermisosService.esta_autorizado(nivel)
+            estilo = NIVEL_TARJETAS[nivel]
+            altura_tarjeta = 154 if ventana_baja else (176 if es_movil else 198)
+            alto_imagen = 72 if ventana_baja else (86 if es_movil else 108)
 
             casilla = ft.Container(
                 width=16,
                 height=16,
                 border_radius=4,
-                border=ft.Border.all(1.5, MARRON_ACENTO if autorizado else "#8B778F"),
-                bgcolor=MARRON_ACENTO if autorizado else ft.Colors.TRANSPARENT,
+                border=ft.Border.all(1.4, estilo["borde"] if autorizado else "#6E6251"),
+                bgcolor=estilo["borde"] if autorizado else ft.Colors.TRANSPARENT,
                 alignment=ft.Alignment(0, 0),
-                content=ft.Icon(ft.Icons.CHECK, size=12, color=ft.Colors.WHITE) if autorizado else None,
+                content=ft.Icon(ft.Icons.CHECK, size=12, color="#15110A") if autorizado else None,
             )
 
             estado_acceso = ft.Text(
                 "Ingreso habilitado" if autorizado else "Solicita clave la primera vez",
                 size=9 if es_movil else 10,
-                color="#6E6374",
+                color="#E7D3A0" if autorizado else "#BDAE91",
                 text_align=ft.TextAlign.CENTER,
             )
 
@@ -725,7 +763,7 @@ def main(page: ft.Page):
                     PermisosService.revocar(nivel)
                     page.run_task(guardar_niveles_web)
                     casilla.bgcolor = ft.Colors.TRANSPARENT
-                    casilla.border = ft.Border.all(1.5, "#8B778F")
+                    casilla.border = ft.Border.all(1.4, "#6E6251")
                     casilla.content = None
                     estado_acceso.value = "Solicitara clave al ingresar"
                 else:
@@ -735,36 +773,53 @@ def main(page: ft.Page):
 
             return ft.Container(
                 expand=True,
-                height=126 if es_movil else 146,
-                padding=10,
-                border_radius=16,
-                bgcolor=PERLA_PANEL,
-                border=ft.Border.all(1, MARRON_BORDE),
+                height=altura_tarjeta,
+                padding=8 if es_movil else 10,
+                border_radius=14,
+                bgcolor=estilo["fondo"],
+                border=ft.Border.all(1.4, estilo["borde"]),
+                shadow=ft.BoxShadow(
+                    blur_radius=20,
+                    spread_radius=0,
+                    color=ft.Colors.with_opacity(0.20, estilo["halo"]),
+                    offset=ft.Offset(0, 5),
+                ),
                 content=ft.Column(
                     expand=True,
                     horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-                    spacing=3,
+                    spacing=6,
                     controls=[
                         ft.Container(
                             expand=True,
                             ink=True,
-                            border_radius=12,
+                            border_radius=10,
                             on_click=lambda ev, n=nivel: elegir_nivel(n),
                             alignment=ft.Alignment(0, 0),
                             content=ft.Column(
                                 tight=True,
                                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                spacing=4,
+                                spacing=6,
                                 controls=[
                                     ft.Container(
-                                        width=40,
-                                        height=40,
-                                        border_radius=14,
-                                        bgcolor=MARRON_CLARO,
+                                        height=alto_imagen,
+                                        padding=4,
+                                        border_radius=10,
+                                        bgcolor=CHOCOLATE_NIVEL_OSCURO,
+                                        border=ft.Border.all(1, ft.Colors.with_opacity(0.86, estilo["borde"])),
                                         alignment=ft.Alignment(0, 0),
-                                        content=ft.Text(str(nivel), size=21, weight=ft.FontWeight.BOLD, color=MARRON_ACENTO),
+                                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                                        content=ft.Image(
+                                            src=estilo["imagen"],
+                                            height=alto_imagen - 8,
+                                            fit=ft.BoxFit.CONTAIN,
+                                        ),
                                     ),
-                                    ft.Text(f"Nivel {nivel}", size=15, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        f"Nivel {nivel}",
+                                        size=14 if es_movil else 15,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=estilo["texto"],
+                                    ),
                                     estado_acceso,
                                 ],
                             ),
@@ -773,6 +828,8 @@ def main(page: ft.Page):
                             height=22,
                             ink=True,
                             border_radius=6,
+                            bgcolor=CHOCOLATE_NIVEL_PANEL,
+                            border=ft.Border.all(1, ft.Colors.with_opacity(0.32, estilo["borde"])),
                             on_click=alternar_guardar_acceso,
                             alignment=ft.Alignment(0, 0),
                             content=ft.Row(
@@ -782,7 +839,7 @@ def main(page: ft.Page):
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                 controls=[
                                     casilla,
-                                    ft.Text("Guardar acceso", size=10, color="#5F5365"),
+                                    ft.Text("Guardar acceso", size=10, color="#EAD7A7"),
                                 ],
                             ),
                         ),
@@ -827,34 +884,44 @@ def main(page: ft.Page):
 
             root.content = ft.Container(
                 expand=True,
-                alignment=ft.Alignment(0, 0),
                 bgcolor=FONDO_REGION_MARRON,
-                padding=20,
-                content=ft.Container(
-                    width=390,
-                    padding=26,
-                    bgcolor=PERLA_PANEL,
-                    border_radius=24,
-                    content=ft.Column(
-                        tight=True,
-                        spacing=14,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            icono_estrella(56),
-                            ft.Text(f"Nivel {nivel}", size=24, weight=ft.FontWeight.BOLD),
-                            ft.Text("Ingrese la clave para habilitar este nivel en el dispositivo.", size=12, text_align=ft.TextAlign.CENTER),
-                            clave,
-                            guardar_clave,
-                            error,
-                            ft.Row(
-                                alignment=ft.MainAxisAlignment.END,
-                                controls=[
-                                    ft.TextButton("Volver", on_click=volver_niveles),
-                                    ft.ElevatedButton("Ingresar", icon=ft.Icons.LOCK_OPEN, bgcolor=MARRON_ACENTO, color=ft.Colors.WHITE, on_click=confirmar_clave),
-                                ],
-                            ),
-                        ],
-                    ),
+                content=ft.ListView(
+                    expand=True,
+                    padding=12 if es_movil or ventana_baja else 20,
+                    spacing=0,
+                    controls=[
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[
+                                ft.Container(
+                                    width=min(390, max(280, int(ancho) - 24)),
+                                    padding=18 if es_movil or ventana_baja else 26,
+                                    bgcolor=PERLA_PANEL,
+                                    border_radius=22,
+                                    content=ft.Column(
+                                        tight=True,
+                                        spacing=10 if ventana_baja else 14,
+                                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                        controls=[
+                                            icono_estrella(46 if ventana_baja else 56),
+                                            ft.Text(f"Nivel {nivel}", size=22 if ventana_baja else 24, weight=ft.FontWeight.BOLD),
+                                            ft.Text("Ingrese la clave para habilitar este nivel en el dispositivo.", size=12, text_align=ft.TextAlign.CENTER),
+                                            clave,
+                                            guardar_clave,
+                                            error,
+                                            ft.Row(
+                                                alignment=ft.MainAxisAlignment.END,
+                                                controls=[
+                                                    ft.TextButton("Volver", on_click=volver_niveles),
+                                                    ft.ElevatedButton("Ingresar", icon=ft.Icons.LOCK_OPEN, bgcolor=MARRON_ACENTO, color=ft.Colors.WHITE, on_click=confirmar_clave),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                )
+                            ],
+                        )
+                    ],
                 ),
             )
             page.update()
@@ -867,42 +934,52 @@ def main(page: ft.Page):
 
         root.content = ft.Container(
             expand=True,
-            alignment=ft.Alignment(0, 0),
             bgcolor=FONDO_REGION_MARRON,
-            padding=10 if es_movil else 20,
-            content=ft.Container(
-                width=None if es_movil else 640,
-                padding=18 if es_movil else 28,
-                bgcolor=PERLA_PANEL,
-                border_radius=26,
-                content=ft.Column(
-                    tight=True,
-                    spacing=12 if es_movil else 18,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        ft.Container(
-                            alignment=ft.Alignment(-1, 0),
-                            content=ft.TextButton(
-                                "Cambiar continente o idioma",
-                                icon=ft.Icons.ARROW_BACK,
-                                on_click=volver_a_region,
-                            ),
-                        ),
-                        icono_estrella(52 if es_movil else 64),
-                        ft.Text("Seleccione un nivel", size=23 if es_movil else 27, weight=ft.FontWeight.BOLD),
-                        ft.Text("Elija el nivel con el que desea ingresar.", size=12 if es_movil else 13, color="#6E6374"),
-                        ft.Row(
-                            spacing=10,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            controls=[tarjeta_nivel(1), tarjeta_nivel(2)],
-                        ),
-                        ft.Row(
-                            spacing=10,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            controls=[tarjeta_nivel(3), tarjeta_nivel(4)],
-                        ),
-                    ],
-                ),
+            content=ft.ListView(
+                expand=True,
+                padding=8 if ventana_baja else (10 if es_movil else 20),
+                spacing=0,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        controls=[
+                            ft.Container(
+                                width=max(280, int(ancho) - 16) if es_movil else 640,
+                                padding=14 if ventana_baja else (18 if es_movil else 28),
+                                bgcolor=PERLA_PANEL,
+                                border_radius=26,
+                                content=ft.Column(
+                                    tight=True,
+                                    spacing=9 if ventana_baja else (12 if es_movil else 18),
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Container(
+                                            alignment=ft.Alignment(-1, 0),
+                                            content=ft.TextButton(
+                                                "Cambiar continente o idioma",
+                                                icon=ft.Icons.ARROW_BACK,
+                                                on_click=volver_a_region,
+                                            ),
+                                        ),
+                                        icono_estrella(44 if ventana_baja else (52 if es_movil else 64)),
+                                        ft.Text("Selecciona un nivel", size=21 if ventana_baja else (23 if es_movil else 27), weight=ft.FontWeight.BOLD),
+                                        ft.Text("Elige el nivel con el que quieres ingresar.", size=12 if es_movil else 13, color="#6E6374"),
+                                        ft.Row(
+                                            spacing=10,
+                                            alignment=ft.MainAxisAlignment.CENTER,
+                                            controls=[tarjeta_nivel(1), tarjeta_nivel(2)],
+                                        ),
+                                        ft.Row(
+                                            spacing=10,
+                                            alignment=ft.MainAxisAlignment.CENTER,
+                                            controls=[tarjeta_nivel(3), tarjeta_nivel(4)],
+                                        ),
+                                    ],
+                                ),
+                            )
+                        ],
+                    )
+                ],
             ),
         )
         page.update()

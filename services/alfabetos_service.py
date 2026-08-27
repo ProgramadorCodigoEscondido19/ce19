@@ -129,11 +129,11 @@ class AlfabetosService:
         if not nombre:
             raise ValueError("Ingrese un nombre para el alfabeto.")
         if not isinstance(valores, dict) or not valores:
-            raise ValueError("Seleccione al menos un caracter y asigne sus valores.")
+            raise ValueError("Selecciona al menos un carácter y asigna sus valores.")
 
         valores_limpios = cls._valores_validos(valores)
         if not valores_limpios:
-            raise ValueError("Seleccione al menos un caracter y asigne sus valores.")
+            raise ValueError("Selecciona al menos un carácter y asigna sus valores.")
 
         if identificador in cls.IDS_PREDEFINIDOS:
             identificador = None
