@@ -16,10 +16,10 @@ class PermisosService:
     _SAL = b"CE19.niveles.2026"
     _ITERACIONES = 120000
     _HASHES_INICIALES = {
-        1: "bb56598ddb6157cec3a4b92ef4462b26ceb905b027520319f1ec787fcf321373",
-        2: "b17a5425faa5bf4c70e72184569e2b6ee046e45434db760e87b2529f112b70eb",
-        3: "35842d344a99a71b6d0e8c0df27f134a2307cbe06eeba752044f121b50eb6ace",
-        4: "d19104c01263800c8b238e9500514839fba4868eb0cd36101880183f7e1fa7fa",
+        1: "ac5e44d3c3ee18c708b8e1fc938c21da67de956f535ced32dbcb7863b2c8b2ea",
+        2: "57e4d16b9aab99543e0abaf9dd6ec63adb05b1ab5946bbda41f62ced6f2f4f01",
+        3: "6b6529203278e69562053327be7e8e543769ef17f7833866522e283befcf6f38",
+        4: "bdb02814b484f9152ecf92c45dc2f010381e5a39492f3ec90259e0c444dcd5d9",
     }
     _niveles_sesion = None
 
