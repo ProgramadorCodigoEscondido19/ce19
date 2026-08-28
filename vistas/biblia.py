@@ -105,7 +105,8 @@ CHOCOLATE_LECTURA = "#7B3F00"
 SUBTITULO_LECTURA = ft.Colors.BLACK
 FUENTE_LECTURA_BIBLIA = "Georgia"
 OPACIDAD_RESALTADO_LECTURA = 0.52
-ESPERA_SELECTOR_COLOR_TEXTO = 0.65
+ESPERA_SELECTOR_COLOR_TEXTO = 1.35
+ESPERA_SELECTOR_COLOR_OBJETIVO = 0.05
 MARCADOR_COMENTARIO = " \u270E "
 ULTIMA_LECTURA_ARCHIVO = Path("datos/ultima_lectura_biblia.json")
 LIBROS_PALABRAS_CORDERO = {"mateo", "marcos", "lucas", "juan", "apocalipsis"}
@@ -249,6 +250,7 @@ class BibliaView:
         self.objetivo_color_control = None
         self.objetivos_color = set()
         self.seleccion_texto_resaltado = None
+        self._firma_seleccion_resaltado = None
         self._version_seleccion_resaltado = 0
         self._version_guardado_resaltados = 0
         self._indice_busqueda_programado = False
@@ -884,6 +886,7 @@ class BibliaView:
         """Descarta marcas pendientes antes de abandonar una lectura."""
         self._version_seleccion_resaltado += 1
         self.seleccion_texto_resaltado = None
+        self._firma_seleccion_resaltado = None
         self.verso_seleccionado = None
         self.ultimo_verso_accionado = None
         self.objetivo_color = None
@@ -2511,15 +2514,31 @@ class BibliaView:
         seleccion = self._seleccion_final_del_evento(evento)
         if seleccion is None:
             self.seleccion_texto_resaltado = None
+            self._firma_seleccion_resaltado = None
             self._version_seleccion_resaltado += 1
             self._cerrar_selector_color_contextual()
             return
 
         verso, texto = seleccion
         self.seleccion_texto_resaltado = {"verso": verso, "texto": texto}
+        self._firma_seleccion_resaltado = self._firma_evento_seleccion(evento, verso, texto)
         self.verso_seleccionado = verso
         self.ultimo_verso_accionado = verso
-        self._programar_selector_color_contextual()
+        self._cerrar_selector_color_contextual()
+        self._programar_selector_color_contextual(
+            espera=ESPERA_SELECTOR_COLOR_TEXTO,
+            firma=self._firma_seleccion_resaltado,
+        )
+
+    def _firma_evento_seleccion(self, evento, verso, texto):
+        seleccion = getattr(evento, "selection", None)
+        try:
+            inicio = min(int(seleccion.base_offset), int(seleccion.extent_offset))
+            fin = max(int(seleccion.base_offset), int(seleccion.extent_offset))
+        except (AttributeError, TypeError, ValueError):
+            inicio = None
+            fin = None
+        return (id(getattr(evento, "control", None)), verso, texto, inicio, fin)
 
     def _seleccion_final_del_evento(self, evento):
         """Acepta solo el rango final contenido por completo en un versiculo."""
@@ -2546,25 +2565,37 @@ class BibliaView:
                 return rango["verso"], texto
         return None
 
-    def _programar_selector_color_contextual(self, objetivos=None):
+    def _programar_selector_color_contextual(self, objetivos=None, espera=None, firma=None):
         if self._solo_lectura() or not self._puede("biblia_color"):
             return
 
         self._version_seleccion_resaltado += 1
         version = self._version_seleccion_resaltado
         objetivos_programados = None if objetivos is None else set(objetivos)
+        espera = (
+            ESPERA_SELECTOR_COLOR_OBJETIVO
+            if espera is None and objetivos_programados is not None
+            else ESPERA_SELECTOR_COLOR_TEXTO
+            if espera is None
+            else espera
+        )
         try:
             self.page.run_task(
                 self._mostrar_selector_color_contextual_diferido,
                 version,
                 objetivos_programados,
+                espera,
+                firma,
             )
         except (RuntimeError, AssertionError, AttributeError):
-            self._mostrar_selector_color_contextual(objetivos_programados)
+            if objetivos_programados is not None:
+                self._mostrar_selector_color_contextual(objetivos_programados)
 
-    async def _mostrar_selector_color_contextual_diferido(self, version, objetivos):
-        await asyncio.sleep(ESPERA_SELECTOR_COLOR_TEXTO)
+    async def _mostrar_selector_color_contextual_diferido(self, version, objetivos, espera, firma):
+        await asyncio.sleep(espera)
         if version != self._version_seleccion_resaltado:
+            return
+        if firma is not None and firma != self._firma_seleccion_resaltado:
             return
         self._mostrar_selector_color_contextual(objetivos)
 
@@ -2686,6 +2717,7 @@ class BibliaView:
         self.resaltados[clave] = actuales
         self._programar_guardado_resaltados()
         self.seleccion_texto_resaltado = None
+        self._firma_seleccion_resaltado = None
         self.verso_seleccionado = None
         self._refrescar_lectura_colores({verso})
         return True
@@ -2736,6 +2768,7 @@ class BibliaView:
                 self.resaltados.pop(clave, None)
         self._programar_guardado_resaltados()
         self.seleccion_texto_resaltado = None
+        self._firma_seleccion_resaltado = None
         self.verso_seleccionado = None
         self._refrescar_lectura_colores({verso})
         return True
@@ -5170,6 +5203,7 @@ class BibliaView:
 
     def marcar_para_colorear(self, clave, mensaje="Seleccione un resaltado."):
         self.seleccion_texto_resaltado = None
+        self._firma_seleccion_resaltado = None
         self._alternar_objetivo_color(clave, mensaje)
         self.objetivos_color = {clave}
         self.objetivo_color = clave
