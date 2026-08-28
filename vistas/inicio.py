@@ -3,14 +3,12 @@ from ui.responsive_layout import ResponsiveLayout
 import flet as ft
 from services.codificador_service import CodificadorService
 from services.alfabetos_service import AlfabetosService
-from services.notificacion_service import NotificacionService
+from services.archivo_local_service import ArchivoLocalService
 from vistas.componentes import tarjeta_resultado
 from vistas.detalle import mostrar_detalle_comparacion
-from ui.sidebar import AppSidebar
 from ui.compartir import compartir_texto, descargar_archivo
 from ui.tema import (
     PERLA_BORDE,
-    PERLA_PANEL,
     PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
@@ -48,38 +46,14 @@ class InicioView:
         self.page = page
         self.router = router
         self.historial = state.historial
-        self.guardados = state.guardados
-        self.carpetas = state.carpetas
         self.responsive = Responsive(self.page)
         self.layout = ResponsiveLayout(self.page, self.responsive)
         self.page.on_resize = self._on_resize
-
-        self.carpeta_selector_id = 1
-        self.carpeta_selector_nombre = "TARJETAS"
-        self.carpeta_selector_ruta = "TARJETAS"
-        self.selector_raiz_id = None
-
-        self.selector_expandidas = set()
-        self.selector_arbol = None
-        self.dialog_selector = None
 
         self.codificador_service = CodificadorService()
         self.motor = self.codificador_service.motor
         self.crear_controles()
         state.bind(self._on_state_change)
-        self.sidebar = AppSidebar(
-            self.page,
-            self.responsive,
-            self.build_sidebar_content,
-            self.router,
-        )
-        self.selector_carpeta = ft.TextField(
-            label="Destino",
-            value="TARJETAS",
-            expand=True,
-            read_only=True,
-        )
-        bus.subscribe("guardados_updated", self._on_guardados_update)
         bus.subscribe("historial_updated", self._on_historial_update)
 
     # =======================================
@@ -88,159 +62,13 @@ class InicioView:
     def _on_resize(self, e):
         self.router.refrescar()
 
-    def toggle_sidebar(self, e=None):
-        self.sidebar_visible = not self.sidebar_visible
-        self.page.update()
-
     def get_page(self):
         return self.page
-
-    # ======================================
-    # F() CONSTRUIR RAMA SELECTOR
-    # ======================================
-    def _construir_selector_rama(self, lista, padre=None, nivel=0):
-        hijos = self.carpetas.obtener_hijos(padre)
-        for carpeta in hijos:
-            lista.controls.append(self.crear_item_selector(carpeta, nivel))
-            if carpeta["id"] in self.selector_expandidas:
-                self._construir_selector_rama(lista, carpeta["id"], nivel + 1)
-
-    # ======================================
-    # F() CREAR SELECTOR ARBOL
-    # ======================================
-    def crear_selector_arbol(self):
-        lista = ft.ListView(
-            expand=True,
-            spacing=2,
-            padding=ft.Padding(left=0, top=0, right=12, bottom=0),
-        )
-
-        raiz_id = getattr(self, "selector_raiz_id", None)
-
-        if raiz_id:
-            raiz = self.carpetas.obtener_por_id(raiz_id)
-            if raiz:
-                lista.controls.append(self.crear_item_selector(raiz, 0))
-                if raiz["id"] in self.selector_expandidas:
-                    self._construir_selector_rama(lista, raiz["id"], 1)
-        else:
-            self._construir_selector_rama(lista)
-
-        return lista
-
-    # ======================================
-    # F() CREAR ITEM SELECTOR
-    # ======================================
-    def crear_item_selector(self, carpeta, nivel=0):
-        seleccionado = (
-            self.carpeta_selector_id is not None
-            and self.carpeta_selector_id == carpeta["id"]
-        )
-
-        flecha = (
-            ft.Icons.KEYBOARD_ARROW_DOWN
-            if carpeta["id"] in self.selector_expandidas
-            else ft.Icons.KEYBOARD_ARROW_RIGHT
-        )
-
-        return ft.Container(
-            content=ft.Container(
-                padding=ft.Padding(
-                    left=10 + (nivel * 20),
-                    top=4,
-                    bottom=4,
-                    right=5,
-                ),
-                bgcolor=(
-                    ft.Colors.with_opacity(0.15, ft.Colors.BLUE)
-                    if seleccionado
-                    else None
-                ),
-                border_radius=6,
-                content=ft.Row(
-                    spacing=5,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        ft.GestureDetector(
-                            mouse_cursor=ft.MouseCursor.CLICK,
-                            on_tap=lambda e: self.expandir_selector(carpeta["id"]),
-                            content=ft.Icon(flecha, size=18),
-                        ),
-                        ft.GestureDetector(
-                            mouse_cursor=ft.MouseCursor.CLICK,
-                            on_tap=lambda e: self.seleccionar_selector(carpeta),
-                            on_double_tap=lambda e: (
-                                self.seleccionar_selector(carpeta),
-                                self.expandir_selector(carpeta["id"]),
-                            ),
-                            content=ft.Row(
-                                tight=True,
-                                spacing=5,
-                                controls=[
-                                    ft.Icon(
-                                        ft.Icons.FOLDER,
-                                        color=ft.Colors.YELLOW_700,
-                                        size=20,
-                                    ),
-                                    ft.Text(
-                                        carpeta["nombre"],
-                                        weight=(
-                                            ft.FontWeight.BOLD if seleccionado else None
-                                        ),
-                                    ),
-                                ],
-                            ),
-                        ),
-                    ],
-                ),
-            ),
-        )
-
-    # ======================================
-    # F() EXPANDIR SELECTOR
-    # ======================================
-    def expandir_selector(self, id_carpeta):
-        if id_carpeta in self.selector_expandidas:
-            self.selector_expandidas.remove(id_carpeta)
-        else:
-            self.selector_expandidas.add(id_carpeta)
-
-        if self.dialog_selector and self.dialog_selector.open:
-            self.dialog_selector.content = ft.Container(
-                width=350,
-                height=450,
-                content=self.crear_selector_arbol(),
-            )
-
-        self.page.update()
-
-    # ======================================
-    # F() SELECCIONAR SELECTOR
-    # ======================================
-    def seleccionar_selector(self, carpeta):
-        ruta = self.carpetas.obtener_ruta(carpeta["id"])
-        self.carpeta_selector_id = carpeta["id"]
-        self.carpeta_selector_nombre = carpeta["nombre"]
-        self.carpeta_selector_ruta = " > ".join(c["nombre"] for c in ruta)
-        self.selector_carpeta.value = self.carpeta_selector_ruta
-
-        if self.dialog_selector and self.dialog_selector.open:
-            self.dialog_selector.content = ft.Container(
-                width=350,
-                height=450,
-                content=self.crear_selector_arbol(),
-            )
-
-        self.page.update()
 
     # =====================================================
     # CREAR CONTROLES
     # =====================================================
     def crear_controles(self):
-        self.btn_menu = ft.IconButton(
-            icon=ft.Icons.MENU,
-            on_click=lambda e: self.sidebar.toggle(),
-        )
         self.referencias_inicio = ft.Row(
             tight=True,
             spacing=8,
@@ -309,7 +137,7 @@ class InicioView:
         )
 
         self.boton = ft.ElevatedButton(
-            "DECODIFICAR",
+            "CODIFICAR",
             width=250,
             height=45,
             icon=ft.Icons.PLAY_ARROW,
@@ -348,23 +176,6 @@ class InicioView:
             text_align=ft.TextAlign.CENTER,
         )
 
-        panel_arbol = self.crear_selector_arbol()
-        self.panel_izquierdo = ft.Container(
-            width=300,
-            padding=10,
-            bgcolor=PERLA_PANEL,
-            content=ft.Column(
-                expand=True,
-                spacing=0,
-                controls=[panel_arbol],
-            ),
-        )
-
-        self.selector_arbol = ft.ListView(
-            expand=True,
-            spacing=2,
-            padding=ft.Padding(left=0, top=0, right=12, bottom=0),
-        )
 
     def _tarjeta_visual(self, content, padding=20, expand=False):
         return ft.Container(
@@ -886,138 +697,24 @@ class InicioView:
     # CONFIRMAR GUARDADO
     # =====================================================
     def confirmar_guardado(self, registro):
-        es_movil = self.responsive.is_mobile()
-        destino = self.carpetas.obtener_por_nombre("TARJETAS")
-        self.carpeta_selector_id = destino["id"] if destino else 1
-        self.carpeta_selector_nombre = "TARJETAS"
-        self.carpeta_selector_ruta = "TARJETAS"
-        self.selector_raiz_id = destino["id"] if destino else 1
-
-        self.selector_expandidas.clear()
-        self.selector_expandidas.add(self.selector_raiz_id)
-        self.selector_carpeta = ft.TextField(
-            label="Destino",
-            value=self.carpeta_selector_ruta,
-            expand=True,
-            read_only=True,
+        texto = "\n".join(
+            [
+                "CODIGO ESCONDIDO 19",
+                "",
+                f"Modo: {registro.get('modo_codificacion', 'Texto a numeros')}",
+                f"Entrada: {registro.get('palabra', '')}",
+                f"Alfabeto: {registro.get('alfabeto', '')}",
+                f"Detalle: {registro.get('suma', '')}",
+                f"Resultado: {registro.get('resultado', '')}",
+            ]
         )
-
-        nombre = ft.TextField(
-            label="Nombre",
-            hint_text="Ej: Apocalipsis 13:18",
-            autofocus=False,
-            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        nombre = registro.get("palabra") or "codigo-escondido-19"
+        ArchivoLocalService.guardar_texto(
+            self.page,
+            texto,
+            nombre,
+            "Guardar codificacion en el dispositivo",
         )
-        guardando = {"valor": False}
-
-        def abrir_selector():
-            arbol = self.crear_selector_arbol()
-            self.dialog_selector.content = ft.Container(
-                width=320 if self.responsive.is_mobile() else 350,
-                height=280 if self.responsive.is_mobile() else 450,
-                content=arbol,
-            )
-            self.dialog_selector.open = True
-            self.page.update()
-
-        def cerrar(e):
-            dialog.open = False
-            self.page.update()
-
-        def guardar(e):
-            if guardando["valor"]:
-                return
-
-            guardando["valor"] = True
-            nuevo_registro = registro.copy()
-            nuevo_registro["nombre"] = nombre.value
-            nuevo_registro["tipo"] = "tarjeta"
-            if registro.get("subtipo"):
-                nuevo_registro["subtipo"] = registro.get("subtipo")
-            carpeta_destino = self.carpetas.obtener_por_id(self.carpeta_selector_id) or destino
-
-            try:
-                if carpeta_destino:
-                    nuevo_registro["carpeta"] = carpeta_destino["nombre"]
-                    nuevo_registro["carpeta_id"] = carpeta_destino["id"]
-                else:
-                    nuevo_registro["carpeta"] = "TARJETAS"
-                    nuevo_registro["carpeta_id"] = 1
-
-                self.guardados.guardar(nuevo_registro)
-                self.carpeta_selector_id = destino["id"] if destino else 1
-                self.carpeta_selector_nombre = "TARJETAS"
-                self.carpeta_selector_ruta = "TARJETAS"
-                self.selector_carpeta.value = "TARJETAS"
-                self.selector_raiz_id = destino["id"] if destino else 1
-                self.selector_expandidas.clear()
-
-                dialog.open = False
-                self.resultado_actual.controls.clear()
-                self.page.update()
-                NotificacionService.exito(self.page, "Guardado correctamente.")
-            except Exception as error:
-                guardando["valor"] = False
-                NotificacionService.error(self.page, f"No se pudo guardar: {error}")
-
-        nombre.on_submit = guardar
-
-        def cerrar_selector():
-            self.dialog_selector.open = False
-            self.page.update()
-
-        def confirmar_selector():
-            if self.carpeta_selector_ruta:
-                self.selector_carpeta.value = self.carpeta_selector_ruta
-            self.dialog_selector.open = False
-            self.page.update()
-
-        self.dialog_selector = ft.AlertDialog(
-            title=ft.Text("Seleccionar carpeta"),
-            actions=[
-                ft.TextButton("Cancelar", on_click=lambda e: cerrar_selector()),
-                ft.ElevatedButton("Seleccionar", on_click=lambda e: confirmar_selector()),
-            ],
-        )
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Guardar resultado"),
-            content=ft.Container(
-                width=320 if es_movil else 420,
-                content=ft.Column(
-                    tight=True,
-                    spacing=10,
-                    controls=[
-                        ft.Text(registro["palabra"], no_wrap=False),
-                        nombre,
-                        ft.Row(
-                            spacing=8,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                self.selector_carpeta,
-                                ft.IconButton(
-                                    icon=ft.Icons.FOLDER_OPEN,
-                                    tooltip="Elegir carpeta",
-                                    on_click=lambda e: abrir_selector(),
-                                ),
-                            ],
-                        ),
-                    ],
-                ),
-            ),
-            actions_alignment=ft.MainAxisAlignment.END,
-            actions=[
-                ft.TextButton("Cancelar", on_click=cerrar),
-                ft.ElevatedButton("Guardar", on_click=guardar),
-            ],
-        )
-
-        if dialog not in self.page.overlay:
-            self.page.overlay.append(dialog)
-        if self.dialog_selector not in self.page.overlay:
-            self.page.overlay.append(self.dialog_selector)
-        dialog.open = True
-        self.page.update()
 
     # ======================================================
     # OCULTAR MENSAJE
@@ -1029,18 +726,6 @@ class InicioView:
         except RuntimeError:
             pass
 
-    def build_sidebar_content(self):
-        return ft.Column(
-            expand=True,
-            controls=[
-                ft.Container(
-                    padding=10,
-                    content=ft.Text("CARPETAS", weight=ft.FontWeight.BOLD),
-                ),
-                ft.Container(expand=True, content=self.crear_selector_arbol()),
-            ],
-        )
-
     def _on_state_change(self, event=None):
         if event == "update":
             if hasattr(self, "resultado_actual"):
@@ -1048,9 +733,6 @@ class InicioView:
                 self.page.update()
             return
         self.page.update()
-
-    def _on_guardados_update(self, data):
-        self.resultado_actual.update()
 
     def _on_historial_update(self, data):
         self.page.update()

@@ -2,6 +2,7 @@ import flet as ft
 
 APP_NAME = "CODIGO ESCONDIDO 19"
 APP_VERSION = "1.9"
+APP_UPDATE_DATE = "2026-08-28"
 ESTRELLA_ICONO = "icon.png"
 
 # Paleta obligatoria del proyecto

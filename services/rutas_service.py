@@ -15,7 +15,6 @@ class RutasService:
         "biblia",
         "tiempo",
         "calculadora",
-        "guardados",
         "ajustes",
     ]
     ORDEN_NAVEGACION = [
@@ -30,7 +29,6 @@ class RutasService:
         "biblia": {"label": "Biblia", "icon": ft.Icons.BOOK},
         "tiempo": {"label": "Tiempo", "icon": ft.Icons.SCHEDULE},
         "calculadora": {"label": "Calc", "icon": ft.Icons.CALCULATE},
-        "guardados": {"label": "Guardados", "icon": ft.Icons.SAVE},
         "ajustes": {"label": "Ajustes", "icon": ft.Icons.SETTINGS},
     }
 

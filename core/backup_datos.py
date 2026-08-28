@@ -5,61 +5,33 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from core.rutas import carpeta_datos_usuario
 
-ARCHIVOS_DATOS = [
-    "guardados.json",
-    "carpetas.json",
-    "config_tiempo.json",
-    "analisis_colores_historial.json",
-    "biblia_ultima_lectura.json",
-    "ultima_lectura_biblia.json",
-    "resaltados_biblia.json",
-    "biblia_resaltados.json",
-    "datos/guardados.json",
-    "datos/carpetas.json",
-    "datos/config_tiempo.json",
-    "datos/analisis_colores_historial.json",
-    "datos/biblia_ultima_lectura.json",
-    "datos/ultima_lectura_biblia.json",
-    "datos/resaltados_biblia.json",
-    "datos/biblia_resaltados.json",
-]
+CARPETAS_EXCLUIDAS = {"backups", "updates"}
 
 
-def _raiz_proyecto() -> Path:
-    return Path.cwd()
-
-
-def _asegurar_json_valido(ruta: Path) -> bool:
-    if not ruta.exists() or not ruta.is_file():
-        return False
-
-    if ruta.suffix.lower() != ".json":
-        return True
-
-    try:
-        with ruta.open("r", encoding="utf-8") as archivo:
-            json.load(archivo)
-        return True
-    except Exception:
-        # Si el JSON está dañado, igual lo copiamos para no perderlo.
-        return True
+def _raiz_datos() -> Path:
+    return carpeta_datos_usuario()
 
 
 def archivos_existentes() -> list[Path]:
-    raiz = _raiz_proyecto()
-    encontrados = []
+    raiz = _raiz_datos()
+    if not raiz.exists():
+        return []
 
-    for relativo in ARCHIVOS_DATOS:
-        ruta = raiz / relativo
-        if _asegurar_json_valido(ruta):
-            encontrados.append(ruta)
-
-    return encontrados
+    return sorted(
+        ruta
+        for ruta in raiz.rglob("*")
+        if ruta.is_file()
+        and not any(
+            parte.lower() in CARPETAS_EXCLUIDAS
+            for parte in ruta.relative_to(raiz).parts[:-1]
+        )
+    )
 
 
 def crear_backup_datos(motivo: str = "manual") -> dict:
-    raiz = _raiz_proyecto()
+    raiz = _raiz_datos()
     archivos = archivos_existentes()
     ahora = datetime.now().strftime("%Y%m%d_%H%M%S")
     nombre = f"backup_{motivo}_{ahora}"
@@ -90,7 +62,7 @@ def crear_backup_datos(motivo: str = "manual") -> dict:
 
 
 def crear_backup_inicio() -> dict | None:
-    raiz = _raiz_proyecto()
+    raiz = _raiz_datos()
     hoy = datetime.now().strftime("%Y%m%d")
     carpeta_backups = raiz / "backups"
 
@@ -108,7 +80,7 @@ def crear_backup_inicio() -> dict | None:
 
 def listar_backups(limite: int = 20) -> list[dict]:
     """Devuelve los backups disponibles, del más reciente al más antiguo."""
-    raiz = _raiz_proyecto()
+    raiz = _raiz_datos()
     carpeta_backups = raiz / "backups"
 
     if not carpeta_backups.exists():
@@ -156,7 +128,7 @@ def listar_backups(limite: int = 20) -> list[dict]:
 
 def restaurar_backup(carpeta_backup: str | Path, crear_respaldo_actual: bool = True) -> dict:
     """Restaura los archivos de datos desde una carpeta de backup."""
-    raiz = _raiz_proyecto()
+    raiz = _raiz_datos()
     carpeta = Path(carpeta_backup)
 
     if not carpeta.is_absolute():

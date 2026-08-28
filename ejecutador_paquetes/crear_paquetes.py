@@ -19,20 +19,20 @@ def _python():
     return PYTHON if PYTHON.exists() else Path(sys.executable)
 
 
-def _version_app():
+def _valor_tema(nombre, predeterminado):
     tema = ROOT / "ui" / "tema.py"
     try:
         arbol = ast.parse(tema.read_text(encoding="utf-8"))
         for nodo in arbol.body:
             if (
                 isinstance(nodo, ast.Assign)
-                and any(getattr(objetivo, "id", None) == "APP_VERSION" for objetivo in nodo.targets)
+                and any(getattr(objetivo, "id", None) == nombre for objetivo in nodo.targets)
                 and isinstance(nodo.value, ast.Constant)
             ):
                 return str(nodo.value.value)
     except Exception:
         pass
-    return "1.9"
+    return predeterminado
 
 
 def _entorno():
@@ -97,9 +97,11 @@ def main():
             return codigo
 
     print("\n=== Paquetes finalizados ===")
-    version = _version_app()
-    print(f"Android: {ROOT / f'CODIGO-ESCONDIDO-19-Android-v{version}.apk'}")
-    print(f"Windows: {ROOT / f'CODIGO-ESCONDIDO-19-Windows-v{version}.zip'}")
+    version = _valor_tema("APP_VERSION", "1.9")
+    fecha = _valor_tema("APP_UPDATE_DATE", "2026-08-28")
+    print(f"Version final: {version} | Fecha de actualizacion: {fecha}")
+    print(f"Android: {ROOT / f'CODIGO-ESCONDIDO-19-Android-{fecha}.apk'}")
+    print(f"Windows: {ROOT / f'CODIGO-ESCONDIDO-19-Windows-{fecha}.zip'}")
     return 0
 
 

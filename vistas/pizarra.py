@@ -5,15 +5,13 @@ import math
 import flet as ft
 import flet.canvas as cv
 
-from core.app_state import state
 from logica.pizarra_imagen import renderizar_lienzo_exportable_base64
+from services.archivo_local_service import ArchivoLocalService
 from ui.clipboard import copiar_al_portapapeles
-from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.tema import (
     AZUL,
     PERLA_BORDE,
-    PERLA_PANEL,
     PERLA_PURPURA,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
@@ -2678,55 +2676,22 @@ class PizarraView:
             return
 
         nombre_sugerido = self.lienzos[self.lienzo_actual].get("nombre", "Pizarra")
-        pedir_nombre_y_carpeta_guardado(
-            self.page,
-            "Guardar pizarra",
-            nombre_sugerido,
-            state.carpetas,
-            "PIZARRAS",
-            self._guardar_pizarra_con_nombre,
-            "La pizarra se guardara como imagen en PIZARRAS.",
-        )
-
-    def _guardar_pizarra_con_nombre(self, nombre, carpeta=None):
         lienzo = self._lienzo_compacto_para_guardar(
             self.lienzos[self.lienzo_actual]
         )
-        lienzo["nombre"] = nombre
-        self.lienzos[self.lienzo_actual]["nombre"] = nombre
+        lienzo["nombre"] = nombre_sugerido
         imagen = renderizar_lienzo_exportable_base64(lienzo)
         imagen_base64 = imagen.get("base64")
-        destino = carpeta or state.carpetas.obtener_por_nombre("PIZARRAS")
-        registro = {
-            "tipo": "pizarra",
-            "carpeta": destino["nombre"] if destino else "PIZARRAS",
-            "carpeta_id": destino["id"] if destino else 2,
-            "nombre": nombre,
-            "palabra": nombre,
-            "referencia": "Pizarra guardada",
-            "alfabeto": "",
-            "suma": "",
-            "resultado": len(lienzo["objetos"]),
-            "contenido": lienzo,
-        }
-
-        if imagen_base64:
-            registro["imagen_base64"] = imagen_base64
-            registro["imagen_mime"] = imagen.get("mime", "image/jpeg")
-            registro["imagen_extension"] = imagen.get("extension", "jpg")
-        else:
-            captura = self._capturar_lienzo_base64()
-
-            if captura:
-                registro["imagen_base64"] = captura
-
-        state.guardados.guardar(registro)
-        ruta = (
-            state.carpetas.obtener_ruta_texto(destino["id"])
-            if destino
-            else "PIZARRAS"
+        if not imagen_base64:
+            self._mostrar_mensaje("No se pudo preparar la imagen de la pizarra.")
+            return
+        ArchivoLocalService.guardar_bytes(
+            self.page,
+            base64.b64decode(imagen_base64),
+            nombre_sugerido,
+            imagen.get("extension", "jpg"),
+            "Guardar pizarra en el dispositivo",
         )
-        self._confirmar_guardado(f"Pizarra guardada correctamente en {ruta}.")
 
     def _lienzo_compacto_para_guardar(self, lienzo):
         compacto = copy.deepcopy(lienzo)
@@ -2783,20 +2748,3 @@ class PizarraView:
             return base64.b64encode(captura).decode("ascii")
         except Exception:
             return None
-
-    def _confirmar_guardado(self, mensaje):
-        def cerrar(e=None):
-            dialog.open = False
-            self.page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Guardado correctamente"),
-            content=ft.Text(mensaje),
-            actions=[
-                ft.ElevatedButton("Aceptar", on_click=cerrar),
-            ],
-        )
-
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()

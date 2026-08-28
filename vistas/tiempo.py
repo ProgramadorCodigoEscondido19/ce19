@@ -3,7 +3,7 @@ from datetime import datetime
 
 import flet as ft
 
-from core.app_state import state
+from services.archivo_local_service import ArchivoLocalService
 from logica.calendario_360 import (
     BASE_ANIO,
     MESES_360,
@@ -19,7 +19,6 @@ from logica.exportar_calendario import (
     exportar_almanaque_pdf,
     exportar_almanaque_xlsx,
 )
-from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.responsive import Responsive
 from ui.tema import (
@@ -27,7 +26,6 @@ from ui.tema import (
     DORADO,
     MARRON,
     PERLA_BORDE,
-    PERLA_PANEL,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
@@ -3145,21 +3143,6 @@ class TiempoView:
             f"Tiempo {datos['anio']} {datos['mes']} "
             f"{datos['dia_mes']:02d} {datos['hora_texto']}"
         )
-        pedir_nombre_y_carpeta_guardado(
-            self.page,
-            "Guardar tiempo",
-            nombre_sugerido,
-            state.carpetas,
-            "TIEMPO",
-            lambda nombre, carpeta: self._guardar_tiempo_con_nombre(
-                nombre,
-                datos,
-                carpeta,
-            ),
-            "Se guardara en la carpeta TIEMPO.",
-        )
-
-    def _guardar_tiempo_con_nombre(self, nombre, datos, carpeta=None):
         contenido = {
             clave: valor
             for clave, valor in datos.items()
@@ -3167,40 +3150,10 @@ class TiempoView:
         }
         contenido["fecha_real_iso"] = datos["fecha_real"].isoformat()
         contenido["base_real_iso"] = datos["base_real"].isoformat()
-        texto = texto_calendario_360(datos)
-        destino = carpeta or state.carpetas.obtener_por_nombre("TIEMPO")
-
-        state.guardados.guardar(
-            {
-                "tipo": "tiempo",
-                "carpeta": destino["nombre"] if destino else "TIEMPO",
-                "carpeta_id": destino["id"] if destino else 5,
-                "nombre": nombre,
-                "palabra": nombre,
-                "referencia": datos["fecha_real_texto"],
-                "alfabeto": "",
-                "suma": texto,
-                "resultado": str(datos["anio"]),
-                "contenido": contenido,
-            }
+        contenido["resumen"] = texto_calendario_360(datos)
+        ArchivoLocalService.guardar_json(
+            self.page,
+            contenido,
+            nombre_sugerido,
+            "Guardar tiempo en el dispositivo",
         )
-        ruta = (
-            state.carpetas.obtener_ruta_texto(destino["id"])
-            if destino
-            else "TIEMPO"
-        )
-        self._confirmacion(f"Tiempo guardado correctamente en {ruta}.")
-
-    def _confirmacion(self, mensaje):
-        def cerrar(e=None):
-            cerrar_dialogo(self.page, dialog)
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Guardado correctamente"),
-            content=ft.Text(mensaje),
-            actions=[
-                ft.ElevatedButton("Aceptar", on_click=cerrar),
-            ],
-        )
-
-        mostrar_dialogo(self.page, dialog)

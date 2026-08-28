@@ -3,8 +3,6 @@ class AppState:
         self._listeners = []
 
         self.historial = None
-        self.guardados = None
-        self.carpetas = None
 
     def bind(self, callback):
         if callback not in self._listeners:

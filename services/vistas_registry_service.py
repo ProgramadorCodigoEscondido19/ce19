@@ -9,7 +9,7 @@ class VistasRegistryService:
     @staticmethod
     def registrar_todas(router, page):
         # Cada vista se importa y se crea solo cuando el usuario la abre.
-        # Esto evita que Biblia, Pizarra y Guardados hagan pesado el arranque.
+        # Esto evita que Biblia y Pizarra hagan pesado el arranque.
         def crear_inicio():
             from vistas.inicio import InicioView
             return InicioView(page, router)
@@ -34,10 +34,6 @@ class VistasRegistryService:
             from vistas.calculadora import CalculadoraView
             return CalculadoraView(page, router)
 
-        def crear_guardados():
-            from vistas.guardados import GuardadosView
-            return GuardadosView(page, router)
-
         def crear_ajustes():
             from vistas.ajustes import AjustesView
             return AjustesView(page, router)
@@ -49,7 +45,6 @@ class VistasRegistryService:
             "biblia": crear_biblia,
             "tiempo": crear_tiempo,
             "calculadora": crear_calculadora,
-            "guardados": crear_guardados,
             "ajustes": crear_ajustes,
         }
 

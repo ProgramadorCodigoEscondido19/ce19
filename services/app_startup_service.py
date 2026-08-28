@@ -5,8 +5,6 @@ import traceback
 import flet as ft
 
 from core.app_state import state
-from logica.carpetas import Carpetas
-from logica.guardados import Guardados
 from logica.historial import Historial
 from ui.tema import APP_NAME, APP_VERSION, FONDO_APP, PERLA_PANEL, PERLA_PURPURA, PURPURA_IOS, icono_estrella
 from services.rutas_service import RutasService
@@ -64,8 +62,6 @@ class AppStartupService:
     @staticmethod
     def inicializar_estado(page=None):
         state.historial = Historial(page=page)
-        state.guardados = Guardados(page=page)
-        state.carpetas = Carpetas(state.guardados, page=page)
         return state
 
     @staticmethod

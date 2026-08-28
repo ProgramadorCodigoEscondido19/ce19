@@ -6,7 +6,7 @@ from services.app_paths import AppPaths
 from services.app_startup_service import AppStartupService
 from services.permisos_service import PermisosService
 from ui.intro import construir_intro
-from ui.tema import APP_NAME, APP_VERSION, DORADO, PERLA_PANEL, PURPURA_INICIAL, PURPURA_IOS, icono_estrella
+from ui.tema import APP_NAME, DORADO, PERLA_PANEL, PURPURA_INICIAL, PURPURA_IOS, icono_estrella
 
 
 FONDO_REGION_MARRON = "#5F3A2C"
@@ -206,12 +206,6 @@ def main(page: ft.Page):
     root = ft.Container(expand=True, clip_behavior=ft.ClipBehavior.HARD_EDGE)
     page.add(root)
 
-    # Los archivos locales no sobreviven a una recarga de GitHub Pages. Estas
-    # preferencias mantienen el acceso por nivel recordado en el navegador.
-    preferencias_web = ft.SharedPreferences()
-    page.services.append(preferencias_web)
-    CLAVE_WEB_NIVELES = "ce19.niveles_autorizados.v1"
-
     app_iniciada = {"valor": False}
     selector_niveles_activo = {"valor": False}
     router_actual = {"valor": None}
@@ -220,29 +214,9 @@ def main(page: ft.Page):
     idioma_seleccionado = {"valor": region_guardada.get("idioma", "")}
     continente_seleccionado = {"valor": None}
 
+    # Un equipo nuevo comienza sin accesos. Los niveles que el usuario decide
+    # recordar se recuperan desde la carpeta local de datos del dispositivo.
     PermisosService.establecer_niveles_sesion(PermisosService.niveles_autorizados())
-
-    async def cargar_preferencias_web():
-        """Carga los datos persistentes del navegador al iniciar la app web."""
-        try:
-            niveles = await preferencias_web.get(CLAVE_WEB_NIVELES)
-            if isinstance(niveles, list):
-                PermisosService.establecer_niveles_sesion(niveles)
-
-        except Exception:
-            # La app sigue funcionando con el respaldo local en plataformas
-            # que no ofrezcan preferencias persistentes.
-            return
-
-        if selector_niveles_activo["valor"]:
-            mostrar_selector_niveles()
-
-    async def guardar_niveles_web():
-        try:
-            niveles = [str(nivel) for nivel in sorted(PermisosService.niveles_autorizados())]
-            await preferencias_web.set(CLAVE_WEB_NIVELES, niveles)
-        except Exception:
-            pass
 
     def iniciar_app(nivel=4):
         if app_iniciada["valor"]:
@@ -741,6 +715,13 @@ def main(page: ft.Page):
             altura_tarjeta = 154 if ventana_baja else (176 if es_movil else 198)
             alto_imagen = 72 if ventana_baja else (86 if es_movil else 108)
 
+            estado_acceso = ft.Text(
+                "Ingreso habilitado" if autorizado else "Solicita clave para ingresar",
+                size=9 if es_movil else 10,
+                color="#E7D3A0" if autorizado else "#BDAE91",
+                text_align=ft.TextAlign.CENTER,
+            )
+
             casilla = ft.Container(
                 width=16,
                 height=16,
@@ -751,25 +732,12 @@ def main(page: ft.Page):
                 content=ft.Icon(ft.Icons.CHECK, size=12, color="#15110A") if autorizado else None,
             )
 
-            estado_acceso = ft.Text(
-                "Ingreso habilitado" if autorizado else "Solicita clave la primera vez",
-                size=9 if es_movil else 10,
-                color="#E7D3A0" if autorizado else "#BDAE91",
-                text_align=ft.TextAlign.CENTER,
-            )
-
-            def alternar_guardar_acceso(ev=None):
-                if PermisosService.esta_autorizado(nivel):
+            def alternar_acceso_recordado(ev=None):
+                if autorizado:
                     PermisosService.revocar(nivel)
-                    page.run_task(guardar_niveles_web)
-                    casilla.bgcolor = ft.Colors.TRANSPARENT
-                    casilla.border = ft.Border.all(1.4, "#6E6251")
-                    casilla.content = None
-                    estado_acceso.value = "Solicitara clave al ingresar"
-                else:
-                    pedir_clave(nivel)
+                    mostrar_selector_niveles()
                     return
-                page.update()
+                pedir_clave(nivel)
 
             return ft.Container(
                 expand=True,
@@ -804,7 +772,7 @@ def main(page: ft.Page):
                                         height=alto_imagen,
                                         padding=4,
                                         border_radius=10,
-                                        bgcolor=CHOCOLATE_NIVEL_OSCURO,
+                                        bgcolor=estilo["fondo"],
                                         border=ft.Border.all(1, ft.Colors.with_opacity(0.86, estilo["borde"])),
                                         alignment=ft.Alignment(0, 0),
                                         clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
@@ -812,6 +780,8 @@ def main(page: ft.Page):
                                             src=estilo["imagen"],
                                             height=alto_imagen - 8,
                                             fit=ft.BoxFit.CONTAIN,
+                                            color=estilo["fondo"],
+                                            color_blend_mode=ft.BlendMode.LIGHTEN,
                                         ),
                                     ),
                                     ft.Text(
@@ -830,7 +800,7 @@ def main(page: ft.Page):
                             border_radius=6,
                             bgcolor=CHOCOLATE_NIVEL_PANEL,
                             border=ft.Border.all(1, ft.Colors.with_opacity(0.32, estilo["borde"])),
-                            on_click=alternar_guardar_acceso,
+                            on_click=alternar_acceso_recordado,
                             alignment=ft.Alignment(0, 0),
                             content=ft.Row(
                                 tight=True,
@@ -839,7 +809,7 @@ def main(page: ft.Page):
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                 controls=[
                                     casilla,
-                                    ft.Text("Guardar acceso", size=10, color="#EAD7A7"),
+                                    ft.Text("Recordar acceso", size=10, color="#EAD7A7"),
                                 ],
                             ),
                         ),
@@ -864,18 +834,14 @@ def main(page: ft.Page):
                 on_submit=lambda ev: confirmar_clave(),
             )
             guardar_clave = ft.Checkbox(
-                label="Guardar contraseña en este dispositivo",
-                value=False,
+                label="Recordar acceso en este dispositivo",
+                value=True,
             )
             error = ft.Text("", color=ft.Colors.RED, size=12, visible=False)
 
             def confirmar_clave(ev=None):
                 if PermisosService.validar_clave(nivel, clave.value or ""):
-                    if guardar_clave.value:
-                        PermisosService.autorizar(nivel, guardar=True)
-                    else:
-                        PermisosService.revocar(nivel)
-                    page.run_task(guardar_niveles_web)
+                    PermisosService.autorizar(nivel, guardar=bool(guardar_clave.value))
                     iniciar_app(nivel)
                     return
                 error.value = "La clave no es correcta."
@@ -905,7 +871,7 @@ def main(page: ft.Page):
                                         controls=[
                                             icono_estrella(46 if ventana_baja else 56),
                                             ft.Text(f"Nivel {nivel}", size=22 if ventana_baja else 24, weight=ft.FontWeight.BOLD),
-                                            ft.Text("Ingrese la clave para habilitar este nivel en el dispositivo.", size=12, text_align=ft.TextAlign.CENTER),
+                                            ft.Text("Ingrese la clave para habilitar este nivel.", size=12, text_align=ft.TextAlign.CENTER),
                                             clave,
                                             guardar_clave,
                                             error,
@@ -985,7 +951,6 @@ def main(page: ft.Page):
         page.update()
 
     try:
-        page.run_task(cargar_preferencias_web)
         intro, iniciar_animacion = construir_intro(page, mostrar_selector_pais)
         root.content = intro
         page.update()

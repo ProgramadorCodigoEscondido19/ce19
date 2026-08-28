@@ -2,7 +2,6 @@ from pathlib import Path
 
 import flet as ft
 
-from core.app_state import state
 from logica.analizador_colores import (
     DIGITO_COLORES,
     analizar_codigo_visual,
@@ -14,10 +13,10 @@ from logica.analizador_colores import (
     valores_terciarios_colores,
 )
 from services.biblia_service import BibliaService
+from services.archivo_local_service import ArchivoLocalService
 from ui.clipboard import copiar_al_portapapeles
 from ui.compartir import compartir_archivo, compartir_texto
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
-from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.teclado import ocultar_teclado
 from ui.tema import (
@@ -877,6 +876,26 @@ class AnalizadorColoresView:
         )
 
     def _panel_analisis_secundario(self):
+        valores = valores_terciarios_colores(self.resultado)
+        total = sum(valores)
+
+        return self._panel_analisis(
+            "ANÁLISIS SECUNDARIO",
+            [
+                ft.Text(
+                    "SUMA DE TODOS LOS NÚMEROS DEL ANÁLISIS PRIMARIO:",
+                    size=self._tam(12, 8),
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXTO_PRINCIPAL,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                self._fila_valores_secundarios(valores),
+                ft.Text("RESULTADO SIN REDUCIR:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(8, 4)),
+            ],
+        )
+
+    def _panel_analisis_terciario(self):
         valores = valores_secundarios_colores(self.resultado)
         total = sum(valores)
         limite_base = 46 if self.responsive.is_mobile() else 82
@@ -896,7 +915,7 @@ class AnalizadorColoresView:
             )
 
         return self._panel_analisis(
-            "ANÁLISIS SECUNDARIO",
+            "ANÁLISIS TERCIARIO",
             [
                 ft.Text("SUMA DE RESULTADOS EN 1 DÍGITO:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, text_align=ft.TextAlign.CENTER),
                 ft.Column(
@@ -905,26 +924,6 @@ class AnalizadorColoresView:
                     spacing=self._tam(6, 3),
                     controls=controles_suma,
                 ),
-                ft.Text("RESULTADO SIN REDUCIR:", size=self._tam(13, 9), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
-                self._digitos_en_fila(total, alineacion=ft.MainAxisAlignment.CENTER, separacion=self._tam(8, 4)),
-            ],
-        )
-
-    def _panel_analisis_terciario(self):
-        valores = valores_terciarios_colores(self.resultado)
-        total = sum(valores)
-
-        return self._panel_analisis(
-            "ANÁLISIS TERCIARIO",
-            [
-                ft.Text(
-                    "SUMA DE TODOS LOS NÚMEROS DEL ANÁLISIS PRIMARIO:",
-                    size=self._tam(12, 8),
-                    weight=ft.FontWeight.BOLD,
-                    color=TEXTO_PRINCIPAL,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                self._fila_valores_secundarios(valores),
                 ft.Text(
                     "RESULTADO SIN REDUCIR:",
                     size=self._tam(13, 9),
@@ -1137,37 +1136,15 @@ class AnalizadorColoresView:
         if not self.resultado:
             self._snack("Primero realiza un análisis.")
             return
-        pedir_nombre_y_carpeta_guardado(
-            self.page,
-            "Guardar tarjeta de colores",
-            self._titulo_resultado(),
-            state.carpetas,
-            "COLORES",
-            self._guardar_resultado_con_nombre,
-            "Se guardará como tarjeta visual dentro de COLORES.",
-        )
-
-    def _guardar_resultado_con_nombre(self, nombre, carpeta=None):
-        destino = carpeta or state.carpetas.obtener_por_nombre("COLORES")
         resumen = self._texto_resumen()
         contenido = self._resultado_para_guardar()
         contenido["texto_compartir"] = resumen
-        state.guardados.guardar(
-            {
-                "tipo": "analisis_colores",
-                "subtipo": "tarjeta_colores",
-                "carpeta": destino["nombre"] if destino else "COLORES",
-                "carpeta_id": destino["id"] if destino else 4,
-                "nombre": nombre,
-                "palabra": nombre or self._titulo_resultado(),
-                "referencia": self._titulo_resultado(),
-                "alfabeto": "Codicolor",
-                "suma": resumen,
-                "resultado": self.resultado.get("resultado_final", ""),
-                "contenido": contenido,
-            }
+        ArchivoLocalService.guardar_json(
+            self.page,
+            contenido,
+            self._titulo_resultado(),
+            "Guardar analisis de colores en el dispositivo",
         )
-        self._confirmacion("Guardado correctamente.")
 
     def _obtener_file_picker_pdf(self):
         if self.file_picker_pdf is not None:
@@ -1401,16 +1378,16 @@ class AnalizadorColoresView:
             self._fila_reduccion_copiado(pasos[indice], pasos[indice + 1], opciones)
             for indice in range(len(pasos) - 1)
         ]
+        suma_terciaria = " + ".join(
+            self._digito_con_color_copiado(valor, opciones)
+            for valor in valores_terciarios
+        )
         suma_secundaria = " + ".join(
             self._digito_con_color_copiado(valor, opciones)
             for valor in valores_secundarios
         )
         if not suma_secundaria:
             suma_secundaria = self._digito_con_color_copiado(0, opciones)
-        suma_terciaria = " + ".join(
-            self._digito_con_color_copiado(valor, opciones)
-            for valor in valores_terciarios
-        )
 
         lineas = [
             "Análisis primario:",
@@ -1423,12 +1400,12 @@ class AnalizadorColoresView:
                 f"Resultado primario: {self._digitos_numero_copiado(final, opciones)}",
                 "",
                 "Análisis secundario:",
-                f"Suma de resultados en 1 dígito: {suma_secundaria}",
-                f"Resultado secundario: {self._digitos_numero_copiado(total_secundario, opciones)}",
+                f"Suma de números del análisis primario: {suma_terciaria}",
+                f"Resultado secundario sin reducir: {self._digitos_numero_copiado(total_terciario, opciones)}",
                 "",
                 "Análisis terciario:",
-                f"Suma de números del análisis primario: {suma_terciaria}",
-                f"Resultado terciario sin reducir: {self._digitos_numero_copiado(total_terciario, opciones)}",
+                f"Suma de resultados en 1 dígito: {suma_secundaria}",
+                f"Resultado terciario: {self._digitos_numero_copiado(total_secundario, opciones)}",
             ]
         )
         return "\n".join(lineas)
@@ -1638,14 +1615,3 @@ class AnalizadorColoresView:
         )
         self.page.snack_bar.open = True
         self.page.update()
-
-    def _confirmacion(self, mensaje):
-        def cerrar(e=None):
-            cerrar_dialogo(self.page, dialog)
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Guardado correctamente"),
-            content=ft.Text(mensaje),
-            actions=[ft.ElevatedButton("Aceptar", on_click=cerrar)],
-        )
-        mostrar_dialogo(self.page, dialog)

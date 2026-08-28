@@ -2,17 +2,15 @@ from decimal import Decimal, InvalidOperation
 
 import flet as ft
 
-from core.app_state import state
+from services.archivo_local_service import ArchivoLocalService
 from services.biblia_service import BibliaService
 from services.calculadora_biblia_service import CalculadoraBibliaService
-from ui.nombre_guardado import pedir_nombre_y_carpeta_guardado
 from ui.responsive import Responsive
 from ui.tema import (
     BLANCO,
     DORADO,
     PERLA_BORDE,
     PERLA_PANEL,
-    PURPURA_INICIAL,
     SUPERFICIE_PERLADA,
     TEXTO_PRINCIPAL,
     TEXTO_SECUNDARIO,
@@ -407,56 +405,19 @@ class CalculadoraView:
 
         resultado = self.ultimo_resultado_suma.copy()
         nombre_default = f"Suma {resultado['referencia']}"
-
-        def guardar_con_nombre(nombre, carpeta=None):
-            destino = carpeta or state.carpetas.obtener_por_nombre("CALCULADORA")
-            state.guardados.guardar(
-                {
-                    "tipo": "calculo_biblico",
-                    "carpeta": destino["nombre"] if destino else "CALCULADORA",
-                    "carpeta_id": destino["id"] if destino else 6,
-                    "nombre": nombre or nombre_default,
-                    "palabra": resultado["referencia"],
-                    "referencia": resultado["referencia"],
-                    "alfabeto": resultado["alfabeto"],
-                    "suma": (
-                        f"Referencia: {resultado['referencia']}\n"
-                        f"Alcance: {resultado['alcance']}\n"
-                        f"Letras sumadas: {resultado['cantidad_letras']}\n"
-                        f"Suma total: {resultado['total']}"
-                    ),
-                    "resultado": resultado["total"],
-                    "contenido": {
-                        "tipo": "calculo_biblico",
-                        **resultado,
-                    },
-                }
-            )
-            self._mostrar_guardado_correcto(nombre or nombre_default)
-
-        pedir_nombre_y_carpeta_guardado(
+        texto = (
+            f"Referencia: {resultado['referencia']}\n"
+            f"Alcance: {resultado['alcance']}\n"
+            f"Alfabeto: {resultado['alfabeto']}\n"
+            f"Letras sumadas: {resultado['cantidad_letras']}\n"
+            f"Suma total: {resultado['total']}"
+        )
+        ArchivoLocalService.guardar_texto(
             self.page,
-            "Guardar suma bíblica",
+            texto,
             nombre_default,
-            state.carpetas,
-            "CALCULADORA",
-            guardar_con_nombre,
-            "Se guardará en CALCULADORA.",
+            "Guardar suma biblica en el dispositivo",
         )
-
-    def _mostrar_guardado_correcto(self, nombre):
-        def cerrar(e=None):
-            dialog.open = False
-            self.page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Guardado correctamente"),
-            content=ft.Text(nombre),
-            actions=[ft.ElevatedButton("Aceptar", on_click=cerrar)],
-        )
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()
 
     def _snack(self, mensaje):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(mensaje))
@@ -520,6 +481,9 @@ class CalculadoraView:
         )
 
     def _presionar(self, valor):
+        if self.expresion == "Error" and valor not in {"C", "⌫"}:
+            self.expresion = ""
+
         if valor == "⌫":
             self.expresion = self.expresion[:-1]
             self._actualizar_display()
@@ -589,7 +553,12 @@ class CalculadoraView:
                 self.expresion = "-"
             return
 
-        if self.expresion[-1] in "+-*/.":
+        ultimo = self.expresion[-1]
+        if operador == "-" and ultimo in "+*/":
+            self.expresion += operador
+            return
+
+        if ultimo in "+-*/.":
             self.expresion = self.expresion[:-1] + operador
         else:
             self.expresion += operador
@@ -639,15 +608,19 @@ class CalculadoraView:
             self.expresion = "Error"
             return
 
-        self.expresion = str(resultado.normalize()).rstrip("0").rstrip(".")
+        self.expresion = self._formatear_decimal(resultado)
 
     def _evaluar(self, expresion):
         tokens = self._tokenizar(expresion)
+        if not tokens:
+            raise ValueError("Expresion vacia")
         valores = []
         operadores = []
         prioridad = {"+": 1, "-": 1, "*": 2, "/": 2}
 
         def aplicar():
+            if len(valores) < 2 or not operadores:
+                raise ValueError("Expresion incompleta")
             b = valores.pop()
             a = valores.pop()
             op = operadores.pop()
@@ -671,27 +644,42 @@ class CalculadoraView:
         while operadores:
             aplicar()
 
+        if len(valores) != 1:
+            raise ValueError("Expresion incompleta")
+
         return valores[0]
 
     def _tokenizar(self, expresion):
         tokens = []
         actual = ""
+        anterior = ""
 
-        for indice, caracter in enumerate(expresion):
-            if caracter in "+*/" or (
-                caracter == "-" and indice > 0 and expresion[indice - 1] not in "+-*/"
-            ):
+        for caracter in expresion:
+            if caracter in "+-*/":
+                es_signo = caracter == "-" and (not actual and (not tokens or anterior in "+-*/"))
+                if es_signo:
+                    actual = "-"
+                    anterior = caracter
+                    continue
                 if actual:
                     tokens.append(actual)
                     actual = ""
                 tokens.append(caracter)
             else:
                 actual += caracter
+            anterior = caracter
 
         if actual:
             tokens.append(actual)
 
         return tokens
+
+    def _formatear_decimal(self, valor):
+        if valor == valor.to_integral_value():
+            return str(int(valor))
+
+        texto = format(valor.normalize(), "f").rstrip("0").rstrip(".")
+        return texto or "0"
 
     def _actualizar_display(self):
         self.display.value = self.expresion or "0"

@@ -18,23 +18,26 @@ ORG = "com.flet"
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def leer_version_app():
+def leer_constante_tema(nombre, predeterminado):
     tema = ROOT / "ui" / "tema.py"
     try:
         arbol = ast.parse(tema.read_text(encoding="utf-8"))
         for nodo in arbol.body:
             if (
                 isinstance(nodo, ast.Assign)
-                and any(getattr(objetivo, "id", None) == "APP_VERSION" for objetivo in nodo.targets)
+                and any(getattr(objetivo, "id", None) == nombre for objetivo in nodo.targets)
                 and isinstance(nodo.value, ast.Constant)
             ):
                 return str(nodo.value.value)
     except Exception:
         pass
-    return "1.9"
+    return predeterminado
 
 
-VERSION = leer_version_app()
+VERSION = leer_constante_tema("APP_VERSION", "1.9")
+FECHA_ACTUALIZACION = leer_constante_tema("APP_UPDATE_DATE", "2026-08-28")
+BUILD_NUMBER = FECHA_ACTUALIZACION.replace("-", "")
+VERSION_NATIVA = VERSION if VERSION.count(".") >= 2 else f"{VERSION}.0"
 EXCLUSIONES_PAQUETE = [
     ".agents",
     ".codex",
@@ -209,6 +212,17 @@ def flutter_ejecutable():
     )
 
 
+def aapt_ejecutable():
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    candidatos = sorted(
+        (base / "Android" / "Sdk" / "build-tools").glob("*/aapt.exe"),
+        reverse=True,
+    )
+    if candidatos:
+        return candidatos[0]
+    raise RuntimeError("No se encontro aapt para validar la version del APK.")
+
+
 def normalizar_ruta_cmake(ruta):
     return str(ruta).replace("\\", "/")
 
@@ -239,7 +253,9 @@ def comando_build(destino):
         "--splash-dark-color",
         "#71106F",
         "--build-version",
-        VERSION,
+        VERSION_NATIVA,
+        "--build-number",
+        BUILD_NUMBER,
         "--no-rich-output",
         "--yes",
         "--skip-flutter-doctor",
@@ -480,7 +496,7 @@ def copiar_salida_windows():
         else:
             shutil.copy2(elemento, salida)
 
-    zip_base = ROOT / f"CODIGO-ESCONDIDO-19-Windows-v{VERSION}"
+    zip_base = ROOT / f"CODIGO-ESCONDIDO-19-Windows-{FECHA_ACTUALIZACION}"
     zip_path = Path(str(zip_base) + ".zip")
     if zip_path.exists():
         zip_path.unlink()
@@ -699,6 +715,21 @@ def validar_apk_android(apk_path):
             raise RuntimeError(f"Falta {app_zip} dentro del APK")
         validar_app_zip_bytes(paquete.read(app_zip), app_zip, plataforma="android")
 
+    resultado = subprocess.run(
+        [str(aapt_ejecutable()), "dump", "badging", str(apk_path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    manifiesto = resultado.stdout or ""
+    if resultado.returncode != 0:
+        raise RuntimeError("No se pudo leer el manifiesto de version del APK.")
+    if f"versionCode='{BUILD_NUMBER}'" not in manifiesto:
+        raise RuntimeError(f"El APK no usa versionCode {BUILD_NUMBER}.")
+    if f"versionName='{VERSION_NATIVA}'" not in manifiesto:
+        raise RuntimeError(f"El APK no usa versionName {VERSION_NATIVA}.")
+
 
 def recrear_app_zip_windows(carpeta_release):
     app_dir = carpeta_release / "data" / "flutter_assets" / "app"
@@ -723,6 +754,10 @@ def reconstruir_apk_android_con_app_zip_actualizado():
         "build",
         "apk",
         "--release",
+        "--build-name",
+        VERSION_NATIVA,
+        "--build-number",
+        BUILD_NUMBER,
         "--no-tree-shake-icons",
     ]
     entorno = os.environ.copy()
@@ -744,7 +779,7 @@ def copiar_salida_android():
 
     validar_apk_android(origen)
 
-    destino = ROOT / f"CODIGO-ESCONDIDO-19-Android-v{VERSION}.apk"
+    destino = ROOT / f"CODIGO-ESCONDIDO-19-Android-{FECHA_ACTUALIZACION}.apk"
     if destino.exists():
         destino.unlink()
     shutil.copy2(origen, destino)
