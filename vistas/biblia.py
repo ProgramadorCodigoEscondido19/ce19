@@ -856,6 +856,10 @@ class BibliaView:
                     item for item in referencias_estado["items"] if item != referencia
                 ]
                 renderizar_referencias()
+                if not str(campo_texto.value or "").strip() and not referencias_estado["items"]:
+                    self._guardar_datos_comentario(clave, "", [])
+                    self._guardar_comentarios_biblia()
+                    self._refrescar_comentario_visible(clave)
             return _quitar
 
         def renderizar_referencias():
@@ -912,13 +916,14 @@ class BibliaView:
                 campo_texto.update()
             except (RuntimeError, AssertionError, AttributeError):
                 pass
+            if not referencias_estado["items"]:
+                self._guardar_datos_comentario(clave, "", [])
+                self._guardar_comentarios_biblia()
+                self._refrescar_comentario_visible(clave)
 
         def guardar(e=None):
             texto = str(campo_texto.value or "").strip()
             referencias_actuales = list(referencias_estado["items"])
-            if not texto and not referencias_actuales:
-                self._snack("Escriba un comentario o agregue una referencia.")
-                return
             self._guardar_datos_comentario(clave, texto, referencias_actuales)
             self._guardar_comentarios_biblia()
             cerrar()
