@@ -49,7 +49,6 @@ class Router:
         "biblia_marcas": 3,
         "biblia_cordero": 3,
         "biblia_diccionario_hebreo": 4,
-        "biblia_aleatorio": 3,
         "tiempo_consultar": 3,
         "tiempo_guardar": 3,
         "calculadora_suma_biblia": 3,

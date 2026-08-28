@@ -4,7 +4,6 @@
 import asyncio
 import copy
 import json
-import random
 import re
 import unicodedata
 from pathlib import Path
@@ -113,39 +112,6 @@ LIBROS_PALABRAS_CORDERO = {"mateo", "marcos", "lucas", "juan", "apocalipsis"}
 COLOR_PALABRAS_CORDERO = "#C1121F"
 HISTORIAL_REFERENCIAS_ARCHIVO = Path("datos/historial_referencias_biblia.json")
 
-CATEGORIAS_RANDOM_BIBLIA = [
-    "General",
-    "Salmos",
-    "Evangelios",
-    "Sabiduria",
-    "Profecia",
-]
-
-LIBROS_RANDOM_POR_CATEGORIA = {
-    "Salmos": {"salmos"},
-    "Evangelios": {"mateo", "marcos", "lucas", "juan"},
-    "Sabiduria": {"proverbios", "eclesiastes", "job", "santiago"},
-    "Profecia": {
-        "isaias",
-        "jeremias",
-        "ezequiel",
-        "daniel",
-        "oseas",
-        "joel",
-        "amos",
-        "abdias",
-        "jonas",
-        "miqueas",
-        "nahum",
-        "habacuc",
-        "sofonias",
-        "hageo",
-        "zacarias",
-        "malaquias",
-        "apocalipsis",
-    },
-}
-
 ABREVIATURAS_LIBROS = {
     "Génesis": ("gn", "gen", "ge"),
     "Éxodo": ("ex", "exo"),
@@ -223,12 +189,6 @@ class BibliaView:
         self.responsive = Responsive(page)
 
         self.libros = BibliaService.libros()
-        self.versiculo_random_referencia = ""
-        self.versiculo_random_texto = ""
-        self.categoria_random = "General"
-        self._random_candidatos_cache = {}
-        self._random_usados_por_categoria = {}
-        self._generar_versiculo_random_inicial()
         self.historial_referencias = self._cargar_historial_referencias()
         self.resaltados = cargar_resaltados()
         self.comentarios = cargar_comentarios()
@@ -298,25 +258,6 @@ class BibliaView:
             dense=True,
             on_submit=self.ir_a_referencia,
             on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
-        )
-
-        self.random_categoria_texto = ft.Text(
-            self.categoria_random.upper(),
-            size=11,
-            weight=ft.FontWeight.BOLD,
-            color=AZUL_ACCENTO,
-        )
-        self.random_referencia_texto = ft.Text(
-            self.versiculo_random_referencia,
-            size=15,
-            weight=ft.FontWeight.BOLD,
-            color=PURPURA_ACCENTO,
-        )
-        self.random_versiculo_texto = ft.Text(
-            self.versiculo_random_texto,
-            size=15,
-            color=TEXTO_PRINCIPAL,
-            selectable=True,
         )
 
         self.dropdown_libro = ft.Dropdown(
@@ -638,18 +579,7 @@ class BibliaView:
         return isinstance(comentario, dict) and bool(
             str(comentario.get("texto") or "").strip()
             or str(comentario.get("referencia") or "").strip()
-        )
-
-    def _span_indicador_comentario(self, clave):
-        return ft.TextSpan(
-            MARCADOR_COMENTARIO,
-            tooltip="Ver comentario",
-            style=ft.TextStyle(
-                size=self._tamano_numero_lectura(),
-                color=NARANJA_ACCENTO,
-                weight=ft.FontWeight.BOLD,
-            ),
-            on_click=lambda e, destino=clave: self.dialog_comentario_biblia(destino),
+            or self._referencias_comentario(comentario)
         )
 
     def _boton_comentario_titulo(self, clave, tooltip):
@@ -731,16 +661,137 @@ class BibliaView:
             return
         self._refrescar_lectura_colores({clave})
 
-    def dialog_comentario_contextual(self):
-        clave = self.verso_seleccionado or self.ultimo_verso_accionado
-        if not clave:
-            clave = self._clave_capitulo(self.libro_actual, self.capitulo_actual)
-        self.dialog_comentario_biblia(clave)
+    def _referencias_comentario(self, comentario):
+        if not isinstance(comentario, dict):
+            return []
+
+        referencias = comentario.get("referencias")
+        if not isinstance(referencias, list):
+            referencias = []
+
+        legacy = str(comentario.get("referencia") or "").strip()
+        if legacy:
+            referencias = [legacy, *referencias]
+
+        limpias = []
+        vistas = set()
+        for referencia in referencias:
+            texto = str(referencia or "").strip()
+            if not texto:
+                continue
+            clave = self._normalizar_texto_busqueda(texto)
+            if clave in vistas:
+                continue
+            vistas.add(clave)
+            limpias.append(texto)
+        return limpias
+
+    def _referencia_navegable_comentario(self, referencia):
+        texto = str(referencia or "").strip()
+        if not texto:
+            return ""
+        if "-" not in texto:
+            return texto
+
+        base, _resto = texto.split("-", 1)
+        return base.strip()
+
+    def _referencia_inicial_comentario(self, clave, referencias):
+        for referencia in referencias:
+            parseada = self._parsear_referencia(
+                self._referencia_navegable_comentario(referencia)
+            )
+            if parseada:
+                return parseada
+
+        if str(clave).startswith("LIBRO|"):
+            partes = str(clave).split("|", 1)
+            libro = partes[1] if len(partes) == 2 else self.libro_actual
+            return libro, 1, None
+
+        if str(clave).startswith("CAP|"):
+            partes = str(clave).split("|", 2)
+            if len(partes) == 3:
+                try:
+                    return partes[1], int(partes[2]), None
+                except ValueError:
+                    pass
+
+        libro, capitulo, versiculo = self._desarmar_clave_verso(clave)
+        if libro and capitulo:
+            return libro, capitulo, versiculo
+
+        return self.libro_actual, self.capitulo_actual, None
+
+    def _formatear_referencia_comentario(self, libro_nombre, capitulo, desde=None, hasta=None):
+        libro = self._libro_por_nombre(libro_nombre)
+        if not libro:
+            return None, "Seleccione un libro valido."
+
+        try:
+            capitulo = int(str(capitulo or "").strip())
+        except (TypeError, ValueError):
+            return None, "Ingrese un capitulo valido."
+
+        capitulos = libro.get("capitulos", [])
+        if capitulo < 1 or capitulo > len(capitulos):
+            return None, "El capitulo no existe en ese libro."
+
+        desde_texto = str(desde or "").strip()
+        hasta_texto = str(hasta or "").strip()
+        if not desde_texto and not hasta_texto:
+            return f"{libro_nombre} {capitulo}", None
+
+        try:
+            verso_desde = int(desde_texto or hasta_texto)
+            verso_hasta = int(hasta_texto or verso_desde)
+        except (TypeError, ValueError):
+            return None, "Ingrese versiculos validos."
+
+        total_versiculos = len(capitulos[capitulo - 1])
+        if verso_desde < 1 or verso_hasta < 1:
+            return None, "El versiculo debe ser mayor que cero."
+        if verso_desde > total_versiculos or verso_hasta > total_versiculos:
+            return None, "El versiculo no existe en ese capitulo."
+        if verso_hasta < verso_desde:
+            verso_desde, verso_hasta = verso_hasta, verso_desde
+
+        if verso_desde == verso_hasta:
+            return f"{libro_nombre} {capitulo}:{verso_desde}", None
+        return f"{libro_nombre} {capitulo}:{verso_desde}-{verso_hasta}", None
+
+    def _guardar_datos_comentario(self, clave, texto, referencias):
+        referencias = self._referencias_comentario({"referencias": referencias})
+        texto = str(texto or "").strip()
+
+        if not texto and not referencias:
+            self.comentarios.pop(clave, None)
+            return
+
+        self.comentarios[clave] = {
+            "texto": texto,
+            "referencias": referencias,
+            "referencia": referencias[0] if referencias else "",
+        }
 
     def dialog_comentario_biblia(self, clave):
         comentario = self.comentarios.get(clave, {})
         comentario = comentario if isinstance(comentario, dict) else {}
         puede_editar = not self._solo_lectura() and self._puede("biblia_marcas")
+        referencias = self._referencias_comentario(comentario)
+        referencia_inicial = self._referencia_inicial_comentario(clave, referencias)
+        libro_inicial, capitulo_inicial, versiculo_inicial = referencia_inicial
+        libro_inicial = (
+            libro_inicial
+            if self._libro_por_nombre(libro_inicial)
+            else self.libro_actual
+        )
+        capitulo_inicial = capitulo_inicial or self.capitulo_actual or 1
+        versiculo_inicial = versiculo_inicial or ""
+        ancho_dialogo = 360 if self.responsive.is_mobile() else 500
+        ancho_campo = min(440, max(150, ancho_dialogo - 32))
+        ancho_numero = min(128, max(86, (ancho_dialogo - 44) // 3))
+
         campo_texto = ft.TextField(
             label="Comentario",
             value=str(comentario.get("texto") or ""),
@@ -750,59 +801,179 @@ class BibliaView:
             read_only=not puede_editar,
             on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
         )
-        campo_referencia = ft.TextField(
-            label="Referencia biblica opcional",
-            hint_text="Juan 3:16",
-            value=str(comentario.get("referencia") or ""),
+        selector_libro = ft.Dropdown(
+            label="Libro",
+            options=[ft.dropdown.Option(libro["nombre"]) for libro in self.libros],
+            value=libro_inicial,
+            width=ancho_campo,
+            dense=True,
+            menu_height=240,
+            disabled=not puede_editar,
+        )
+        campo_capitulo = ft.TextField(
+            label="Capitulo",
+            value=str(capitulo_inicial),
+            width=ancho_numero,
+            dense=True,
             read_only=not puede_editar,
             on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
         )
+        campo_desde = ft.TextField(
+            label="Desde",
+            value=str(versiculo_inicial),
+            width=ancho_numero,
+            dense=True,
+            read_only=not puede_editar,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        campo_hasta = ft.TextField(
+            label="Hasta",
+            value="",
+            width=ancho_numero,
+            dense=True,
+            read_only=not puede_editar,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        estado_referencia = ft.Text("", size=12, color=ft.Colors.RED_700)
+        chips_referencias = ft.Row(wrap=True, spacing=6, run_spacing=6)
+        referencias_estado = {"items": referencias}
 
         def cerrar(e=None):
             self._cerrar_dialogo_biblia(dialog)
 
+        def ir_a_referencia(referencia):
+            def _ir(e=None):
+                destino = self._referencia_navegable_comentario(referencia)
+                if not self._parsear_referencia(destino):
+                    return
+                cerrar()
+                self._ir_a_referencia_texto(destino)
+            return _ir
+
+        def quitar_referencia(referencia):
+            def _quitar(e=None):
+                referencias_estado["items"] = [
+                    item for item in referencias_estado["items"] if item != referencia
+                ]
+                renderizar_referencias()
+            return _quitar
+
+        def renderizar_referencias():
+            controles = []
+            for referencia in referencias_estado["items"]:
+                controles.append(
+                    ft.Chip(
+                        label=ft.Text(f"#{referencia}", size=12, no_wrap=True),
+                        bgcolor=ft.Colors.with_opacity(0.12, NARANJA_ACCENTO),
+                        border_side=ft.BorderSide(1, ft.Colors.with_opacity(0.35, NARANJA_ACCENTO)),
+                        delete_icon=ft.Icon(ft.Icons.CLOSE, size=15),
+                        delete_icon_color=ROJO_ACCENTO,
+                        delete_icon_tooltip="Quitar referencia",
+                        on_click=ir_a_referencia(referencia),
+                        on_delete=quitar_referencia(referencia) if puede_editar else None,
+                        disabled=False,
+                    )
+                )
+            chips_referencias.controls = controles or [
+                ft.Text("Sin referencias agregadas.", size=12, color=TEXTO_SECUNDARIO)
+            ]
+            try:
+                chips_referencias.update()
+            except (RuntimeError, AssertionError, AttributeError):
+                pass
+
+        def agregar_referencia(e=None):
+            referencia, error = self._formatear_referencia_comentario(
+                selector_libro.value,
+                campo_capitulo.value,
+                campo_desde.value,
+                campo_hasta.value,
+            )
+            if error:
+                estado_referencia.value = error
+                estado_referencia.color = ft.Colors.RED_700
+                self.page.update(estado_referencia)
+                return
+
+            existentes = {
+                self._normalizar_texto_busqueda(item)
+                for item in referencias_estado["items"]
+            }
+            if self._normalizar_texto_busqueda(referencia) not in existentes:
+                referencias_estado["items"].append(referencia)
+            estado_referencia.value = f"{referencia} agregado."
+            estado_referencia.color = VERDE_ACCENTO
+            renderizar_referencias()
+            self.page.update(estado_referencia)
+
+        def borrar_texto(e=None):
+            campo_texto.value = ""
+            try:
+                campo_texto.update()
+            except (RuntimeError, AssertionError, AttributeError):
+                pass
+
         def guardar(e=None):
             texto = str(campo_texto.value or "").strip()
-            referencia = str(campo_referencia.value or "").strip()
-            if not texto and not referencia:
-                self._snack("Escriba un comentario o una referencia.")
+            referencias_actuales = list(referencias_estado["items"])
+            if not texto and not referencias_actuales:
+                self._snack("Escriba un comentario o agregue una referencia.")
                 return
-            if referencia and not self._parsear_referencia(referencia):
-                self._snack("La referencia no es valida. Ejemplo: Juan 3:16.")
-                return
-            self.comentarios[clave] = {"texto": texto, "referencia": referencia}
+            self._guardar_datos_comentario(clave, texto, referencias_actuales)
             self._guardar_comentarios_biblia()
             cerrar()
             self._refrescar_comentario_visible(clave)
 
-        def eliminar(e=None):
-            self.comentarios.pop(clave, None)
-            self._guardar_comentarios_biblia()
-            cerrar()
-            self._refrescar_comentario_visible(clave)
-
-        def ir_a_referencia_guardada(e=None):
-            referencia = str(comentario.get("referencia") or "").strip()
-            if not self._parsear_referencia(referencia):
-                return
-            cerrar()
-            self._ir_a_referencia_texto(referencia)
-
-        contenido = [campo_texto, campo_referencia]
-        referencia_guardada = str(comentario.get("referencia") or "").strip()
-        if referencia_guardada and self._parsear_referencia(referencia_guardada):
-            contenido.append(
+        renderizar_referencias()
+        contenido = [
+            campo_texto,
+            ft.Container(
+                padding=ft.Padding(left=12, top=10, right=12, bottom=10),
+                border=ft.Border.all(1, ft.Colors.with_opacity(0.35, MARRON_ACENTO)),
+                border_radius=8,
+                content=ft.Column(
+                    tight=True,
+                    spacing=8,
+                    controls=[
+                        ft.Text(
+                            "Añadir referencia",
+                            size=13,
+                            weight=ft.FontWeight.BOLD,
+                            color=MARRON_ACENTO,
+                        ),
+                        selector_libro,
+                        ft.Row(
+                            wrap=True,
+                            spacing=8,
+                            run_spacing=8,
+                            controls=[campo_capitulo, campo_desde, campo_hasta],
+                        ),
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.END,
+                            controls=[
+                                ft.OutlinedButton(
+                                    "Agregar",
+                                    icon=ft.Icons.ADD_LINK,
+                                    on_click=agregar_referencia,
+                                    disabled=not puede_editar,
+                                )
+                            ],
+                        ),
+                        estado_referencia,
+                    ],
+                ),
+            ),
+            chips_referencias,
+        ]
+        acciones = [ft.TextButton("Cerrar" if not puede_editar else "Cancelar", on_click=cerrar)]
+        if puede_editar and str(campo_texto.value or "").strip():
+            acciones.append(
                 ft.TextButton(
-                    referencia_guardada,
-                    icon=ft.Icons.OPEN_IN_NEW,
-                    tooltip="Ir a esta referencia",
-                    on_click=ir_a_referencia_guardada,
+                    "Borrar texto",
+                    icon=ft.Icons.DELETE_OUTLINE,
+                    on_click=borrar_texto,
                 )
             )
-
-        acciones = [ft.TextButton("Cerrar" if not puede_editar else "Cancelar", on_click=cerrar)]
-        if puede_editar and self._tiene_comentario(clave):
-            acciones.append(ft.TextButton("Eliminar", on_click=eliminar))
         if puede_editar:
             acciones.append(
                 ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=guardar)
@@ -816,8 +987,8 @@ class BibliaView:
                 NARANJA_ACCENTO,
             ),
             content=ft.Container(
-                width=360 if self.responsive.is_mobile() else 480,
-                content=ft.Column(tight=True, spacing=10, controls=contenido),
+                width=ancho_dialogo,
+                content=ft.Column(tight=True, spacing=12, controls=contenido),
             ),
             actions=acciones,
             actions_alignment=ft.MainAxisAlignment.END,
@@ -1117,14 +1288,13 @@ class BibliaView:
     def _contenido(self):
         lectura = self._panel_lectura()
         puede_buscar = self._puede("biblia_buscar")
-        puede_azar = self._puede("biblia_aleatorio")
 
         if self.responsive.width() < 820:
             return ft.Column(
                 expand=True,
                 spacing=8,
                 controls=[
-                    self._barra_compacta_lectura(puede_buscar, puede_azar),
+                    self._barra_compacta_lectura(puede_buscar),
                     ft.Container(expand=True, content=lectura),
                 ],
             )
@@ -1134,27 +1304,24 @@ class BibliaView:
             spacing=8,
             vertical_alignment=ft.CrossAxisAlignment.START,
             controls=[
-                self._riel_lateral_navegacion(puede_buscar, puede_azar),
+                self._riel_lateral_navegacion(puede_buscar),
                 ft.Container(expand=True, content=lectura),
                 self._riel_lateral_resaltado(),
             ],
         )
 
-    def _barra_compacta_lectura(self, puede_buscar, puede_azar):
+    def _barra_compacta_lectura(self, puede_buscar):
         botones = [
             self._boton_lateral(ft.Icons.ARROW_BACK, "Volver", lambda e: self.volver_lectura()),
             self._boton_lateral(ft.Icons.MENU_BOOK, "Ir a referencia", self.dialog_ir_a_referencia),
         ]
         if puede_buscar:
             botones.append(self._boton_lateral(ft.Icons.SEARCH, "Buscar", self.dialog_busqueda))
-        if puede_azar:
-            botones.append(self._boton_lateral(ft.Icons.AUTO_AWESOME, "Aleatorio", self.dialog_versiculo_random))
         botones.extend(
             [
                 self._boton_lateral(ft.Icons.ZOOM_IN, "Aumentar letra", lambda e: self.cambiar_tamano_fuente_lectura(1)),
                 self._boton_lateral(ft.Icons.ZOOM_OUT, "Achicar letra", lambda e: self.cambiar_tamano_fuente_lectura(-1)),
                 self._boton_lateral(ft.Icons.PIN, "Codificar secciones en numeros", lambda e: self.dialog_exportar_biblia_codificada(), color=PURPURA_ACCENTO),
-                self._boton_lateral(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", lambda e: self.dialog_comentario_contextual(), color=NARANJA_ACCENTO),
             ]
         )
         return ft.Container(
@@ -1176,7 +1343,7 @@ class BibliaView:
             on_click=on_click,
         )
 
-    def _riel_lateral_navegacion(self, puede_buscar, puede_azar):
+    def _riel_lateral_navegacion(self, puede_buscar):
         botones = [
             self._boton_lateral(
                 ft.Icons.ARROW_BACK,
@@ -1190,11 +1357,6 @@ class BibliaView:
         if puede_buscar:
             botones.append(
                 self._boton_lateral(ft.Icons.SEARCH, "Buscar", self.dialog_busqueda)
-            )
-
-        if puede_azar:
-            botones.append(
-                self._boton_lateral(ft.Icons.AUTO_AWESOME, "Aleatorio", self.dialog_versiculo_random)
             )
 
         if self.libro_actual and self.modo_vista == "Capitulos":
@@ -1231,16 +1393,6 @@ class BibliaView:
             self._boton_lateral(ft.Icons.ZOOM_OUT, "Achicar letra", lambda e: self.cambiar_tamano_fuente_lectura(-1)),
         ]
 
-        if puede_marcas:
-            botones.append(
-                self._boton_lateral(
-                    ft.Icons.CHAT_BUBBLE_OUTLINE,
-                    "Agregar o ver comentario",
-                    lambda e: self.dialog_comentario_contextual(),
-                    color=NARANJA_ACCENTO,
-                )
-            )
-
         self._boton_seleccion_multiple_control = None
         botones.append(
             self._boton_lateral(
@@ -1270,311 +1422,6 @@ class BibliaView:
                 controls=botones,
             ),
         )
-
-    def _generar_versiculo_random_inicial(self):
-        referencia, texto = self._obtener_versiculo_random()
-        self.versiculo_random_referencia = referencia
-        self.versiculo_random_texto = texto
-
-    def _libro_pertenece_categoria_random(self, nombre_libro, categoria):
-        categoria = categoria or "General"
-
-        if categoria == "General":
-            return True
-
-        nombre_normalizado = self._normalizar_texto_busqueda(nombre_libro)
-        permitidos = LIBROS_RANDOM_POR_CATEGORIA.get(categoria, set())
-        return nombre_normalizado in permitidos
-
-    def _libros_random_categoria(self, categoria):
-        categoria = categoria or "General"
-        cache = getattr(self, "_random_candidatos_cache", None)
-
-        if cache is None:
-            self._random_candidatos_cache = {}
-            cache = self._random_candidatos_cache
-
-        if categoria in cache:
-            return cache[categoria]
-
-        libros = [
-            libro
-            for libro in self.libros or []
-            if self._libro_pertenece_categoria_random(libro.get("nombre", ""), categoria)
-            and libro.get("capitulos")
-        ]
-        cache[categoria] = libros
-        return libros
-
-    def _obtener_versiculo_random(self):
-        categoria = getattr(self, "categoria_random", "General") or "General"
-        libros = self._libros_random_categoria(categoria)
-
-        if not libros and categoria != "General":
-            libros = self._libros_random_categoria("General")
-
-        if not libros:
-            return "Sin versiculo", "No hay texto biblico cargado."
-
-        usados_por_categoria = getattr(self, "_random_usados_por_categoria", None)
-        if usados_por_categoria is None:
-            self._random_usados_por_categoria = {}
-            usados_por_categoria = self._random_usados_por_categoria
-
-        usados = usados_por_categoria.setdefault(categoria, set())
-        elegido = None
-
-        # Elegir directamente un libro, capitulo y versiculo evita crear una
-        # lista de los mas de 31 mil versiculos cada vez que se abre Biblia.
-        for _ in range(24):
-            libro = random.choice(libros)
-            capitulos = libro.get("capitulos", [])
-            capitulo_numero = random.randrange(1, len(capitulos) + 1)
-            capitulo = capitulos[capitulo_numero - 1]
-            if not capitulo:
-                continue
-            versiculo_numero = random.randrange(1, len(capitulo) + 1)
-            texto = str(capitulo[versiculo_numero - 1] or "").strip()
-            if not texto:
-                continue
-            referencia = f"{libro['nombre']} {capitulo_numero}:{versiculo_numero}"
-            elegido = (referencia, texto)
-            if referencia not in usados:
-                break
-
-        if elegido is None:
-            return "Sin versiculo", "No hay texto biblico cargado."
-
-        if elegido[0] in usados and len(usados) >= 24:
-            usados.clear()
-        usados.add(elegido[0])
-        return elegido
-
-    def refrescar_versiculo_random(self, e=None):
-        referencia, texto = self._obtener_versiculo_random()
-        self.versiculo_random_referencia = referencia
-        self.versiculo_random_texto = texto
-        self._actualizar_controles_random()
-
-    def cambiar_categoria_random(self, categoria):
-        self.categoria_random = categoria
-        self.refrescar_versiculo_random()
-
-    def _actualizar_controles_random(self):
-        if not hasattr(self, "random_referencia_texto"):
-            self.page.update()
-            return
-
-        self.random_categoria_texto.value = self.categoria_random.upper()
-        self.random_referencia_texto.value = self.versiculo_random_referencia
-        self.random_versiculo_texto.value = self.versiculo_random_texto
-
-        for control in (
-            self.random_categoria_texto,
-            self.random_referencia_texto,
-            self.random_versiculo_texto,
-        ):
-            try:
-                control.update()
-            except Exception:
-                pass
-
-        try:
-            self.page.update()
-        except Exception:
-            pass
-
-    def _chip_categoria_random(self, categoria):
-        seleccionado = self.categoria_random == categoria
-
-        return ft.Container(
-            padding=ft.Padding(left=12, top=7, right=12, bottom=7),
-            border_radius=999,
-            bgcolor=(
-                ft.Colors.with_opacity(0.14, PURPURA_ACCENTO)
-                if seleccionado
-                else ft.Colors.WHITE
-            ),
-            border=ft.Border.all(
-                1.2,
-                PURPURA_ACCENTO if seleccionado else BORDE_SUAVE,
-            ),
-            content=ft.Text(
-                categoria,
-                size=12,
-                weight=ft.FontWeight.BOLD if seleccionado else None,
-                color=PURPURA_ACCENTO if seleccionado else TEXTO_SECUNDARIO,
-            ),
-            on_click=lambda e, c=categoria: self.cambiar_categoria_random(c),
-        )
-
-    def copiar_versiculo_random(self, e=None):
-        referencia = str(getattr(self, "versiculo_random_referencia", "") or "").strip()
-        texto = str(getattr(self, "versiculo_random_texto", "") or "").strip()
-
-        if not referencia or not texto:
-            self._snack("No hay versiculo random para copiar.")
-            return
-
-        copiar_al_portapapeles(self.page, f"{referencia} {texto}")
-        self._snack("Copiado correctamente")
-
-    def ir_a_versiculo_random(self, e=None):
-        referencia = str(getattr(self, "versiculo_random_referencia", "") or "").strip()
-
-        if not referencia:
-            self._snack("No hay versiculo random para abrir.")
-            return
-
-        if hasattr(self, "referencia_rapida"):
-            self.referencia_rapida.value = referencia
-
-        self._ir_a_referencia_texto(referencia)
-
-    def dialog_versiculo_random(self, e=None):
-        if not self.versiculo_random_texto:
-            self._generar_versiculo_random_inicial()
-
-        categoria = ft.Dropdown(
-            label="Categoría",
-            value=self.categoria_random,
-            options=[ft.dropdown.Option(c) for c in CATEGORIAS_RANDOM_BIBLIA],
-            dense=True,
-        )
-        categoria_texto = ft.Text(
-            self.categoria_random.upper(),
-            size=11,
-            weight=ft.FontWeight.BOLD,
-            color=TEXTO_SECUNDARIO,
-        )
-        referencia_texto = ft.Text(
-            self.versiculo_random_referencia,
-            size=16,
-            weight=ft.FontWeight.BOLD,
-            color=TEXTO_PRINCIPAL,
-        )
-        versiculo_texto = ft.Text(
-            self.versiculo_random_texto,
-            size=15,
-            color=TEXTO_PRINCIPAL,
-            selectable=True,
-        )
-
-        def cerrar(dialog):
-            self._cerrar_dialogo_biblia(dialog)
-
-        def refrescar_local(e=None):
-            referencia, texto = self._obtener_versiculo_random()
-            self.versiculo_random_referencia = referencia
-            self.versiculo_random_texto = texto
-            categoria_texto.value = self.categoria_random.upper()
-            referencia_texto.value = referencia
-            versiculo_texto.value = texto
-            self.page.update(categoria_texto, referencia_texto, versiculo_texto)
-
-        def cambiar_categoria(e):
-            self.categoria_random = e.control.value or "General"
-            refrescar_local()
-
-        def ver_en_lectura(dialog):
-            cerrar(dialog)
-            self.ir_a_versiculo_random()
-
-        categoria.on_change = cambiar_categoria
-
-        dialog = ft.AlertDialog(
-            modal=False,
-            title=self._titulo_seccion("Versiculo random", ft.Icons.AUTO_AWESOME, PURPURA_ACCENTO),
-            content=ft.Container(
-                width=360 if self.responsive.is_mobile() else 560,
-                content=ft.Column(
-                    tight=True,
-                    spacing=12,
-                    controls=[
-                        categoria,
-                        ft.Container(
-                            padding=16,
-                            border_radius=18,
-                            bgcolor=ft.Colors.with_opacity(0.06, AZUL_ACCENTO),
-                            border=ft.Border.all(1, ft.Colors.with_opacity(0.18, AZUL_ACCENTO)),
-                            content=ft.Column(
-                                tight=True,
-                                spacing=8,
-                                controls=[
-                                    categoria_texto,
-                                    referencia_texto,
-                                    versiculo_texto,
-                                ],
-                            ),
-                        ),
-                    ],
-                ),
-            ),
-            actions=[
-                ft.TextButton("Ver", icon=ft.Icons.OPEN_IN_NEW, on_click=lambda ev: ver_en_lectura(dialog)),
-                ft.ElevatedButton("Nuevo", icon=ft.Icons.REFRESH, on_click=refrescar_local),
-                ft.TextButton("Cerrar", on_click=lambda ev: cerrar(dialog)),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-        self._abrir_dialogo_biblia(dialog)
-
-    def _panel_versiculo_random(self):
-        if not self.versiculo_random_texto:
-            self._generar_versiculo_random_inicial()
-
-        return self._tarjeta_moderna(
-            padding=18,
-            content=ft.Column(
-                tight=True,
-                spacing=14,
-                controls=[
-                    self._titulo_seccion("Versiculo random", ft.Icons.AUTO_AWESOME, PURPURA_ACCENTO),
-                    ft.Row(
-                        wrap=True,
-                        spacing=7,
-                        run_spacing=7,
-                        controls=[
-                            self._chip_categoria_random(categoria)
-                            for categoria in CATEGORIAS_RANDOM_BIBLIA
-                        ],
-                    ),
-                    ft.Container(
-                        padding=16,
-                        border_radius=18,
-                        bgcolor=ft.Colors.with_opacity(0.06, AZUL_ACCENTO),
-                        border=ft.Border.all(1, ft.Colors.with_opacity(0.18, AZUL_ACCENTO)),
-                        content=ft.Column(
-                            tight=True,
-                            spacing=8,
-                            controls=[
-                                self.random_categoria_texto,
-                                self.random_referencia_texto,
-                                self.random_versiculo_texto,
-                            ],
-                        ),
-                    ),
-                    ft.Row(
-                        alignment=ft.MainAxisAlignment.END,
-                        wrap=True,
-                        spacing=8,
-                        controls=[
-                            ft.TextButton(
-                                "Ver en lectura",
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=self.ir_a_versiculo_random,
-                            ),
-                            ft.ElevatedButton(
-                                "Nuevo versiculo",
-                                icon=ft.Icons.REFRESH,
-                                on_click=self.refrescar_versiculo_random,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-        )
-
 
     def _desarmar_clave_verso(self, clave):
         partes = str(clave or "").split("|")
@@ -2449,7 +2296,6 @@ class BibliaView:
         def crear_acciones_principales():
             return [
                 accion(ft.Icons.PIN, "Codificar secciones en numeros", PURPURA_ACCENTO, self.dialog_exportar_biblia_codificada),
-                accion(ft.Icons.CHAT_BUBBLE_OUTLINE, "Agregar o ver comentario", NARANJA_ACCENTO, self.dialog_comentario_contextual),
             ]
 
         def crear_menu_extra():
@@ -3051,8 +2897,6 @@ class BibliaView:
 
             if verso:
                 posicion += len(f"{numero} ")
-                if self._tiene_comentario(verso):
-                    posicion += len(MARCADOR_COMENTARIO)
 
             inicio = posicion
             posicion += len(texto)
@@ -4086,6 +3930,65 @@ class BibliaView:
         self.seleccionar_verso(verso, evento)
         self._programar_selector_color_contextual({verso})
 
+    def dialog_acciones_numero_versiculo(self, verso, evento=None):
+        if not verso:
+            return
+
+        if self.modo_compartir_multiple:
+            self.tocar_versiculo(verso, evento)
+            return
+
+        self.verso_seleccionado = verso
+        self.ultimo_verso_accionado = verso
+        self.objetivos_color = {verso}
+        self.objetivo_color = verso
+        self._refrescar_lectura_colores({verso})
+        self._limpiar_flotantes_biblia()
+        dialog_ref = {"control": None}
+
+        def cerrar(e=None):
+            self._cerrar_flotante_biblia(dialog_ref["control"])
+
+        def pintar(e=None):
+            cerrar()
+            if self._solo_lectura() or not self._puede("biblia_color"):
+                self._snack("Este nivel no permite pintar versiculos.")
+                return
+            self.marcar_para_colorear(verso, "Versiculo marcado. Seleccione un resaltado.")
+
+        def comentar(e=None):
+            cerrar()
+            self.verso_seleccionado = verso
+            self.ultimo_verso_accionado = verso
+            self.dialog_comentario_biblia(verso)
+
+        dialog = self._crear_flotante_biblia(
+            self._referencia_desde_clave_verso(verso),
+            ft.Text(
+                "Elija que quiere hacer con este versiculo.",
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            [
+                ft.ElevatedButton(
+                    "Pintar / despintar",
+                    icon=ft.Icons.FORMAT_PAINT,
+                    on_click=pintar,
+                ),
+                ft.OutlinedButton(
+                    "Comentario",
+                    icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
+                    on_click=comentar,
+                ),
+                ft.TextButton("Cancelar", on_click=cerrar),
+            ],
+            ancho=460,
+            alto=240,
+        )
+        dialog_ref["control"] = dialog
+        self.page.overlay.append(dialog)
+        self.page.update()
+
     def toggle_verso_compartir(self, verso, refrescar=True):
         if verso in self.versos_compartir:
             self.versos_compartir.remove(verso)
@@ -4632,13 +4535,10 @@ class BibliaView:
                                 weight=ft.FontWeight.BOLD,
                                 bgcolor="#FFF1D6" if seleccionado or seleccionado_multiple else None,
                             ),
-                            on_click=lambda e, v=vid: self.tocar_versiculo(v, e) if v else None,
+                            on_click=lambda e, v=vid: self.dialog_acciones_numero_versiculo(v, e) if v else None,
                         )
                     )
                     posicion += len(f"{numero} ")
-                    if vid and self._tiene_comentario(vid):
-                        spans.append(self._span_indicador_comentario(vid))
-                        posicion += len(MARCADOR_COMENTARIO)
                 color_texto = ft.Colors.BLACK
                 fondo = self._fondo_resaltado_lectura(resaltado)
                 if seleccionado_multiple:
@@ -4894,11 +4794,9 @@ class BibliaView:
                             weight=ft.FontWeight.BOLD,
                             bgcolor="#FFF1D6" if seleccionado or seleccionado_multiple else None,
                         ),
-                        on_click=lambda e, v=vid: self.tocar_versiculo(v, e),
+                        on_click=lambda e, v=vid: self.dialog_acciones_numero_versiculo(v, e),
                     )
                 )
-                if self._tiene_comentario(vid):
-                    spans.append(self._span_indicador_comentario(vid))
 
             color_texto = ft.Colors.BLACK
             fondo = self._fondo_resaltado_lectura(resaltado)
@@ -5033,27 +4931,16 @@ class BibliaView:
                             visible=seleccionado_multiple,
                         ),
                         self._icono_marcado(visible=verso_marcado),
-                        self._control_identificador(
-                            indice,
-                            resaltado_numero,
-                            seleccionado=numero_seleccionado,
-                            sufijo=".",
-                            alto=30,
-                        ),
-                        *(
-                            [
-                                ft.IconButton(
-                                    icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
-                                    tooltip="Ver comentario del versiculo",
-                                    icon_size=16,
-                                    icon_color=NARANJA_ACCENTO,
-                                    width=28,
-                                    height=28,
-                                    on_click=lambda e, clave=vid: self.dialog_comentario_biblia(clave),
-                                )
-                            ]
-                            if self._tiene_comentario(vid)
-                            else []
+                        ft.GestureDetector(
+                            mouse_cursor=ft.MouseCursor.CLICK,
+                            on_tap=lambda e, v=vid: self.dialog_acciones_numero_versiculo(v, e),
+                            content=self._control_identificador(
+                                indice,
+                                resaltado_numero,
+                                seleccionado=numero_seleccionado,
+                                sufijo=".",
+                                alto=30,
+                            ),
                         ),
                         self._texto_versiculo_visual(
                             self.libro_actual,
@@ -7228,8 +7115,6 @@ class BibliaView:
         self.resaltados = cargar_resaltados()
         self.comentarios = cargar_comentarios()
         self._rangos_seleccion_lectura.clear()
-        self._random_candidatos_cache.clear()
-        self._random_usados_por_categoria.clear()
         self.libro_actual = self.libros[0]["nombre"] if self.libros else None
         self.capitulo_actual = 1
         self.dropdown_libro.options = self._opciones_libros()

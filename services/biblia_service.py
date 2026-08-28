@@ -1,5 +1,4 @@
 import json
-import random
 import re
 import threading
 import unicodedata
@@ -11,42 +10,8 @@ DATOS_DIR = Path("datos")
 ULTIMA_LECTURA_ARCHIVO = DATOS_DIR / "ultima_lectura_biblia.json"
 HISTORIAL_REFERENCIAS_ARCHIVO = DATOS_DIR / "historial_referencias_biblia.json"
 
-CATEGORIAS_RANDOM_BIBLIA = [
-    "General",
-    "Salmos",
-    "Evangelios",
-    "Sabiduria",
-    "Profecia",
-]
-
-LIBROS_RANDOM_POR_CATEGORIA = {
-    "Salmos": {"salmos"},
-    "Evangelios": {"mateo", "marcos", "lucas", "juan"},
-    "Sabiduria": {"proverbios", "eclesiastes", "job", "santiago"},
-    "Profecia": {
-        "isaias",
-        "jeremias",
-        "ezequiel",
-        "daniel",
-        "oseas",
-        "joel",
-        "amos",
-        "abdias",
-        "jonas",
-        "miqueas",
-        "nahum",
-        "habacuc",
-        "sofonias",
-        "hageo",
-        "zacarias",
-        "malaquias",
-        "apocalipsis",
-    },
-}
-
-
 class BibliaService:
-    """Servicio de Biblia: carga, búsqueda, referencias y random.
+    """Servicio de Biblia: carga, búsqueda y referencias.
 
     Mantiene cache en memoria para evitar releer el JSON de Biblia en cada refresco.
     No depende de Flet, por eso se puede probar aparte.
@@ -56,8 +21,6 @@ class BibliaService:
     _cache_indice_busqueda = None
     _cache_libros_por_nombre = None
     _bloqueo_indice_busqueda = threading.Lock()
-    _cache_random = {}
-    _usados_random = {}
 
     @classmethod
     def normalizar(cls, texto):
@@ -71,8 +34,6 @@ class BibliaService:
             cls._cache_libros = cargar_biblia() or []
             cls._cache_indice_busqueda = None
             cls._cache_libros_por_nombre = None
-            cls._cache_random.clear()
-            cls._usados_random.clear()
         return cls._cache_libros
 
     @classmethod
@@ -252,51 +213,3 @@ class BibliaService:
         historial = [h for h in historial if h.get("referencia") != item["referencia"]]
         historial.insert(0, item)
         return cls.guardar_historial_referencias(historial)
-
-    @classmethod
-    def libro_pertenece_categoria_random(cls, nombre_libro, categoria):
-        if categoria == "General":
-            return True
-        permitidos = LIBROS_RANDOM_POR_CATEGORIA.get(categoria, set())
-        return cls.normalizar(nombre_libro) in permitidos
-
-    @classmethod
-    def candidatos_random(cls, categoria="General"):
-        categoria = categoria or "General"
-        if categoria in cls._cache_random:
-            return cls._cache_random[categoria]
-
-        candidatos = []
-        for libro in cls.libros():
-            nombre = libro.get("nombre", "")
-            if not cls.libro_pertenece_categoria_random(nombre, categoria):
-                continue
-            for i_cap, capitulo in enumerate(libro.get("capitulos", []), start=1):
-                for i_ver, texto in enumerate(capitulo, start=1):
-                    if str(texto or "").strip():
-                        candidatos.append({
-                            "libro": nombre,
-                            "capitulo": i_cap,
-                            "versiculo": i_ver,
-                            "referencia": cls.referencia_texto(nombre, i_cap, i_ver),
-                            "texto": texto,
-                        })
-        cls._cache_random[categoria] = candidatos
-        return candidatos
-
-    @classmethod
-    def versiculo_random(cls, categoria="General"):
-        categoria = categoria or "General"
-        candidatos = cls.candidatos_random(categoria) or cls.candidatos_random("General")
-        if not candidatos:
-            return {"referencia": "", "texto": ""}
-
-        usados = cls._usados_random.setdefault(categoria, set())
-        disponibles = [c for c in candidatos if c["referencia"] not in usados]
-        if not disponibles:
-            usados.clear()
-            disponibles = candidatos[:]
-
-        elegido = random.choice(disponibles)
-        usados.add(elegido["referencia"])
-        return elegido
