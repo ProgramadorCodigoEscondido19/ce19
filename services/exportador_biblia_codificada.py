@@ -168,11 +168,7 @@ class ExportadorBibliaCodificada:
             texto = str(linea.get("texto", ""))
             prefijo = str(linea.get("prefijo", "")).strip()
             contenido = " ".join(parte for parte in (prefijo, texto) if parte)
-            resaltado = linea.get("resaltado")
-            marca = ExportadorBibliaCodificada.RESALTADOS.get(resaltado, {}).get("marca", "")
-            if linea.get("negrita") and contenido:
-                contenido = f"**{contenido}**"
-            resultado.append(f"{marca} {contenido}".strip() if marca else contenido)
+            resultado.append(contenido)
 
         return "\n".join(resultado).strip() + "\n"
 
