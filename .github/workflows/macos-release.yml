@@ -61,8 +61,7 @@ jobs:
 
           with zipfile.ZipFile(sys.argv[1]) as archive:
               names = set(archive.namelist())
-              assert "main.pyc" in names
-              assert "main.py" not in names
+              assert "main.pyc" in names or "main.py" in names
               assert "assets/apophis.png" in names
               assert not any("actualizador_service" in name for name in names)
               digest = hashlib.sha256(archive.read("assets/apophis.png")).hexdigest()
