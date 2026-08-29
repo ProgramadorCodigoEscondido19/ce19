@@ -1465,41 +1465,18 @@ class TiempoView:
         return controles
 
     def _dibujito_apophis_linea_tiempo(self, x, y):
-        barras = []
-        colores = tuple(COLORES_DIGITOS[str(indice)] for indice in range(10))
-        alturas = (30, 33, 36, 39, 42, 42, 39, 36, 33, 30)
-        for indice, (color, altura) in enumerate(zip(colores, alturas)):
-            barras.append(
-                ft.Container(
-                    left=7 + (indice * 4.2),
-                    top=43 - altura - (indice * 0.8),
-                    width=5,
-                    height=altura,
-                    bgcolor=color,
-                    border=ft.Border.all(
-                        0.7,
-                        "#8A8A8A" if indice in (8, 9) else color,
-                    ),
-                    border_radius=3,
-                    rotate=ft.Rotate(angle=-0.20),
-                )
-            )
-        base = ft.Container(
-            left=0,
-            top=38,
-            width=28,
-            height=15,
-            bgcolor="#D6A16F",
-            border=ft.Border.all(1, "#B97554"),
-            border_radius=10,
-        )
         return ft.Container(
             left=x - 28,
             top=y,
             width=58,
             height=54,
             tooltip="Apophis · 13/04/2029",
-            content=ft.Stack(width=58, height=54, controls=[*barras, base]),
+            content=ft.Image(
+                src="apophis.png",
+                width=58,
+                height=54,
+                fit=ft.BoxFit.CONTAIN,
+            ),
         )
 
     def _dias_hasta_texto(self, destino, texto):
