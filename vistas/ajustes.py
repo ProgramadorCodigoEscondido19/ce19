@@ -325,7 +325,7 @@ class AjustesView:
                         ],
                     ),
                     ft.Text(
-                        "Los instaladores de Windows y Android se descargan manualmente desde GitHub.",
+                        "Los instaladores de Windows, Android y macOS se descargan manualmente desde GitHub.",
                         size=12,
                         color="#6E6374",
                     ),

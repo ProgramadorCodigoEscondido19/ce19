@@ -5,6 +5,9 @@ Esta carpeta contiene los accesos para crear instaladores de la app.
 - `CREAR_ANDROID.bat`: crea directamente el APK de Android.
 - `CREAR_WINDOWS.bat`: crea directamente el paquete de Windows.
 
+El paquete de macOS se construye en un equipo Mac mediante el flujo manual
+`.github/workflows/macos-release.yml` de GitHub Actions.
+
 Los archivos generados quedan fuera de esta carpeta, en las salidas normales de Flet:
 
 - Android: `CODIGO-ESCONDIDO-19-Android.apk`

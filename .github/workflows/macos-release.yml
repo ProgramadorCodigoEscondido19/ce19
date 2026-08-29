@@ -1,0 +1,88 @@
+name: Crear paquete macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Preparar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "flet==0.85.3" "flet-audio==0.85.3" pillow
+
+      - name: Construir macOS
+        run: |
+          flet build macos \
+            --project codigo_escondido_19 \
+            --artifact "CODIGO ESCONDIDO 19" \
+            --product "CODIGO ESCONDIDO 19" \
+            --description "Aplicacion Codigo Escondido 19" \
+            --company "CODIGO ESCONDIDO 19" \
+            --org com.flet \
+            --bundle-id com.flet.app_ce_19 \
+            --build-version 1.9.0 \
+            --build-number 20260829 \
+            --no-rich-output \
+            --yes \
+            --skip-flutter-doctor \
+            --cleanup-app \
+            --exclude .git .github .venv env build dist dist_windows release backups logs storage instalador __pycache__ "*.pyc" README.md .gitignore "CODIGO-ESCONDIDO-19-*.apk" "CODIGO-ESCONDIDO-19-*.zip" datos/exportaciones datos/historial.json datos/guardados.json datos/carpetas.json datos/config_tiempo.json datos/analisis_colores_historial.json datos/historial_referencias_biblia.json datos/favoritos_biblia.json datos/notas_biblia.json datos/resaltados_biblia.json datos/ultima_lectura_biblia.json
+
+      - name: Validar y comprimir aplicacion
+        run: |
+          APP_PATH="$(find build/macos -type d -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          APP_ZIP="$(find "$APP_PATH" -type f -name app.zip -print -quit)"
+          test -n "$APP_ZIP"
+          python - "$APP_ZIP" <<'PY'
+          import hashlib
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              names = set(archive.namelist())
+              assert "main.pyc" in names
+              assert "main.py" not in names
+              assert "assets/apophis.png" in names
+              assert not any("actualizador_service" in name for name in names)
+              digest = hashlib.sha256(archive.read("assets/apophis.png")).hexdigest()
+              assert digest == "74bf23a05e970aff5abe38e29243341b33543cf580cec33eafd3d75573a987f1"
+          print("MACOS_VALIDACION_OK")
+          PY
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "CODIGO-ESCONDIDO-19-Mac.zip"
+          shasum -a 256 "CODIGO-ESCONDIDO-19-Mac.zip"
+
+      - name: Guardar artefacto del flujo
+        uses: actions/upload-artifact@v4
+        with:
+          name: CODIGO-ESCONDIDO-19-Mac
+          path: CODIGO-ESCONDIDO-19-Mac.zip
+          if-no-files-found: error
+
+      - name: Publicar en la Release final
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload codigo-escondido-19-final-2026-08-29 \
+            "CODIGO-ESCONDIDO-19-Mac.zip" \
+            --clobber
