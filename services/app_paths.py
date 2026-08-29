@@ -7,8 +7,8 @@ class AppPaths:
     """Rutas centrales de Codigo Escondido 19.
 
     Usar este archivo evita repetir nombres de archivos en distintas vistas/servicios.
-    Los datos modificables viven fuera del directorio de instalacion para que
-    una actualizacion pueda reemplazar el programa sin tocar informacion local.
+    Los datos modificables viven fuera del directorio del programa para que
+    permanezcan separados de los archivos de la aplicacion.
     """
 
     ROOT = RAIZ_PROYECTO

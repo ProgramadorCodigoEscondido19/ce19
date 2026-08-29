@@ -8,6 +8,7 @@ import hashlib
 import zipfile
 import ast
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 
@@ -35,8 +36,7 @@ def leer_constante_tema(nombre, predeterminado):
 
 
 VERSION = leer_constante_tema("APP_VERSION", "1.9")
-FECHA_ACTUALIZACION = leer_constante_tema("APP_UPDATE_DATE", "2026-08-28")
-BUILD_NUMBER = FECHA_ACTUALIZACION.replace("-", "")
+BUILD_NUMBER = datetime.now().strftime("%Y%m%d")
 VERSION_NATIVA = VERSION if VERSION.count(".") >= 2 else f"{VERSION}.0"
 EXCLUSIONES_PAQUETE = [
     ".agents",
@@ -53,7 +53,6 @@ EXCLUSIONES_PAQUETE = [
     "logs",
     "storage",
     "instalador",
-    "ejecutador_paquetes",
     "__pycache__",
     "*.pyc",
     "README.md",
@@ -126,29 +125,11 @@ DESTINOS = {
         "sistemas": {"Windows", "Linux", "Darwin"},
         "nota": "APK instalable para celulares Android.",
     },
-    "2": {
-        "nombre": "IOS",
-        "destino": "ipa",
-        "sistemas": {"Darwin"},
-        "nota": "Requiere una Mac con Xcode y firma de Apple.",
-    },
-    "3": {
-        "nombre": "LINUX",
-        "destino": "linux",
-        "sistemas": {"Linux"},
-        "nota": "Debe compilarse desde Linux.",
-    },
     "4": {
         "nombre": "WINDOWS",
         "destino": "windows",
         "sistemas": {"Windows"},
         "nota": "Requiere Visual Studio Build Tools con Desarrollo para el escritorio con C++.",
-    },
-    "5": {
-        "nombre": "MACOS",
-        "destino": "macos",
-        "sistemas": {"Darwin"},
-        "nota": "Debe compilarse desde una Mac.",
     },
 }
 
@@ -496,7 +477,7 @@ def copiar_salida_windows():
         else:
             shutil.copy2(elemento, salida)
 
-    zip_base = ROOT / f"CODIGO-ESCONDIDO-19-Windows-{FECHA_ACTUALIZACION}"
+    zip_base = ROOT / "CODIGO-ESCONDIDO-19-Windows"
     zip_path = Path(str(zip_base) + ".zip")
     if zip_path.exists():
         zip_path.unlink()
@@ -779,7 +760,7 @@ def copiar_salida_android():
 
     validar_apk_android(origen)
 
-    destino = ROOT / f"CODIGO-ESCONDIDO-19-Android-{FECHA_ACTUALIZACION}.apk"
+    destino = ROOT / "CODIGO-ESCONDIDO-19-Android.apk"
     if destino.exists():
         destino.unlink()
     shutil.copy2(origen, destino)
@@ -810,7 +791,7 @@ def mostrar_requisito_windows(estado=None):
     print("- Herramientas C++ CMake para Windows")
     print()
     print("Despues de instalarlo, cerra esta ventana, abri de nuevo")
-    print("CREAR_INSTALADOR.bat y elegi WINDOWS otra vez.")
+    print("CREAR_WINDOWS.bat otra vez.")
 
 
 def main(opcion=None):

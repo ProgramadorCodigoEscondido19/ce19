@@ -1,44 +1,14 @@
-import asyncio
-
 import flet as ft
 
-from services.actualizador_service import ActualizadorService
 from services.alfabetos_service import AlfabetosService
 from services.app_config_service import AppConfigService
 from services.app_paths import AppPaths
 from ui.compartir import _abrir_url
-from ui.tema import APP_UPDATE_DATE, APP_VERSION, PERLA_BORDE, PERLA_PANEL, PURPURA_IOS
+from ui.tema import PERLA_BORDE, PERLA_PANEL, PURPURA_IOS
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 
 GITHUB_RELEASES = "https://github.com/ProgramadorCodigoEscondido19/ce19/releases"
 GITHUB_LATEST = f"{GITHUB_RELEASES}/latest"
-RELEASE_TAG = f"v{APP_VERSION}"
-DESCARGAS_APP = {
-    "android": {
-        "label": "Android",
-        "icono": ft.Icons.ANDROID,
-        "url": GITHUB_LATEST,
-        "detalle": "Abre la ultima actualizacion publicada para Android.",
-    },
-    "windows": {
-        "label": "Windows",
-        "icono": ft.Icons.DESKTOP_WINDOWS,
-        "url": GITHUB_LATEST,
-        "detalle": "Abre la ultima actualizacion publicada para Windows.",
-    },
-    "iphone": {
-        "label": "iPhone",
-        "icono": ft.Icons.PHONE_IPHONE,
-        "url": GITHUB_LATEST,
-        "detalle": "Todavía no disponible: iPhone requiere firma y un perfil de distribución de Apple.",
-    },
-    "mac": {
-        "label": "Mac",
-        "icono": ft.Icons.LAPTOP_MAC,
-        "url": f"{GITHUB_RELEASES}/download/{RELEASE_TAG}/CODIGO-ESCONDIDO-19-Mac-{RELEASE_TAG}.zip",
-        "detalle": "Descarga el ZIP para macOS. Al no estar firmado, el sistema puede pedir autorización para abrirlo.",
-    },
-}
 
 
 class AjustesView:
@@ -47,37 +17,6 @@ class AjustesView:
     def __init__(self, page, router):
         self.page = page
         self.router = router
-        self.sistema_descarga = self._sistema_sugerido()
-        self.selector_sistema = ft.Dropdown(
-            label="Sistema operativo",
-            value=self.sistema_descarga,
-            options=[
-                ft.dropdown.Option("android", text="Android"),
-                ft.dropdown.Option("windows", text="Windows"),
-                ft.dropdown.Option("iphone", text="iPhone"),
-                ft.dropdown.Option("mac", text="Mac"),
-            ],
-            border_radius=12,
-            on_select=self._cambiar_sistema_descarga,
-        )
-        self.info_descarga = ft.Text(
-            DESCARGAS_APP[self.sistema_descarga]["detalle"],
-            size=12,
-            color="#6E6374",
-        )
-        self.actualizador = ActualizadorService(self.sistema_descarga)
-        self.estado_actualizacion = ft.Text(
-            f"Version final {APP_VERSION}. Actualizacion instalada: "
-            f"{ActualizadorService.formatear_fecha(APP_UPDATE_DATE)}.",
-            size=12,
-            color="#6E6374",
-        )
-        self.progreso_actualizacion = ft.ProgressBar(value=0, visible=False)
-        self.boton_actualizar = ft.OutlinedButton(
-            "Buscar actualizaciones",
-            icon=ft.Icons.SYSTEM_UPDATE_ALT,
-            on_click=self._buscar_actualizaciones,
-        )
         self.selector = ft.Dropdown(
             label="Alfabeto activo",
             expand=True,
@@ -95,155 +34,8 @@ class AjustesView:
         datos[clave] = valor
         AppConfigService.guardar_json(AppPaths.CONFIG_APP, datos)
 
-    def _sistema_sugerido(self):
-        plataforma = getattr(self.page, "platform", None)
-        if plataforma == ft.PagePlatform.ANDROID:
-            return "android"
-        if plataforma == ft.PagePlatform.IOS:
-            return "iphone"
-        if plataforma == ft.PagePlatform.MACOS:
-            return "mac"
-        return "windows"
-
-    def _cambiar_sistema_descarga(self, e=None):
-        self.sistema_descarga = self.selector_sistema.value or self.sistema_descarga
-        self.actualizador = ActualizadorService(self.sistema_descarga)
-        self.info_descarga.value = DESCARGAS_APP[self.sistema_descarga]["detalle"]
-        self.page.update()
-
-    def _abrir_descarga(self, actualizar=False):
-        sistema = self.selector_sistema.value or self.sistema_descarga
-        url = GITHUB_LATEST if actualizar else DESCARGAS_APP[sistema]["url"]
-        _abrir_url(self.page, url)
-
-    def _buscar_actualizaciones(self, e=None):
-        try:
-            self.page.run_task(self._buscar_actualizaciones_async)
-        except (RuntimeError, AssertionError, AttributeError):
-            self._snack("No se pudo iniciar la busqueda de actualizaciones.")
-
-    async def _buscar_actualizaciones_async(self):
-        self.boton_actualizar.disabled = True
-        self.progreso_actualizacion.visible = True
-        self.progreso_actualizacion.value = 0
-        self.estado_actualizacion.value = "Consultando GitHub..."
-        self.page.update()
-
-        try:
-            actualizacion = await asyncio.to_thread(self.actualizador.buscar_actualizacion)
-        except Exception as error:
-            self.estado_actualizacion.value = f"No se pudo buscar actualizaciones: {error}"
-            self.boton_actualizar.disabled = False
-            self.progreso_actualizacion.visible = False
-            self.page.update()
-            return
-
-        if actualizacion is None:
-            self.estado_actualizacion.value = (
-                f"La version final {APP_VERSION} ya esta actualizada al "
-                f"{ActualizadorService.formatear_fecha(APP_UPDATE_DATE)}."
-            )
-            self.boton_actualizar.disabled = False
-            self.progreso_actualizacion.visible = False
-            self.page.update()
-            return
-
-        self.estado_actualizacion.value = (
-            "Nueva actualizacion del "
-            f"{ActualizadorService.formatear_fecha(actualizacion.fecha_remota)}. "
-            f"Descargando {actualizacion.archivo}..."
-        )
-        self.page.update()
-
-        def progreso(descargado, total):
-            if total:
-                self.progreso_actualizacion.value = min(1, descargado / total)
-                self.estado_actualizacion.value = (
-                    f"Descargando {int(self.progreso_actualizacion.value * 100)}%..."
-                )
-            else:
-                self.progreso_actualizacion.value = None
-                self.estado_actualizacion.value = f"Descargados {descargado // 1024} KB..."
-            try:
-                self.page.update()
-            except Exception:
-                pass
-
-        try:
-            paquete = await asyncio.to_thread(self.actualizador.descargar, actualizacion, progreso)
-            preparacion = await asyncio.to_thread(self.actualizador.preparar_instalacion, paquete, actualizacion)
-        except Exception as error:
-            self.estado_actualizacion.value = f"La actualizacion fallo antes de instalar: {error}"
-            self.boton_actualizar.disabled = False
-            self.progreso_actualizacion.visible = False
-            self.page.update()
-            return
-
-        self.progreso_actualizacion.value = 1
-        self.estado_actualizacion.value = preparacion.get("mensaje", "Actualizacion lista.")
-        self.page.update()
-
-        if preparacion.get("accion") == "windows_script":
-            self._confirmar_reinicio_windows(preparacion)
-        elif preparacion.get("accion") == "abrir_instalador":
-            self._confirmar_instalar_android(preparacion)
-        else:
-            self.boton_actualizar.disabled = False
-
-    def _confirmar_reinicio_windows(self, preparacion):
-        def cancelar(ev=None):
-            cerrar_dialogo(self.page, dialog)
-            self.boton_actualizar.disabled = False
-            self.page.update()
-
-        def aplicar(ev=None):
-            cerrar_dialogo(self.page, dialog)
-            try:
-                self.actualizador.ejecutar_instalacion_preparada(preparacion)
-                ventana = getattr(self.page, "window", None)
-                if ventana is not None and hasattr(ventana, "close"):
-                    ventana.close()
-                elif hasattr(self.page, "window_destroy"):
-                    self.page.window_destroy()
-            except Exception as error:
-                self.estado_actualizacion.value = f"No se pudo iniciar el instalador: {error}"
-                self.boton_actualizar.disabled = False
-                self.page.update()
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Aplicar actualizacion"),
-            content=ft.Text("Se hizo backup de tus datos. La app se cerrara, reemplazara solo archivos del programa y volvera a iniciar."),
-            actions=[
-                ft.TextButton("Cancelar", on_click=cancelar),
-                ft.ElevatedButton("Actualizar ahora", icon=ft.Icons.RESTART_ALT, bgcolor=PURPURA_IOS, color=ft.Colors.WHITE, on_click=aplicar),
-            ],
-        )
-        mostrar_dialogo(self.page, dialog)
-
-    def _confirmar_instalar_android(self, preparacion):
-        def cerrar(ev=None):
-            cerrar_dialogo(self.page, dialog)
-            self.boton_actualizar.disabled = False
-            self.page.update()
-
-        def abrir(ev=None):
-            try:
-                self.actualizador.ejecutar_instalacion_preparada(preparacion)
-            except Exception as error:
-                self.estado_actualizacion.value = f"No se pudo abrir el APK: {error}"
-            cerrar()
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Instalar actualizacion"),
-            content=ft.Text("Se hizo backup de tus datos. Android pedira confirmar la instalacion del APK descargado."),
-            actions=[
-                ft.TextButton("Luego", on_click=cerrar),
-                ft.ElevatedButton("Abrir APK", icon=ft.Icons.ANDROID, bgcolor=PURPURA_IOS, color=ft.Colors.WHITE, on_click=abrir),
-            ],
-        )
-        mostrar_dialogo(self.page, dialog)
+    def _abrir_descargas(self, e=None):
+        _abrir_url(self.page, GITHUB_LATEST)
 
     def _cambiar_fondo(self, e):
         self._guardar_config("fondo_decorativo", bool(e.control.value))
@@ -533,34 +325,24 @@ class AjustesView:
                         ],
                     ),
                     ft.Text(
-                        "Elige el sistema operativo para instalar o actualizar Código Escondido 19 en el dispositivo.",
+                        "Los instaladores de Windows y Android se descargan manualmente desde GitHub.",
                         size=12,
                         color="#6E6374",
                     ),
-                    self.selector_sistema,
-                    self.info_descarga,
                     ft.Row(
                         wrap=True,
                         spacing=10,
                         run_spacing=8,
                         controls=[
                             ft.ElevatedButton(
-                                "Descargar",
-                                icon=ft.Icons.DOWNLOAD,
+                                "Abrir descargas en GitHub",
+                                icon=ft.Icons.OPEN_IN_NEW,
                                 bgcolor=PURPURA_IOS,
                                 color=ft.Colors.WHITE,
-                                on_click=lambda e: self._abrir_descarga(False),
+                                on_click=self._abrir_descargas,
                             ),
-                            ft.OutlinedButton(
-                                "Ver ultima version",
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=lambda e: self._abrir_descarga(True),
-                            ),
-                            self.boton_actualizar,
                         ],
                     ),
-                    self.progreso_actualizacion,
-                    self.estado_actualizacion,
                 ],
             ),
         )
@@ -582,7 +364,7 @@ class AjustesView:
                     controls=[
                         ft.Text("Ajustes", size=27, weight=ft.FontWeight.BOLD),
                         ft.Text(
-                            "Descargas, actualizaciones y configuracion del codificador.",
+                            "Descargas manuales y configuracion del codificador.",
                             color="#6E6374",
                         ),
                     ],

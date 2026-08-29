@@ -32,7 +32,6 @@ exclude = [
     "logs",
     "storage",
     "instalador",
-    "ejecutador_paquetes",
     "__pycache__",
     "*.pyc",
     "README.md",
