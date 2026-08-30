@@ -1078,7 +1078,7 @@ class AnalizadorColoresView:
             run_spacing=8,
             controls=[
                 ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=self.guardar_resultado),
-                ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.descargar_pdf_resultado),
+                ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.abrir_opciones_pdf),
                 ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=self.abrir_opciones_copiado),
             ],
         )
@@ -1162,13 +1162,52 @@ class AnalizadorColoresView:
 
         return self.file_picker_pdf
 
-    def descargar_pdf_resultado(self, e=None):
+    def abrir_opciones_pdf(self, e=None):
+        if not self.resultado:
+            self._snack("Primero realiza un análisis.")
+            return
+
+        def cerrar(ev=None):
+            cerrar_dialogo(self.page, dialog)
+
+        def elegir(formato):
+            cerrar()
+            self.descargar_pdf_resultado(formato=formato)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Formato del PDF"),
+            content=ft.Column(
+                tight=True,
+                spacing=10,
+                controls=[
+                    ft.ElevatedButton(
+                        "Vista para PC",
+                        icon=ft.Icons.DESKTOP_WINDOWS,
+                        on_click=lambda ev: elegir("pc"),
+                    ),
+                    ft.OutlinedButton(
+                        "Vista para celular",
+                        icon=ft.Icons.SMARTPHONE,
+                        on_click=lambda ev: elegir("celular"),
+                    ),
+                ],
+            ),
+            actions=[ft.TextButton("Cancelar", on_click=cerrar)],
+        )
+        mostrar_dialogo(self.page, dialog)
+
+    def descargar_pdf_resultado(self, e=None, formato="pc"):
         if not self.resultado:
             self._snack("Primero realiza un análisis.")
             return
 
         try:
-            archivo = exportar_pdf_colores(self.resultado, self._titulo_resultado())
+            archivo = exportar_pdf_colores(
+                self.resultado,
+                self._titulo_resultado(),
+                formato=formato,
+            )
         except Exception:
             self._snack("No se pudo generar el PDF.")
             return

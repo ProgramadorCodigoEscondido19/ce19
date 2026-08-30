@@ -614,7 +614,7 @@ def _pdf_pagina_resumen(resultado, titulo):
                 pasos[indice + 1],
             ) - 32
     _pdf_texto(comandos, "RESULTADO FINAL", 706, primario_y + panel_alto - 56, 9, "#6F6677", True, True)
-    _pdf_rect(comandos, 668, primario_y + panel_alto - 104, 76, 44, final_hex, "#795548", 1.4)
+    _pdf_rect(comandos, 668, primario_y + panel_alto - 104, 76, 44, final_hex, final_hex, 1.4)
     _pdf_texto(comandos, str(final), 706, primario_y + panel_alto - 90, 23, _color_texto_para(final_hex), True, True)
 
     valores = valores_secundarios_colores(resultado)
@@ -622,12 +622,12 @@ def _pdf_pagina_resumen(resultado, titulo):
     _pdf_rect(comandos, panel_x, secundario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
     _pdf_texto(comandos, "ANÁLISIS SECUNDARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
     _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DÍGITO:", panel_x + panel_ancho / 2, secundario_y + panel_alto - 48, 10, "#17131D", True, True)
-    visibles = valores[:40]
+    visibles = valores[:16]
     y_sec = _pdf_fila_suma(comandos, visibles, panel_x + panel_ancho / 2, secundario_y + panel_alto - 78, 19, panel_ancho - 72)
     if len(valores) > len(visibles):
-        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores más en el detalle", panel_x + panel_ancho / 2, y_sec - 18, 8, "#6F6677", False, True)
-    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 330, secundario_y + 22, 9, "#6F6677", True, True)
-    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), 500, secundario_y + 14, 22, 6)
+        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores más en el detalle", 185, secundario_y + 22, 8, "#6F6677", False, True)
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 515, secundario_y + 22, 9, "#6F6677", True, True)
+    _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), 700, secundario_y + 14, 22, 6)
 
     valores_terciarios = valores_terciarios_colores(resultado)
     total_terciario = sum(valores_terciarios)
@@ -668,7 +668,236 @@ def _pdf_paginas_detalle(resultado):
     return paginas
 
 
-def _pdf_guardar(paginas, archivo):
+def _pdf_fila_digitos_envuelta(
+    comandos,
+    digitos,
+    centro_x,
+    y,
+    tamano=28,
+    espacio=8,
+    max_ancho=360,
+):
+    digitos = list(digitos or [0])
+    por_fila = max(1, int((max_ancho + espacio) // (tamano + espacio)))
+    for inicio in range(0, len(digitos), por_fila):
+        _pdf_fila_digitos(
+            comandos,
+            digitos[inicio:inicio + por_fila],
+            centro_x,
+            y,
+            tamano,
+            espacio,
+        )
+        y -= tamano + 10
+    return y
+
+
+def _pdf_encabezado_celular(comandos, titulo, seccion):
+    _pdf_texto(comandos, "CÓDIGO ESCONDIDO 19", 210, 712, 16, "#17131D", True, True)
+    _pdf_texto(comandos, seccion, 210, 688, 11, "#9A4550", True, True)
+    lineas = _pdf_wrap(titulo or "Análisis de colores", 50)[:2]
+    for indice, linea in enumerate(lineas):
+        _pdf_texto(comandos, linea, 210, 668 - indice * 13, 9, "#6F6677", False, True)
+
+
+def _pdf_paginas_resumen_celular(resultado, titulo):
+    paginas = []
+    fondo = b"0.988 0.980 1.000 rg 0 0 420 744 re f"
+    texto = resultado.get("texto_limpio", "")
+    total = resultado.get("total_codigo", 0)
+    pasos = resultado.get("pasos_reduccion", [])
+    final = resultado.get("resultado_final", 0)
+    final_hex = resultado.get("hex_final", "#FFFFFF")
+
+    comandos = [fondo]
+    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS PRIMARIO")
+    _pdf_rect(comandos, 20, 580, 380, 62, "#FFFEFC", "#EFD7DB")
+    for indice, linea in enumerate(_pdf_wrap(texto, 57)[:3]):
+        _pdf_texto(comandos, linea or "Sin texto", 32, 616 - indice * 14, 9, "#17131D", indice == 0)
+
+    _pdf_texto(comandos, "TOTAL DE CÓDIGOS", 210, 550, 10, "#17131D", True, True)
+    y = _pdf_fila_digitos_envuelta(
+        comandos,
+        _pdf_digitos_numero(total),
+        210,
+        502,
+        30,
+        10,
+        350,
+    )
+    _pdf_texto(comandos, "PROCESO DE REDUCCIÓN", 210, y - 2, 10, "#6F6677", True, True)
+    y -= 44
+    if len(pasos) <= 1:
+        y = _pdf_fila_digitos_envuelta(
+            comandos,
+            _pdf_digitos_numero(total),
+            210,
+            y,
+            25,
+            8,
+            350,
+        )
+    else:
+        for indice in range(len(pasos) - 1):
+            y = _pdf_fila_suma(
+                comandos,
+                _pdf_digitos_numero(pasos[indice]),
+                210,
+                y,
+                24,
+                350,
+                pasos[indice + 1],
+            ) - 38
+
+    resultado_y = max(62, min(150, y - 76))
+    _pdf_texto(comandos, "RESULTADO FINAL", 210, resultado_y + 78, 10, "#6F6677", True, True)
+    _pdf_rect(comandos, 165, resultado_y, 90, 62, final_hex, final_hex, 1.4)
+    _pdf_texto(
+        comandos,
+        str(final),
+        210,
+        resultado_y + 20,
+        28,
+        _color_texto_para(final_hex),
+        True,
+        True,
+    )
+    paginas.append(comandos)
+
+    valores = valores_secundarios_colores(resultado)
+    total_secundario = sum(valores)
+    comandos = [fondo]
+    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS SECUNDARIO")
+    _pdf_rect(comandos, 20, 72, 380, 560, "#FFFEFC", "#171717", 1.2)
+    _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DÍGITO", 210, 598, 10, "#17131D", True, True)
+    visibles = valores[:48]
+    y = _pdf_fila_suma(comandos, visibles, 210, 548, 22, 344)
+    if len(valores) > len(visibles):
+        _pdf_texto(
+            comandos,
+            f"+ {len(valores) - len(visibles)} valores incluidos en el detalle",
+            210,
+            max(160, y - 22),
+            8,
+            "#6F6677",
+            False,
+            True,
+        )
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR", 210, 132, 10, "#6F6677", True, True)
+    _pdf_fila_digitos_envuelta(
+        comandos,
+        _pdf_digitos_numero(total_secundario),
+        210,
+        86,
+        28,
+        8,
+        340,
+    )
+    paginas.append(comandos)
+
+    valores_terciarios = valores_terciarios_colores(resultado)
+    total_terciario = sum(valores_terciarios)
+    comandos = [fondo]
+    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS TERCIARIO")
+    _pdf_rect(comandos, 20, 72, 380, 560, "#FFFEFC", "#171717", 1.2)
+    _pdf_texto(comandos, "SUMA DE TODOS LOS NÚMEROS", 210, 598, 10, "#17131D", True, True)
+    _pdf_texto(comandos, "DEL ANÁLISIS PRIMARIO", 210, 582, 9, "#6F6677", True, True)
+    visibles = valores_terciarios[:48]
+    y = _pdf_fila_suma(comandos, visibles, 210, 532, 22, 344)
+    if len(valores_terciarios) > len(visibles):
+        _pdf_texto(
+            comandos,
+            f"+ {len(valores_terciarios) - len(visibles)} valores incluidos",
+            210,
+            max(160, y - 22),
+            8,
+            "#6F6677",
+            False,
+            True,
+        )
+    _pdf_texto(comandos, "RESULTADO SIN REDUCIR", 210, 132, 10, "#6F6677", True, True)
+    _pdf_fila_digitos_envuelta(
+        comandos,
+        _pdf_digitos_numero(total_terciario),
+        210,
+        86,
+        28,
+        8,
+        340,
+    )
+    paginas.append(comandos)
+    return paginas
+
+
+def _pdf_paginas_detalle_celular(resultado, titulo):
+    detalle = resultado.get("detalle_visual", [])
+    paginas = []
+    fondo = b"0.988 0.980 1.000 rg 0 0 420 744 re f"
+    por_pagina = 9
+    for inicio in range(0, len(detalle), por_pagina):
+        comandos = [fondo]
+        _pdf_encabezado_celular(comandos, titulo, "DETALLE DEL ANÁLISIS")
+        _pdf_texto(
+            comandos,
+            f"Bloques {inicio + 1} - {min(inicio + por_pagina, len(detalle))} de {len(detalle)}",
+            210,
+            632,
+            8,
+            "#6F6677",
+            False,
+            True,
+        )
+        y = 574
+        for indice, item in enumerate(detalle[inicio:inicio + por_pagina], start=inicio + 1):
+            _pdf_rect(comandos, 20, y, 380, 54, "#FFFEFC", "#EFD7DB", 0.7)
+            color = item.get("hex", "#FFFFFF")
+            _pdf_rect(
+                comandos,
+                32,
+                y + 13,
+                28,
+                28,
+                color,
+                "#795548" if item.get("reducido") == 9 else "#EFD7DB",
+                0.8,
+            )
+            _pdf_texto(
+                comandos,
+                str(item.get("letra", "")),
+                46,
+                y + 22,
+                10,
+                _color_texto_para(color),
+                True,
+                True,
+            )
+            _pdf_texto(
+                comandos,
+                f"{indice}. valor {item.get('valor', '')}",
+                72,
+                y + 32,
+                9,
+                "#17131D",
+                True,
+            )
+            _pdf_texto(
+                comandos,
+                f"resultado {item.get('reducido', '')} - {item.get('color', '')}",
+                72,
+                y + 16,
+                8,
+                "#6F6677",
+            )
+            x = 260
+            for digito in item.get("digitos_colores", [])[:6]:
+                _pdf_bloque_digito(comandos, digito.get("digito", 0), x, y + 16, 20)
+                x += 22
+            y -= 62
+        paginas.append(comandos)
+    return paginas
+
+
+def _pdf_guardar(paginas, archivo, ancho=842, alto=595):
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         None,
@@ -682,7 +911,7 @@ def _pdf_guardar(paginas, archivo):
         contenido_id = pagina_id + 1
         paginas_ids.append(pagina_id)
         objetos.append(
-            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {contenido_id} 0 R >>".encode("ascii")
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {ancho} {alto}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {contenido_id} 0 R >>".encode("ascii")
         )
         objetos.append(b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream")
 
@@ -706,11 +935,21 @@ def _pdf_guardar(paginas, archivo):
     return archivo
 
 
-def exportar_pdf_colores(resultado, titulo=None, archivo=None):
+def exportar_pdf_colores(resultado, titulo=None, archivo=None, formato="pc"):
     titulo = str(titulo or (resultado or {}).get("texto_limpio") or "Análisis de colores").strip()
+    formato = str(formato or "pc").strip().lower()
+    if formato not in {"pc", "celular"}:
+        raise ValueError("El formato del PDF debe ser 'pc' o 'celular'.")
     if archivo is None:
-        archivo = ruta_exportacion(f"analisis_colores_{_slug_colores(titulo)}_{int(time.time() * 1000)}.pdf")
+        archivo = ruta_exportacion(
+            f"analisis_colores_{_slug_colores(titulo)}_{formato}_{int(time.time() * 1000)}.pdf"
+        )
     Path(archivo).parent.mkdir(parents=True, exist_ok=True)
+    if formato == "celular":
+        paginas = _pdf_paginas_resumen_celular(resultado or {}, titulo)
+        paginas.extend(_pdf_paginas_detalle_celular(resultado or {}, titulo))
+        return _pdf_guardar(paginas or [[b"BT ET"]], archivo, 420, 744)
+
     paginas = [_pdf_pagina_resumen(resultado or {}, titulo)]
     paginas.extend(_pdf_paginas_detalle(resultado or {}))
     return _pdf_guardar(paginas or [[b"BT ET"]], archivo)
