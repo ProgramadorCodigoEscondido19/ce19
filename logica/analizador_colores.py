@@ -29,8 +29,8 @@ COLORES = {
     3: {"nombre": "NARANJA", "hex": "#FB8C00"},
     4: {"nombre": "AMARILLO", "hex": "#FDD835"},
     5: {"nombre": "VERDE", "hex": "#43A047"},
-    6: {"nombre": "AZUL", "hex": "#1E88E5"},
-    7: {"nombre": "PURPURA", "hex": "#8E24AA"},
+    6: {"nombre": "AZUL", "hex": "#003BB1"},
+    7: {"nombre": "PURPURA", "hex": "#AB6DD6"},
     8: {"nombre": "GRIS", "hex": "#757575"},
     9: {"nombre": "BLANCO", "hex": "#FFFFFF"},
 }

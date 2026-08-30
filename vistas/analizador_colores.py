@@ -15,7 +15,6 @@ from logica.analizador_colores import (
 from services.biblia_service import BibliaService
 from services.archivo_local_service import ArchivoLocalService
 from ui.clipboard import copiar_al_portapapeles
-from ui.compartir import compartir_archivo, compartir_texto
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.responsive import Responsive
 from ui.teclado import ocultar_teclado
@@ -853,7 +852,7 @@ class AnalizadorColoresView:
             height=self._tam(70 if self.responsive.is_mobile() else 84, 52),
             alignment=ft.Alignment(0, 0),
             bgcolor=final_hex,
-            border=ft.Border.all(2, MARRON),
+            border=ft.Border.all(2, final_hex),
             border_radius=8,
             content=ft.Text(str(final), size=self._tam(34 if self.responsive.is_mobile() else 40, 24), weight=ft.FontWeight.BOLD, color=self._texto_contraste(final_hex)),
         )
@@ -1080,7 +1079,6 @@ class AnalizadorColoresView:
             controls=[
                 ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=self.guardar_resultado),
                 ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.descargar_pdf_resultado),
-                ft.OutlinedButton("Compartir", icon=ft.Icons.SHARE, on_click=self.compartir_resultado),
                 ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=self.abrir_opciones_copiado),
             ],
         )
@@ -1179,11 +1177,10 @@ class AnalizadorColoresView:
             self.page.run_task(self._descargar_pdf_resultado_async, archivo)
             return
 
-        compartir_archivo(
+        ArchivoLocalService.guardar_archivo(
             self.page,
             archivo,
-            "Análisis de colores PDF",
-            "application/pdf",
+            "Guardar análisis de colores PDF",
         )
 
     async def _descargar_pdf_resultado_async(self, archivo):
@@ -1475,12 +1472,6 @@ class AnalizadorColoresView:
         if incluir_encabezado:
             return "CÓDIGO ESCONDIDO 19 - COLORES\n\n" + contenido
         return contenido
-
-    def compartir_resultado(self, e=None):
-        if not self.resultado:
-            self._snack("Primero realiza un análisis.")
-            return
-        compartir_texto(self.page, self._texto_resumen(), self._titulo_resultado())
 
     def abrir_opciones_copiado(self, e=None):
         if not self.resultado:
