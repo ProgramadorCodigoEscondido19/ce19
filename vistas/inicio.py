@@ -18,6 +18,7 @@ from ui.tema import (
 )
 from ui.teclado import ocultar_teclado
 from ui.tareas import ejecutar_demorado
+from ui.sonidos import reproducir_resultado_8
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from core.app_state import state
 from core.event_bus import bus
@@ -643,6 +644,8 @@ class InicioView:
             return
 
         self.mostrar_resultado(datos)
+        if self.modo_codificacion.value != "numeros_a_texto" and datos.get("resultado") == 8:
+            reproducir_resultado_8(self.page)
 
         def guardar_historial():
             self.historial.agregar(datos, notificar=False)

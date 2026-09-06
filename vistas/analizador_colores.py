@@ -8,16 +8,19 @@ from logica.analizador_colores import (
     exportar_pdf_colores,
     guardar_historial,
     reducir_numero,
+    suma_resultados_colores,
     tokenizar,
     valores_secundarios_colores,
     valores_terciarios_colores,
 )
 from services.biblia_service import BibliaService
+from services.alfabetos_service import AlfabetosService
 from services.archivo_local_service import ArchivoLocalService
 from ui.clipboard import copiar_al_portapapeles
 from ui.dialogos import cerrar_dialogo, mostrar_dialogo
 from ui.responsive import Responsive
 from ui.teclado import ocultar_teclado
+from ui.sonidos import reproducir_resultado_8
 from ui.tema import (
     BLANCO,
     MARRON,
@@ -84,6 +87,8 @@ class AnalizadorColoresView:
         self.router = router
         self.responsive = Responsive(page)
         self.resultado = None
+        self.resultados_comparacion = []
+        self.diccionarios_seleccionados = [AlfabetosService.obtener()["id"]]
         self.ultimo_archivo_tarjeta = None
         self.escala_vista = 0.86
         self.dialogo_importar = None
@@ -251,7 +256,7 @@ class AnalizadorColoresView:
             controls=[
                 ft.ElevatedButton("Texto", icon=ft.Icons.TEXT_FIELDS, on_click=self.abrir_texto),
                 ft.OutlinedButton("Importar", icon=ft.Icons.DOWNLOAD, on_click=self.abrir_importar),
-                ft.ElevatedButton("Analizar", icon=ft.Icons.PLAY_ARROW, on_click=self.analizar),
+                ft.OutlinedButton("Diccionarios / Comparar", icon=ft.Icons.COMPARE_ARROWS, on_click=self.abrir_diccionarios),
                 ft.IconButton(icon=ft.Icons.CLEAR, tooltip="Limpiar análisis", on_click=self.limpiar),
                 ft.IconButton(icon=ft.Icons.ZOOM_OUT, tooltip="Achicar vista", on_click=lambda e: self._cambiar_escala(-0.08)),
                 ft.Text(f"{int(self.escala_vista * 100)}%", size=12, weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
@@ -564,12 +569,43 @@ class AnalizadorColoresView:
         return self.libros[inicio:fin + 1]
 
     def limpiar(self, e=None):
+        self.resultados_comparacion = []
         self.texto.value = ""
         self.texto.label = "Texto"
         self.resultado = None
         self.ultimo_archivo_tarjeta = None
         self.panel_resultado.controls.clear()
         self.page.update()
+
+    def abrir_diccionarios(self, e=None):
+        disponibles = AlfabetosService.listar()
+        opciones = [ft.Checkbox(
+            label=item["nombre"], value=item["id"] in self.diccionarios_seleccionados,
+            data=item["id"],
+        ) for item in disponibles]
+        aviso = ft.Text("", color=ft.Colors.RED)
+
+        def aplicar(e):
+            seleccion = [opcion.data for opcion in opciones if opcion.value]
+            if not seleccion:
+                aviso.value = "Selecciona al menos un diccionario."
+                self.page.update()
+                return
+            self.diccionarios_seleccionados = seleccion
+            cerrar_dialogo(self.page, dialogo)
+            if (self.texto.value or "").strip():
+                self.analizar()
+
+        dialogo = ft.AlertDialog(
+            title=ft.Text("Diccionarios de Codicolor"),
+            content=ft.Column(tight=True, scroll=ft.ScrollMode.AUTO, controls=[
+                ft.Text("Elige uno para analizar o dos o más para comparar. Incluye los diccionarios creados en Ajustes."),
+                *opciones, aviso,
+            ]),
+            actions=[ft.TextButton("Cancelar", on_click=lambda e: cerrar_dialogo(self.page, dialogo)),
+                     ft.ElevatedButton("Aplicar", on_click=aplicar)],
+        )
+        mostrar_dialogo(self.page, dialogo)
 
     def analizar(self, e=None):
         if self.responsive.is_mobile():
@@ -580,9 +616,23 @@ class AnalizadorColoresView:
             self._snack("Ingrese un texto para analizar.")
             return
 
-        self.resultado = analizar_codigo_visual(texto)
-        guardar_historial(self._resultado_para_guardar())
+        disponibles = AlfabetosService.listar()
+        seleccionados = [item for item in disponibles if item["id"] in self.diccionarios_seleccionados]
+        if not seleccionados:
+            self._snack("El diccionario seleccionado ya no existe. Elige otro en Diccionarios.")
+            return
+        self.resultados_comparacion = []
+        for diccionario in seleccionados:
+            resultado = analizar_codigo_visual(texto, diccionario["valores"])
+            resultado["diccionario_id"] = diccionario["id"]
+            resultado["diccionario_nombre"] = diccionario["nombre"]
+            self.resultados_comparacion.append(resultado)
+            self.resultado = resultado
+            guardar_historial(self._resultado_para_guardar())
+        self.resultado = self.resultados_comparacion[0]
         self._render_resultado()
+        if any(r.get("resultado_final") == 8 for r in self.resultados_comparacion):
+            reproducir_resultado_8(self.page)
         self._preparar_entrada_texto(self.texto)
 
     def _preparar_entrada_texto(self, control=None):
@@ -603,15 +653,56 @@ class AnalizadorColoresView:
             self.page.update()
             return
 
-        self.panel_resultado.controls.extend(
-            [
-                self._encabezado_resultado(),
-                self._bloques_caracteres(),
-                self._resumen_codigo(),
-                self._acciones_resultado(),
-            ]
-        )
+        if len(self.resultados_comparacion) > 1:
+            self.panel_resultado.controls.append(self._panel_comparacion())
+        resultado_activo = self.resultado
+        try:
+            for resultado in self.resultados_comparacion or [resultado_activo]:
+                self.resultado = resultado
+                self.panel_resultado.controls.append(
+                    ft.Column(
+                        spacing=self._tam(10, 5),
+                        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                        controls=[
+                            self._encabezado_resultado(),
+                            self._bloques_caracteres(),
+                            self._resumen_codigo(),
+                            self._panel_suma_resultados(),
+                            self._acciones_resultado(resultado),
+                            ft.Divider(height=self._tam(24, 12), color=PERLA_BORDE),
+                        ],
+                    )
+                )
+        finally:
+            self.resultado = resultado_activo
         self.page.update()
+
+    def _panel_comparacion(self):
+        return self._panel_analisis("COMPARACIÓN DE DICCIONARIOS", [
+            ft.Row(wrap=True, controls=[
+                ft.Container(width=240, padding=12, border=ft.Border.all(1, PERLA_BORDE),
+                    border_radius=10, content=ft.Column(tight=True, controls=[
+                        ft.Text(resultado["diccionario_nombre"], weight=ft.FontWeight.BOLD),
+                        ft.Text(f"Total de códigos: {resultado['total_codigo']}"),
+                        ft.Text(f"Final primario: {resultado['resultado_final']}"),
+                        ft.Text(f"Secundario sin reducir: {sum(valores_terciarios_colores(resultado))}"),
+                        ft.Text(f"Terciario sin reducir: {sum(valores_secundarios_colores(resultado))}"),
+                        ft.Text(f"Suma de Resultados: {suma_resultados_colores(resultado)}", weight=ft.FontWeight.BOLD),
+                        ft.Text(f"Caracteres analizados: {resultado['total_letras']}"),
+                    ])) for resultado in self.resultados_comparacion
+            ]),
+        ])
+
+    def _panel_suma_resultados(self):
+        final = self.resultado.get("resultado_final", 0)
+        secundario = sum(valores_terciarios_colores(self.resultado))
+        terciario = sum(valores_secundarios_colores(self.resultado))
+        return self._panel_analisis("Suma de Resultados", [
+            ft.Text("Final del Primario + Secundario sin reducir + Terciario sin reducir",
+                    text_align=ft.TextAlign.CENTER, color=TEXTO_SECUNDARIO),
+            ft.Text(f"{final} + {secundario} + {terciario} = {suma_resultados_colores(self.resultado)}",
+                    size=self._tam(24, 16), weight=ft.FontWeight.BOLD, selectable=True),
+        ])
 
     def _encabezado_resultado(self):
         texto_limpio = self.resultado.get("texto_limpio", "")
@@ -625,7 +716,7 @@ class AnalizadorColoresView:
                 tight=True,
                 spacing=self._tam(6, 3),
                 controls=[
-                    ft.Text("Texto", size=self._tam(13, 10), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
+                    ft.Text(f"Texto · {self.resultado.get('diccionario_nombre', 'ABC Biblico')}", size=self._tam(13, 10), weight=ft.FontWeight.BOLD, color=TEXTO_SECUNDARIO),
                     ft.Text(vista or "Sin texto", size=self._tam(18, 12), weight=ft.FontWeight.BOLD, color=TEXTO_PRINCIPAL, selectable=True),
                 ],
             ),
@@ -673,7 +764,7 @@ class AnalizadorColoresView:
         cantidad_visible = 0
 
         for palabra in texto.split():
-            cantidad = len(tokenizar(palabra))
+            cantidad = len(tokenizar(palabra, self.resultado.get("diccionario_valores")))
             if not cantidad:
                 continue
 
@@ -1071,15 +1162,23 @@ class AnalizadorColoresView:
             content=ft.Text(str(valor), size=18, weight=ft.FontWeight.BOLD, color=self._texto_contraste(color)),
         )
 
-    def _acciones_resultado(self):
+    def _acciones_resultado(self, resultado=None):
+        resultado = self.resultado if resultado is None else resultado
+
+        def ejecutar(accion, evento):
+            # Cada fila opera sobre el diccionario de su propio analisis.
+            self.resultado = resultado
+            self.ultimo_archivo_tarjeta = None
+            accion(evento)
+
         return ft.Row(
             wrap=True,
             spacing=8,
             run_spacing=8,
             controls=[
-                ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=self.guardar_resultado),
-                ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.abrir_opciones_pdf),
-                ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=self.abrir_opciones_copiado),
+                ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE_ALT, on_click=lambda e: ejecutar(self.guardar_resultado, e)),
+                ft.OutlinedButton("PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=lambda e: ejecutar(self.abrir_opciones_pdf, e)),
+                ft.OutlinedButton("Copiar", icon=ft.Icons.CONTENT_COPY, on_click=lambda e: ejecutar(self.abrir_opciones_copiado, e)),
             ],
         )
 
@@ -1100,7 +1199,8 @@ class AnalizadorColoresView:
 
     def _titulo_resultado(self):
         etiqueta = self.texto.label if self.texto.label and self.texto.label != "Texto" else "Análisis de colores"
-        return etiqueta or "Análisis de colores"
+        nombre = (self.resultado or {}).get("diccionario_nombre", "")
+        return f"{etiqueta} - {nombre}" if nombre else etiqueta
 
     def _texto_resumen(self):
         if not self.resultado:
@@ -1167,12 +1267,18 @@ class AnalizadorColoresView:
             self._snack("Primero realiza un análisis.")
             return
 
+        completo = ft.Checkbox(
+            label="PDF completo: todos los diccionarios seleccionados",
+            value=len(self.resultados_comparacion) > 1,
+            visible=len(self.resultados_comparacion) > 1,
+        )
+
         def cerrar(ev=None):
             cerrar_dialogo(self.page, dialog)
 
         def elegir(formato):
             cerrar()
-            self.descargar_pdf_resultado(formato=formato)
+            self.descargar_pdf_resultado(formato=formato, completo=bool(completo.value))
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -1181,6 +1287,7 @@ class AnalizadorColoresView:
                 tight=True,
                 spacing=10,
                 controls=[
+                    completo,
                     ft.ElevatedButton(
                         "Vista para PC",
                         icon=ft.Icons.DESKTOP_WINDOWS,
@@ -1197,7 +1304,7 @@ class AnalizadorColoresView:
         )
         mostrar_dialogo(self.page, dialog)
 
-    def descargar_pdf_resultado(self, e=None, formato="pc"):
+    def descargar_pdf_resultado(self, e=None, formato="pc", completo=False):
         if not self.resultado:
             self._snack("Primero realiza un análisis.")
             return
@@ -1205,8 +1312,9 @@ class AnalizadorColoresView:
         try:
             archivo = exportar_pdf_colores(
                 self.resultado,
-                self._titulo_resultado(),
+                "Informe completo de diccionarios" if completo else self._titulo_resultado(),
                 formato=formato,
+                resultados=self.resultados_comparacion if completo else None,
             )
         except Exception:
             self._snack("No se pudo generar el PDF.")
@@ -1442,6 +1550,8 @@ class AnalizadorColoresView:
                 "Análisis terciario:",
                 f"Suma de resultados en 1 dígito: {suma_secundaria}",
                 f"Resultado terciario: {self._digitos_numero_copiado(total_secundario, opciones)}",
+                "",
+                f"Suma de Resultados: {final} + {total_terciario} + {total_secundario} = {suma_resultados_colores(self.resultado)}",
             ]
         )
         return "\n".join(lineas)
@@ -1452,7 +1562,7 @@ class AnalizadorColoresView:
         lineas = []
         detallado = bool(opciones.get("todo")) or bool(opciones.get("sumas"))
         for palabra in palabras:
-            analisis = analizar_codigo_visual(palabra)
+            analisis = analizar_codigo_visual(palabra, self.resultado.get("diccionario_valores"))
             final = analisis.get("resultado_final", 0)
             color = _nombre_color_publico(analisis.get("color_final", ""))
             final_texto = self._numero_con_color(

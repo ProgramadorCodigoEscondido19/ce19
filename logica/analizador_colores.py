@@ -96,14 +96,16 @@ def limpiar_texto(texto):
         for caracter in unicodedata.normalize("NFD", texto)
         if unicodedata.category(caracter) != "Mn"
     )
-    texto = re.sub(r"[^A-Z0-9\s_]", " ", texto)
+    texto = "".join(c if c.isalpha() or c in "0123456789_" or c.isspace() else " " for c in texto)
     texto = texto.replace("__ENIE__", "Ñ")
     return re.sub(r"\s+", " ", texto).strip()
 
 
-def tokenizar(texto):
+def tokenizar(texto, valores=None):
+    valores = VALORES if valores is None else valores
     limpio = limpiar_texto(texto)
     tokens = []
+    compuestos = sorted((letra for letra in valores if len(letra) > 1), key=len, reverse=True)
     i = 0
 
     while i < len(limpio):
@@ -111,23 +113,23 @@ def tokenizar(texto):
             i += 1
             continue
 
-        dos = limpio[i:i + 2]
+        dos = next((letra for letra in compuestos if limpio.startswith(letra, i)), None)
 
-        if dos in ("CH", "LL"):
+        if dos is not None:
             tokens.append(dos)
-            i += 2
+            i += len(dos)
             continue
 
         letra = limpio[i]
 
-        if letra.isdigit():
+        if letra in "0123456789":
             # Cada digito se analiza como un valor literal. Asi 19 se muestra
             # y suma como 1 + 9, sin convertirse en una letra del alfabeto.
             tokens.append(letra)
             i += 1
             continue
 
-        if letra in VALORES:
+        if letra in valores:
             tokens.append(letra)
 
         i += 1
@@ -153,13 +155,14 @@ def proceso_reduccion(numero):
     return pasos
 
 
-def analizar_colores(texto):
-    letras = tokenizar(texto)
+def analizar_colores(texto, valores=None):
+    valores = VALORES if valores is None else valores
+    letras = tokenizar(texto, valores)
     detalle = []
 
     for letra in letras:
         es_numero = letra.isdigit()
-        valor = int(letra) if es_numero else VALORES[letra]
+        valor = int(letra) if es_numero else valores[letra]
         reducido = reducir_numero(valor)
         color = DIGITO_COLORES[reducido]
         detalle.append(
@@ -212,14 +215,36 @@ def analizar_colores(texto):
     }
 
 
-def analizar_codigo_visual(texto):
-    letras = tokenizar(texto)
+def contar_letras_informe(texto, valores=None):
+    """Cuenta letras del texto, agrupando caracteres compuestos del diccionario."""
+    valores = VALORES if valores is None else valores
+    compuestos = sorted((limpiar_texto(c) for c in valores
+                         if len(limpiar_texto(c)) > 1 and limpiar_texto(c).isalpha()),
+                        key=len, reverse=True)
+    limpio = limpiar_texto(texto)
+    cantidad = indice = 0
+    while indice < len(limpio):
+        if limpio[indice].isalpha():
+            compuesto = next((c for c in compuestos if limpio.startswith(c, indice)), "")
+            cantidad += 1
+            indice += len(compuesto) or 1
+        else:
+            indice += 1
+    return cantidad
+
+
+def analizar_codigo_visual(texto, valores=None):
+    valores = VALORES if valores is None else {
+        limpiar_texto(letra): int(valor) for letra, valor in valores.items()
+        if limpiar_texto(letra) and int(valor) > 0
+    }
+    letras = tokenizar(texto, valores)
     detalle = []
     total_codigo = 0
 
     for letra in letras:
         es_numero = letra.isdigit()
-        valor = int(letra) if es_numero else VALORES[letra]
+        valor = int(letra) if es_numero else valores[letra]
         reducido = reducir_numero(valor)
         digitos = [int(digito) for digito in str(valor)]
         color = DIGITO_COLORES[reducido]
@@ -246,7 +271,7 @@ def analizar_codigo_visual(texto):
     pasos = proceso_reduccion(total_codigo)
     resultado_final = pasos[-1] if pasos else 0
     color_final = DIGITO_COLORES.get(resultado_final, DIGITO_COLORES[0])
-    base = analizar_colores(texto)
+    base = analizar_colores(texto, valores)
 
     base.update(
         {
@@ -256,9 +281,21 @@ def analizar_codigo_visual(texto):
             "resultado_final": resultado_final,
             "color_final": color_final["nombre"],
             "hex_final": color_final["hex"],
+            "diccionario_valores": dict(valores),
+            "texto_original": texto,
+            "cantidad_palabras": len(re.findall(r"[^\W\d_]+", texto, re.UNICODE)),
+            "cantidad_letras": contar_letras_informe(texto, valores),
         }
     )
+    base["suma_resultados"] = suma_resultados_colores(base)
     return base
+
+
+def suma_resultados_colores(resultado):
+    """Final primario mas los dos resultados sin reducir de la vista."""
+    return (int(resultado.get("resultado_final", 0))
+            + sum(valores_terciarios_colores(resultado))
+            + sum(valores_secundarios_colores(resultado)))
 
 
 def _pil_colores():
@@ -591,8 +628,8 @@ def _pdf_pagina_resumen(resultado, titulo):
     panel_ancho = 770
     panel_alto = 130
     primario_y = 342
-    secundario_y = 196
-    terciario_y = 50
+    secundario_y = 50
+    terciario_y = 196
 
     _pdf_rect(comandos, panel_x, primario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
     _pdf_texto(comandos, "ANÁLISIS PRIMARIO", panel_x + panel_ancho / 2, primario_y + panel_alto - 22, 12, "#17131D", True, True)
@@ -620,19 +657,19 @@ def _pdf_pagina_resumen(resultado, titulo):
     valores = valores_secundarios_colores(resultado)
     total_secundario = sum(valores)
     _pdf_rect(comandos, panel_x, secundario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
-    _pdf_texto(comandos, "ANÁLISIS SECUNDARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "ANÁLISIS TERCIARIO", panel_x + panel_ancho / 2, secundario_y + panel_alto - 22, 12, "#17131D", True, True)
     _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DÍGITO:", panel_x + panel_ancho / 2, secundario_y + panel_alto - 48, 10, "#17131D", True, True)
     visibles = valores[:16]
     y_sec = _pdf_fila_suma(comandos, visibles, panel_x + panel_ancho / 2, secundario_y + panel_alto - 78, 19, panel_ancho - 72)
     if len(valores) > len(visibles):
-        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores más en el detalle", 185, secundario_y + 22, 8, "#6F6677", False, True)
+        _pdf_texto(comandos, f"+ {len(valores) - len(visibles)} valores más incluidos en el total", 185, secundario_y + 22, 8, "#6F6677", False, True)
     _pdf_texto(comandos, "RESULTADO SIN REDUCIR:", 515, secundario_y + 22, 9, "#6F6677", True, True)
     _pdf_fila_digitos(comandos, _pdf_digitos_numero(total_secundario), 700, secundario_y + 14, 22, 6)
 
     valores_terciarios = valores_terciarios_colores(resultado)
     total_terciario = sum(valores_terciarios)
     _pdf_rect(comandos, panel_x, terciario_y, panel_ancho, panel_alto, "#FFFEFC", "#171717", 1.4)
-    _pdf_texto(comandos, "ANÁLISIS TERCIARIO", panel_x + panel_ancho / 2, terciario_y + panel_alto - 22, 12, "#17131D", True, True)
+    _pdf_texto(comandos, "ANÁLISIS SECUNDARIO", panel_x + panel_ancho / 2, terciario_y + panel_alto - 22, 12, "#17131D", True, True)
     _pdf_texto(comandos, "SUMA DE TODOS LOS NÚMEROS DEL ANÁLISIS PRIMARIO:", panel_x + panel_ancho / 2, terciario_y + panel_alto - 48, 9, "#6F6677", True, True)
     _pdf_fila_suma(comandos, valores_terciarios[:42], panel_x + panel_ancho / 2, terciario_y + panel_alto - 77, 18, panel_ancho - 72)
     if len(valores_terciarios) > 42:
@@ -767,7 +804,7 @@ def _pdf_paginas_resumen_celular(resultado, titulo):
     valores = valores_secundarios_colores(resultado)
     total_secundario = sum(valores)
     comandos = [fondo]
-    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS SECUNDARIO")
+    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS TERCIARIO")
     _pdf_rect(comandos, 20, 72, 380, 560, "#FFFEFC", "#171717", 1.2)
     _pdf_texto(comandos, "SUMA DE RESULTADOS EN 1 DÍGITO", 210, 598, 10, "#17131D", True, True)
     visibles = valores[:48]
@@ -775,7 +812,7 @@ def _pdf_paginas_resumen_celular(resultado, titulo):
     if len(valores) > len(visibles):
         _pdf_texto(
             comandos,
-            f"+ {len(valores) - len(visibles)} valores incluidos en el detalle",
+            f"+ {len(valores) - len(visibles)} valores incluidos en el total",
             210,
             max(160, y - 22),
             8,
@@ -798,7 +835,7 @@ def _pdf_paginas_resumen_celular(resultado, titulo):
     valores_terciarios = valores_terciarios_colores(resultado)
     total_terciario = sum(valores_terciarios)
     comandos = [fondo]
-    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS TERCIARIO")
+    _pdf_encabezado_celular(comandos, titulo, "ANÁLISIS SECUNDARIO")
     _pdf_rect(comandos, 20, 72, 380, 560, "#FFFEFC", "#171717", 1.2)
     _pdf_texto(comandos, "SUMA DE TODOS LOS NÚMEROS", 210, 598, 10, "#17131D", True, True)
     _pdf_texto(comandos, "DEL ANÁLISIS PRIMARIO", 210, 582, 9, "#6F6677", True, True)
@@ -826,7 +863,7 @@ def _pdf_paginas_resumen_celular(resultado, titulo):
         340,
     )
     paginas.append(comandos)
-    return paginas
+    return [paginas[0], paginas[2], paginas[1]]
 
 
 def _pdf_paginas_detalle_celular(resultado, titulo):
@@ -935,7 +972,68 @@ def _pdf_guardar(paginas, archivo, ancho=842, alto=595):
     return archivo
 
 
-def exportar_pdf_colores(resultado, titulo=None, archivo=None, formato="pc"):
+def resumen_colores_informe(resultado):
+    """Cuenta apariciones de colores, sin multiplicarlas por su valor."""
+    def contar(valores):
+        return Counter(int(d) for valor in valores for d in str(abs(int(valor))))
+
+    primario = valores_terciarios_colores(resultado)
+    reducidos = valores_secundarios_colores(resultado)
+    etapas = {
+        "Texto": Counter(reducidos),
+        "Primario": Counter(primario),
+        "Secundario": contar(primario + [sum(primario)]),
+        "Terciario": contar(reducidos + [sum(reducidos)]),
+    }
+    etapas["Total"] = sum(etapas.values(), Counter())
+    return etapas
+
+
+def _pdf_resumen_colores(resultado, titulo, formato):
+    movil = formato == "celular"
+    ancho, alto = (420, 744) if movil else (842, 595)
+    comandos = []
+    _pdf_rect(comandos, 0, 0, ancho, alto, "#FCFAFF", "#FCFAFF")
+    _pdf_texto(comandos, "RESUMEN DE COLORES", ancho / 2, alto - 40, 16, "#17131D", True, True)
+    for i, linea in enumerate(_pdf_wrap(titulo, 52 if movil else 100)[:2]):
+        _pdf_texto(comandos, linea, ancho / 2, alto - 64 - 14 * i, 10, "#6F6677", False, True)
+    texto = resultado.get("texto_original", resultado.get("texto_limpio", ""))
+    palabras = resultado.get("cantidad_palabras", len(re.findall(r"[^\W\d_]+", texto)))
+    letras = resultado.get("cantidad_letras", contar_letras_informe(texto, resultado.get("diccionario_valores")))
+    _pdf_texto(comandos, f"Palabras: {palabras}    Letras: {letras}", ancho / 2, alto - 112, 12, "#17131D", True, True)
+    resumen = resumen_colores_informe(resultado)
+    x_nombre = 28 if movil else 68
+    columnas = [148, 200, 252, 304, 366] if movil else [280, 390, 500, 610, 735]
+    y = alto - 157
+    _pdf_texto(comandos, "Color", x_nombre, y, 10, "#17131D", True)
+    for nombre, x in zip(("Texto", "Prim.", "Sec.", "Terc.", "Total"), columnas):
+        _pdf_texto(comandos, nombre, x, y, 10, "#17131D", True, True)
+    for digito, color in DIGITO_COLORES.items():
+        y -= 24
+        _pdf_rect(comandos, x_nombre, y - 2, 11, 11, color["hex"], "#777777")
+        _pdf_texto(comandos, color["nombre"], x_nombre + 17, y, 8 if movil else 10, "#17131D")
+        for valores, x in zip(resumen.values(), columnas):
+            _pdf_texto(comandos, str(valores[digito]), x, y, 10, "#17131D", False, True)
+    y -= 30
+    _pdf_texto(comandos, "TOTAL", x_nombre, y, 10, "#17131D", True)
+    for valores, x in zip(resumen.values(), columnas):
+        _pdf_texto(comandos, str(sum(valores.values())), x, y, 10, "#17131D", True, True)
+    y -= 32
+    final = resultado.get("resultado_final", 0)
+    secundario = sum(valores_terciarios_colores(resultado))
+    terciario = sum(valores_secundarios_colores(resultado))
+    _pdf_texto(comandos, f"Suma de Resultados: {final} + {secundario} + {terciario} = {final + secundario + terciario}", ancho / 2, y, 11, "#17131D", True, True)
+    for i, linea in enumerate(_pdf_wrap(
+        "Texto: un color por carácter analizado. Primario, secundario y terciario: "
+        "colores de los dígitos de las operaciones y sus resultados completos. "
+        "Total: suma de las cuatro columnas. Las letras se cuentan sin valores según el diccionario; CH/LL cuentan como una cuando están incluidas.",
+        64 if movil else 120,
+    )):
+        _pdf_texto(comandos, linea, x_nombre, y - 26 - 12 * i, 8, "#6F6677")
+    return comandos
+
+
+def exportar_pdf_colores(resultado, titulo=None, archivo=None, formato="pc", resultados=None):
     titulo = str(titulo or (resultado or {}).get("texto_limpio") or "Análisis de colores").strip()
     formato = str(formato or "pc").strip().lower()
     if formato not in {"pc", "celular"}:
@@ -945,14 +1043,17 @@ def exportar_pdf_colores(resultado, titulo=None, archivo=None, formato="pc"):
             f"analisis_colores_{_slug_colores(titulo)}_{formato}_{int(time.time() * 1000)}.pdf"
         )
     Path(archivo).parent.mkdir(parents=True, exist_ok=True)
-    if formato == "celular":
-        paginas = _pdf_paginas_resumen_celular(resultado or {}, titulo)
-        paginas.extend(_pdf_paginas_detalle_celular(resultado or {}, titulo))
-        return _pdf_guardar(paginas or [[b"BT ET"]], archivo, 420, 744)
-
-    paginas = [_pdf_pagina_resumen(resultado or {}, titulo)]
-    paginas.extend(_pdf_paginas_detalle(resultado or {}))
-    return _pdf_guardar(paginas or [[b"BT ET"]], archivo)
+    paginas = []
+    for item in resultados if resultados is not None else [resultado or {}]:
+        nombre = item.get("diccionario_nombre")
+        titulo_item = nombre or titulo
+        if formato == "celular":
+            paginas.extend(_pdf_paginas_resumen_celular(item, titulo_item))
+        else:
+            paginas.append(_pdf_pagina_resumen(item, titulo_item))
+        paginas.append(_pdf_resumen_colores(item, titulo_item, formato))
+    ancho, alto = (420, 744) if formato == "celular" else (842, 595)
+    return _pdf_guardar(paginas or [[b"BT ET"]], archivo, ancho, alto)
 
 
 def calcular_mezcla(conteo):

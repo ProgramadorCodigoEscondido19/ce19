@@ -192,39 +192,30 @@ def cargar_biblia(archivo=BIBLIA_ARCHIVO):
 
 
 def cargar_resaltados(archivo=RESALTADOS_ARCHIVO):
-    if not os.path.exists(archivo):
-        return {}
+    from services.app_config_service import AppConfigService
 
-    with open(archivo, "r", encoding="utf-8") as entrada:
-        return json.load(entrada)
+    datos = AppConfigService.leer_json(archivo, {})
+    return datos if isinstance(datos, dict) else {}
 
 
 def guardar_resaltados(resaltados, archivo=RESALTADOS_ARCHIVO):
-    os.makedirs(os.path.dirname(archivo), exist_ok=True)
+    from services.app_config_service import AppConfigService
 
-    with open(archivo, "w", encoding="utf-8") as salida:
-        json.dump(resaltados, salida, indent=4, ensure_ascii=False)
+    AppConfigService.guardar_json(archivo, resaltados)
 
 
 def cargar_comentarios(archivo=COMENTARIOS_ARCHIVO):
     """Carga notas de lectura sin mezclarlas con los datos de resaltado."""
-    if not os.path.exists(archivo):
-        return {}
+    from services.app_config_service import AppConfigService
 
-    try:
-        with open(archivo, "r", encoding="utf-8") as entrada:
-            datos = json.load(entrada)
-    except (OSError, ValueError, TypeError):
-        return {}
-
+    datos = AppConfigService.leer_json(archivo, {})
     return datos if isinstance(datos, dict) else {}
 
 
 def guardar_comentarios(comentarios, archivo=COMENTARIOS_ARCHIVO):
-    os.makedirs(os.path.dirname(archivo), exist_ok=True)
+    from services.app_config_service import AppConfigService
 
-    with open(archivo, "w", encoding="utf-8") as salida:
-        json.dump(comentarios, salida, indent=4, ensure_ascii=False)
+    AppConfigService.guardar_json(archivo, comentarios)
 
 
 def verso_id(libro, capitulo, versiculo):
@@ -352,8 +343,15 @@ def _buscar_por_alternativas(libros, consultas, indice=None):
         indice = crear_indice_busqueda(libros)
         entradas = indice["entradas"]
 
+    consulta_unica = consultas_validas[0] if len(consultas_validas) == 1 else None
     for nombre_libro, capitulo_indice, versiculo_indice, texto, texto_normalizado in entradas:
-        if not any(consulta in texto_normalizado for consulta in consultas_validas):
+        # La consulta habitual evita crear un generador por cada versiculo.
+        coincide = (
+            consulta_unica in texto_normalizado
+            if consulta_unica is not None
+            else any(consulta in texto_normalizado for consulta in consultas_validas)
+        )
+        if not coincide:
             continue
 
         referencia = (nombre_libro, capitulo_indice, versiculo_indice)

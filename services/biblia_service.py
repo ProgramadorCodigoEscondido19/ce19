@@ -1,6 +1,6 @@
-import json
 import re
 import threading
+from services.app_config_service import AppConfigService
 import unicodedata
 from pathlib import Path
 
@@ -20,7 +20,7 @@ class BibliaService:
     _cache_libros = None
     _cache_indice_busqueda = None
     _cache_libros_por_nombre = None
-    _bloqueo_indice_busqueda = threading.Lock()
+    _bloqueo_indice_busqueda = threading.RLock()
 
     @classmethod
     def normalizar(cls, texto):
@@ -30,11 +30,12 @@ class BibliaService:
 
     @classmethod
     def libros(cls, refrescar=False):
-        if refrescar or cls._cache_libros is None:
-            cls._cache_libros = cargar_biblia() or []
-            cls._cache_indice_busqueda = None
-            cls._cache_libros_por_nombre = None
-        return cls._cache_libros
+        with cls._bloqueo_indice_busqueda:
+            if refrescar or cls._cache_libros is None:
+                cls._cache_libros = cargar_biblia() or []
+                cls._cache_indice_busqueda = None
+                cls._cache_libros_por_nombre = None
+            return cls._cache_libros
 
     @classmethod
     def indice_busqueda(cls):
@@ -45,13 +46,14 @@ class BibliaService:
 
     @classmethod
     def _libros_por_nombre(cls):
-        if cls._cache_libros_por_nombre is None:
-            cls._cache_libros_por_nombre = {
-                cls.normalizar(libro.get("nombre")): libro
-                for libro in cls.libros()
-                if libro.get("nombre")
-            }
-        return cls._cache_libros_por_nombre
+        with cls._bloqueo_indice_busqueda:
+            if cls._cache_libros_por_nombre is None:
+                cls._cache_libros_por_nombre = {
+                    cls.normalizar(libro.get("nombre")): libro
+                    for libro in cls.libros()
+                    if libro.get("nombre")
+                }
+            return cls._cache_libros_por_nombre
 
     @classmethod
     def libro_por_nombre(cls, nombre):
@@ -74,6 +76,8 @@ class BibliaService:
         if not libro:
             return []
         try:
+            if int(capitulo) < 1:
+                return []
             return libro.get("capitulos", [])[int(capitulo) - 1]
         except (ValueError, TypeError, IndexError):
             return []
@@ -84,6 +88,8 @@ class BibliaService:
         if not libro:
             return []
         try:
+            if int(capitulo) < 1:
+                return []
             secciones = libro.get("secciones", [])[int(capitulo) - 1]
             return secciones if isinstance(secciones, list) else []
         except (ValueError, TypeError, IndexError):
@@ -95,6 +101,8 @@ class BibliaService:
         if not libro:
             return []
         try:
+            if int(capitulo) < 1:
+                return []
             parrafos = libro.get("parrafos", [])[int(capitulo) - 1]
             return parrafos if isinstance(parrafos, list) else []
         except (ValueError, TypeError, IndexError):
@@ -104,6 +112,8 @@ class BibliaService:
     def obtener_versiculo(cls, libro_nombre, capitulo, versiculo):
         cap = cls.obtener_capitulo(libro_nombre, capitulo)
         try:
+            if int(versiculo) < 1:
+                return ""
             return cap[int(versiculo) - 1]
         except (ValueError, TypeError, IndexError):
             return ""
@@ -169,24 +179,22 @@ class BibliaService:
             "modo": modo or "Versiculos",
             "versiculo": versiculo,
         }
-        ULTIMA_LECTURA_ARCHIVO.write_text(
-            json.dumps(datos, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        AppConfigService.guardar_json(ULTIMA_LECTURA_ARCHIVO, datos)
         return datos
 
     @classmethod
     def cargar_ultima_lectura(cls):
         try:
-            return json.loads(ULTIMA_LECTURA_ARCHIVO.read_text(encoding="utf-8"))
+            datos = AppConfigService.leer_json(ULTIMA_LECTURA_ARCHIVO, {})
+            return datos if isinstance(datos, dict) else {}
         except Exception:
             return {}
 
     @classmethod
     def cargar_historial_referencias(cls):
         try:
-            datos = json.loads(HISTORIAL_REFERENCIAS_ARCHIVO.read_text(encoding="utf-8"))
-            return datos if isinstance(datos, list) else []
+            datos = AppConfigService.leer_json(HISTORIAL_REFERENCIAS_ARCHIVO, [])
+            return [item for item in datos if isinstance(item, dict)] if isinstance(datos, list) else []
         except Exception:
             return []
 
@@ -194,10 +202,7 @@ class BibliaService:
     def guardar_historial_referencias(cls, historial):
         DATOS_DIR.mkdir(parents=True, exist_ok=True)
         limpio = historial if isinstance(historial, list) else []
-        HISTORIAL_REFERENCIAS_ARCHIVO.write_text(
-            json.dumps(limpio[:20], ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        AppConfigService.guardar_json(HISTORIAL_REFERENCIAS_ARCHIVO, limpio[:20])
         return limpio[:20]
 
     @classmethod

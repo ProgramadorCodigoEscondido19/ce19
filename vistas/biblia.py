@@ -225,6 +225,7 @@ class BibliaView:
         self._libro_completo_cargado = None
         self._siguiente_capitulo_libro = 1
         self._cargando_tramo_libro = False
+        self._contenido_libro_completo = None
         self._perfil_tamano_biblia = None
         self._version_redimension_biblia = 0
         self._lista_barra_libros = None
@@ -234,6 +235,7 @@ class BibliaView:
         self.ultima_busqueda_texto = ""
         self.panel_lectura = ft.ListView(
             expand=True,
+            auto_scroll=False,
             spacing=6,
             # El carril derecho evita que el scrollbar superpuesto cubra texto seleccionable.
             padding=ft.Padding(left=0, top=0, right=34, bottom=0),
@@ -4156,7 +4158,15 @@ class BibliaView:
             )
         )
 
-        self._agregar_tramo_libro_completo()
+        # Un unico hijo de altura real evita las estimaciones de ListView
+        # entre capitulos de alturas muy distintas (y los saltos al ampliarlo).
+        self._contenido_libro_completo = ft.Column(
+            spacing=6,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            controls=list(self.panel_lectura.controls),
+        )
+        self.panel_lectura.controls = [self._contenido_libro_completo]
+        self._agregar_tramo_libro_completo(cantidad=2)
 
     def _encabezado_libro_lectura(self, libro_nombre, titulo_control):
         clave = self._clave_libro(libro_nombre)
@@ -4212,7 +4222,7 @@ class BibliaView:
             for bloque in bloques
         ]
 
-    def _agregar_tramo_libro_completo(self):
+    def _agregar_tramo_libro_completo(self, cantidad=1):
         libro = self._libro_actual()
         if not libro or libro["nombre"] != self._libro_completo_cargado:
             return False
@@ -4226,7 +4236,6 @@ class BibliaView:
         # inmediata, incluso en los libros mas extensos. La lectura siempre se
         # muestra en una sola columna para que los bloques ya visibles no se
         # reordenen cuando se agrega contenido al final.
-        cantidad = 2 if self.responsive.is_mobile() else 3
         fin = min(len(capitulos), inicio + cantidad - 1)
         bloques = [
             self._crear_bloque_capitulo_libro_completo(
@@ -4237,7 +4246,7 @@ class BibliaView:
             for numero_capitulo in range(inicio, fin + 1)
         ]
         self._siguiente_capitulo_libro = fin + 1
-        self.panel_lectura.controls.extend(
+        self._contenido_libro_completo.controls.extend(
             self._bloques_libro_completo_movil(bloques)
         )
         return True
@@ -4252,8 +4261,8 @@ class BibliaView:
         try:
             posicion_actual = max(0, float(evento.pixels))
             cerca_del_final = (
-                posicion_actual + evento.viewport_dimension
-                >= evento.max_scroll_extent - 260
+                evento.max_scroll_extent - posicion_actual
+                <= max(900, float(evento.viewport_dimension) * 2)
             )
         except (AttributeError, TypeError, ValueError):
             return
@@ -4264,7 +4273,8 @@ class BibliaView:
         self._cargando_tramo_libro = True
         try:
             if self._agregar_tramo_libro_completo():
-                self.panel_lectura.update()
+                # Conserva el ListView y su posicion; solo amplia su contenido.
+                self._contenido_libro_completo.update()
         except (RuntimeError, AssertionError):
             pass
         finally:
