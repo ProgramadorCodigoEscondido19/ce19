@@ -1,15 +1,17 @@
-"""Calculos puros para el Aro Arcoiris biblico."""
+"""Modelo y geometria puros para los cuatro alcances del Aro Arcoiris."""
 
 from dataclasses import dataclass
 
 from logica.analizador_colores import DIGITO_COLORES
 
-
 COLOR_CONTORNO = "#35180F"
+ALCANCE_BIBLIA = "biblia"
+ALCANCE_LIBRO = "libro"
+ALCANCE_CAPITULO = "capitulo"
+ALCANCE_VERSICULO = "versiculo"
 
 
 def reducir_a_un_digito(numero: int) -> int:
-    """Reduce un entero no negativo sumando sus digitos repetidamente."""
     numero = abs(int(numero or 0))
     while numero > 9:
         numero = sum(int(digito) for digito in str(numero))
@@ -17,8 +19,7 @@ def reducir_a_un_digito(numero: int) -> int:
 
 
 def color_para_numero(numero: int) -> str:
-    digito = reducir_a_un_digito(numero)
-    return DIGITO_COLORES[digito]["hex"]
+    return DIGITO_COLORES[reducir_a_un_digito(numero)]["hex"]
 
 
 def color_texto_para_digito(digito: int) -> str:
@@ -27,65 +28,69 @@ def color_texto_para_digito(digito: int) -> str:
 
 @dataclass(frozen=True)
 class SeccionAro:
-    capitulo: int
-    cantidad_versiculos: int
-    digito_capitulo: int
-    digito_versiculos: int
-    color_capitulo: str
-    color_versiculos: str
+    numero: int
+    etiqueta: str
+    valor: int
+    digito: int
+    color: str
     inicio_grados: float
     fin_grados: float
     medio_grados: float
 
 
 @dataclass(frozen=True)
+class AnilloAro:
+    nombre: str
+    secciones: tuple[SeccionAro, ...] = ()
+    color_solido: str | None = None
+    etiqueta_solida: str = ""
+    digito_solido: int = 0
+
+
+@dataclass(frozen=True)
 class ModeloAro:
-    libro: str
-    cantidad_capitulos: int
-    total_versiculos: int
-    digito_total_capitulos: int
-    digito_total_versiculos: int
-    color_total_capitulos: str
-    color_total_versiculos: str
-    secciones: tuple[SeccionAro, ...]
+    alcance: str
+    clave: str
+    titulo: str
+    resumen: str
+    exterior: AnilloAro
+    interior: AnilloAro
+    texto_centro_1: str
+    texto_centro_2: str
+    texto_centro_3: str = "Inicio arriba · sentido horario"
 
 
-def crear_modelo_aro(libro: dict) -> ModeloAro:
-    """Crea el modelo angular usando exclusivamente los capitulos cargados."""
-    nombre = str((libro or {}).get("nombre") or "")
-    capitulos = (libro or {}).get("capitulos") or []
-    cantidad_capitulos = len(capitulos)
-    total_versiculos = sum(len(capitulo or []) for capitulo in capitulos)
-    angulo = 360.0 / cantidad_capitulos if cantidad_capitulos else 0.0
-    secciones = []
-
-    for indice, versiculos in enumerate(capitulos, start=1):
-        cantidad_versiculos = len(versiculos or [])
+def crear_secciones(cantidad: int, prefijo: str, valores=None) -> tuple[SeccionAro, ...]:
+    """Crea sectores independientes, comenzando a las 12 y avanzando a la derecha."""
+    cantidad = max(0, int(cantidad or 0))
+    if not cantidad:
+        return ()
+    valores = list(valores) if valores is not None else list(range(1, cantidad + 1))
+    if len(valores) != cantidad:
+        raise ValueError("La cantidad de valores debe coincidir con los sectores.")
+    angulo = 360.0 / cantidad
+    resultado = []
+    for indice, valor in enumerate(valores, start=1):
+        valor = int(valor)
         inicio = -90.0 + (indice - 1) * angulo
-        fin = inicio + angulo
-        digito_capitulo = reducir_a_un_digito(indice)
-        digito_versiculos = reducir_a_un_digito(cantidad_versiculos)
-        secciones.append(
-            SeccionAro(
-                capitulo=indice,
-                cantidad_versiculos=cantidad_versiculos,
-                digito_capitulo=digito_capitulo,
-                digito_versiculos=digito_versiculos,
-                color_capitulo=color_para_numero(indice),
-                color_versiculos=color_para_numero(cantidad_versiculos),
-                inicio_grados=inicio,
-                fin_grados=fin,
-                medio_grados=(inicio + fin) / 2,
-            )
-        )
+        digito = reducir_a_un_digito(valor)
+        resultado.append(SeccionAro(
+            numero=indice,
+            etiqueta=f"{prefijo}{indice}",
+            valor=valor,
+            digito=digito,
+            color=color_para_numero(valor),
+            inicio_grados=inicio,
+            fin_grados=inicio + angulo,
+            medio_grados=inicio + angulo / 2,
+        ))
+    return tuple(resultado)
 
-    return ModeloAro(
-        libro=nombre,
-        cantidad_capitulos=cantidad_capitulos,
-        total_versiculos=total_versiculos,
-        digito_total_capitulos=reducir_a_un_digito(cantidad_capitulos),
-        digito_total_versiculos=reducir_a_un_digito(total_versiculos),
-        color_total_capitulos=color_para_numero(cantidad_capitulos),
-        color_total_versiculos=color_para_numero(total_versiculos),
-        secciones=tuple(secciones),
-    )
+
+def anillo_dividido(nombre: str, cantidad: int, prefijo: str, valores=None) -> AnilloAro:
+    return AnilloAro(nombre=nombre, secciones=crear_secciones(cantidad, prefijo, valores))
+
+
+def anillo_solido(nombre: str, valor: int, etiqueta: str) -> AnilloAro:
+    digito = reducir_a_un_digito(valor)
+    return AnilloAro(nombre=nombre, color_solido=color_para_numero(valor), etiqueta_solida=etiqueta, digito_solido=digito)

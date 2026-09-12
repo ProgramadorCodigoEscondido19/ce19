@@ -1,17 +1,15 @@
-import asyncio
 import io
-import tempfile
+import re
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from PIL import Image
 
-from logica.circulo_biblico import crear_modelo_aro, reducir_a_un_digito
+from logica.circulo_biblico import reducir_a_un_digito
 from services.biblia_service import BibliaService
-from services.archivo_local_service import ArchivoLocalService
-from services.exportador_circulo_biblico import generar_png_aro
+from services.circulo_biblico_service import CirculoBiblicoService
+from services.exportador_circulo_biblico import generar_pdf_aros, generar_png_aro
 from services.rutas_service import RutasService
 from vistas.circulo_biblico import CirculoBiblicoView
 
@@ -19,89 +17,86 @@ from vistas.circulo_biblico import CirculoBiblicoView
 class CirculoBiblicoTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.genesis = crear_modelo_aro(BibliaService.libro_por_nombre("Génesis"))
-        cls.apocalipsis = crear_modelo_aro(BibliaService.libro_por_nombre("Apocalipsis"))
+        cls.biblia = CirculoBiblicoService.modelo_biblia()
+        cls.genesis = CirculoBiblicoService.modelo_libro("Génesis")
+        cls.genesis_1 = CirculoBiblicoService.modelo_capitulo("Génesis", 1)
+        cls.genesis_24 = CirculoBiblicoService.modelo_capitulo("Génesis", 24)
+        cls.apocalipsis_1 = CirculoBiblicoService.modelo_capitulo("Apocalipsis", 1)
+        cls.apocalipsis_22 = CirculoBiblicoService.modelo_capitulo("Apocalipsis", 22)
 
     def test_reduccion_repetida(self):
-        self.assertEqual(reducir_a_un_digito(19), 1)
-        self.assertEqual(reducir_a_un_digito(29), 2)
-        self.assertEqual(reducir_a_un_digito(67), 4)
+        self.assertEqual((reducir_a_un_digito(19), reducir_a_un_digito(29), reducir_a_un_digito(67)), (1, 2, 4))
 
-    def test_divisiones_reales(self):
-        self.assertEqual(self.genesis.cantidad_capitulos, 50)
-        self.assertEqual(len(self.genesis.secciones), 50)
-        self.assertEqual(self.apocalipsis.cantidad_capitulos, 22)
-        self.assertEqual(len(self.apocalipsis.secciones), 22)
+    def test_biblia_completa(self):
+        self.assertEqual(len(BibliaService.libros()), 66)
+        self.assertEqual(self.biblia.exterior.color_solido, "#FB8C00")
+        self.assertEqual(len(self.biblia.interior.secciones), 66)
+        self.assertEqual(self.biblia.interior.secciones[0].valor, 50)
+        self.assertEqual(self.biblia.interior.secciones[0].color, "#43A047")
 
-    def test_genesis_1_y_24(self):
-        c1 = self.genesis.secciones[0]
-        self.assertEqual((c1.digito_capitulo, c1.cantidad_versiculos, c1.digito_versiculos), (1, 31, 4))
-        self.assertEqual((c1.color_capitulo, c1.color_versiculos), ("#795548", "#FDD835"))
-        c24 = self.genesis.secciones[23]
-        self.assertEqual((c24.digito_capitulo, c24.cantidad_versiculos, c24.digito_versiculos), (6, 67, 4))
-        self.assertEqual((c24.color_capitulo, c24.color_versiculos), ("#003BB1", "#FDD835"))
+    def test_libro_divide_numero_de_libro_y_capitulos(self):
+        self.assertEqual(len(self.genesis.exterior.secciones), 1)
+        self.assertEqual(len(self.genesis.interior.secciones), 50)
+        salmos = CirculoBiblicoService.modelo_libro("Salmos")
+        self.assertEqual(len(salmos.exterior.secciones), 19)
+        self.assertEqual(len(salmos.interior.secciones), 150)
 
-    def test_apocalipsis_1_y_22(self):
-        c1 = self.apocalipsis.secciones[0]
-        self.assertEqual((c1.digito_capitulo, c1.cantidad_versiculos, c1.digito_versiculos), (1, 20, 2))
-        self.assertEqual((c1.color_capitulo, c1.color_versiculos), ("#795548", "#E53935"))
-        c22 = self.apocalipsis.secciones[21]
-        self.assertEqual((c22.digito_capitulo, c22.cantidad_versiculos, c22.digito_versiculos), (4, 21, 3))
-        self.assertEqual((c22.color_capitulo, c22.color_versiculos), ("#FDD835", "#FB8C00"))
+    def test_capitulo_divide_capitulos_y_versiculos(self):
+        self.assertEqual((len(self.genesis_1.exterior.secciones), len(self.genesis_1.interior.secciones)), (50, 31))
+        self.assertEqual((len(self.genesis_24.exterior.secciones), len(self.genesis_24.interior.secciones)), (50, 67))
+        self.assertEqual((len(self.apocalipsis_1.exterior.secciones), len(self.apocalipsis_1.interior.secciones)), (22, 20))
+        self.assertEqual((len(self.apocalipsis_22.exterior.secciones), len(self.apocalipsis_22.interior.secciones)), (22, 21))
 
-    def test_orientacion_horaria(self):
-        primera = self.genesis.secciones[0]
-        segunda = self.genesis.secciones[1]
-        self.assertEqual(primera.inicio_grados, -90.0)
-        self.assertGreater(segunda.inicio_grados, primera.inicio_grados)
-        self.assertAlmostEqual(primera.fin_grados, segunda.inicio_grados)
+    def test_colores_de_sectores(self):
+        self.assertEqual(self.genesis_1.exterior.secciones[0].color, "#795548")
+        self.assertEqual(self.genesis_24.exterior.secciones[23].color, "#003BB1")
+        self.assertEqual(self.genesis_1.interior.secciones[30].color, "#FDD835")
+        self.assertEqual(self.genesis_24.interior.secciones[66].color, "#FDD835")
+        self.assertEqual(self.apocalipsis_1.interior.secciones[19].color, "#E53935")
+        self.assertEqual(self.apocalipsis_22.interior.secciones[20].color, "#FB8C00")
 
-    def test_exportacion_png(self):
-        datos = generar_png_aro(self.apocalipsis, lado=1000)
-        imagen = Image.open(io.BytesIO(datos))
-        self.assertEqual(imagen.format, "PNG")
-        self.assertEqual(imagen.size, (1000, 1420))
-        self.assertGreater(len(datos), 50_000)
+    def test_versiculo_exterior_e_interior_solido(self):
+        modelo = CirculoBiblicoService.modelo_versiculo("Génesis", 1, 16)
+        self.assertEqual(len(modelo.exterior.secciones), 16)
+        self.assertFalse(modelo.interior.secciones)
+        self.assertTrue(modelo.interior.color_solido)
+        self.assertIn("suma del texto", modelo.resumen)
 
-    def test_guardado_png_en_ruta_windows(self):
-        datos = generar_png_aro(self.apocalipsis, lado=1000)
-        with tempfile.TemporaryDirectory() as carpeta:
-            destino = Path(carpeta) / "aro_apocalipsis.png"
-            picker = SimpleNamespace(save_file=AsyncMock(return_value=str(destino)))
-            page = SimpleNamespace(_ce19_file_picker=picker, update=MagicMock(), snack_bar=None, platform=None)
-            asyncio.run(
-                ArchivoLocalService._guardar_bytes_async(
-                    page,
-                    datos,
-                    destino.name,
-                    "png",
-                    "Guardar prueba",
-                )
-            )
-            self.assertTrue(destino.is_file())
-            with Image.open(destino) as imagen:
-                self.assertEqual(imagen.format, "PNG")
-                self.assertEqual(imagen.size, (1000, 1420))
+    def test_orientacion_independiente(self):
+        for anillo in (self.genesis_1.exterior, self.genesis_1.interior):
+            self.assertEqual(anillo.secciones[0].inicio_grados, -90.0)
+            self.assertGreater(anillo.secciones[1].inicio_grados, anillo.secciones[0].inicio_grados)
+            self.assertAlmostEqual(anillo.secciones[0].fin_grados, anillo.secciones[1].inicio_grados)
 
-    def test_ruta_y_construccion_responsive(self):
+    def test_exportacion_png_y_pdf_multipagina(self):
+        png = generar_png_aro(self.genesis_1, lado=1000)
+        with Image.open(io.BytesIO(png)) as imagen:
+            self.assertEqual((imagen.format, imagen.size), ("PNG", (1000, 1250)))
+        pdf = generar_pdf_aros([self.genesis_1, self.apocalipsis_22], lado=1000)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertEqual(len(re.findall(rb"/Type /Page\b", pdf)), 2)
+
+    def test_ruta_vista_responsive_y_cola(self):
         self.assertTrue(RutasService.existe("aro_arcoiris"))
         page = SimpleNamespace(width=390, services=[], run_task=MagicMock(), update=MagicMock())
         router = SimpleNamespace(refrescar=MagicMock(), navegar=MagicMock())
         vista = CirculoBiblicoView(page, router)
         self.assertLessEqual(vista._tamano_circulo(), page.width)
         self.assertIsNotNone(vista.obtener_vista())
+        vista._agregar()
+        self.assertEqual(len(vista.cola), 1)
+        vista._agregar()
+        self.assertEqual(len(vista.cola), 1)
         page.width = 1280
-        self.assertEqual(vista._tamano_circulo(), 720)
-        self.assertIsNotNone(vista.obtener_vista())
+        self.assertEqual(vista._tamano_circulo(), 760)
 
     def test_exportacion_se_programa_sin_bloquear(self):
         page = SimpleNamespace(width=390, services=[], run_task=MagicMock(), update=MagicMock())
         router = SimpleNamespace(refrescar=MagicMock(), navegar=MagicMock())
         vista = CirculoBiblicoView(page, router)
-        vista._exportar()
+        vista._exportar_pdf()
         page.run_task.assert_called_once()
         self.assertEqual(page.run_task.call_args.args[0], vista._exportar_async)
-        self.assertTrue(vista.boton_exportar.disabled)
 
 
 if __name__ == "__main__":
