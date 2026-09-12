@@ -465,6 +465,9 @@ class InicioView:
 
         self.page.update()
 
+    def on_enter(self):
+        self.actualizar_alfabeto(actualizar_pantalla=False)
+
     def actualizar_alfabeto(self, actualizar_pantalla=True):
         alfabetos = AlfabetosService.listar()
         activo = AlfabetosService.activo_id()
@@ -473,7 +476,9 @@ class InicioView:
             for alfabeto in alfabetos
         ]
         self.alfabeto_selector.value = activo
-        self.codificador_service.seleccionar_alfabeto(activo)
+        # Al entrar solo sincronizamos el motor; persistir el mismo valor en
+        # cada visita hacia trabajo de disco sin que el usuario cambiara nada.
+        self.codificador_service.usar_alfabeto_temporal(activo)
         self.motor = self.codificador_service.motor
         if actualizar_pantalla:
             self.page.update()

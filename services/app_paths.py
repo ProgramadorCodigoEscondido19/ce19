@@ -20,7 +20,7 @@ class AppPaths:
     RESALTADOS_BIBLIA = Path(ruta_datos("resaltados_biblia.json"))
     ULTIMA_LECTURA_BIBLIA = Path(ruta_datos("ultima_lectura_biblia.json"))
     HISTORIAL_REFERENCIAS_BIBLIA = Path(ruta_datos("historial_referencias_biblia.json"))
-    CONFIG_APP = Path(ruta_datos("config_app.json"))
+    CONFIG_APP = Path(ruta_datos("config_app.json", copiar_desde_datos=False))
 
     ERROR_LOG = LOGS / "error_log.txt"
 

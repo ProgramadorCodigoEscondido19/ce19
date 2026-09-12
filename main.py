@@ -11,10 +11,7 @@ from ui.tema import APP_NAME, DORADO, PERLA_PANEL, PURPURA_INICIAL, PURPURA_IOS,
 
 FONDO_REGION_MARRON = "#5F3A2C"
 MARRON_ACENTO = "#87543D"
-MARRON_CLARO = "#F4E4D8"
-MARRON_BORDE = "#E6CCBC"
 CHOCOLATE_NIVEL = "#321B11"
-CHOCOLATE_NIVEL_OSCURO = "#24120A"
 CHOCOLATE_NIVEL_PANEL = "#3B2116"
 NIVEL_TARJETAS = {
     1: {
@@ -47,45 +44,6 @@ NIVEL_TARJETAS = {
     },
 }
 
-
-PAISES_HISPANOS = [
-    ("Argentina", 0.322, 0.821),
-    ("Bolivia", 0.322, 0.703),
-    ("Chile", 0.303, 0.828),
-    ("Colombia", 0.294, 0.559),
-    ("Costa Rica", 0.267, 0.517),
-    ("Cuba", 0.281, 0.434),
-    ("Ecuador", 0.283, 0.597),
-    ("El Salvador", 0.253, 0.490),
-    ("España", 0.489, 0.310),
-    ("Guatemala", 0.250, 0.479),
-    ("Guinea Ecuatorial", 0.528, 0.576),
-    ("Honduras", 0.261, 0.483),
-    ("Mexico", 0.217, 0.428),
-    ("Nicaragua", 0.264, 0.497),
-    ("Panama", 0.278, 0.528),
-    ("Paraguay", 0.339, 0.745),
-    ("Peru", 0.292, 0.655),
-    ("Republica Dominicana", 0.306, 0.455),
-    ("Uruguay", 0.344, 0.814),
-    ("Venezuela", 0.317, 0.538),
-]
-
-MARCAS_BLOQUEADAS = [
-    ("Canada", 0.208, 0.193),
-    ("Estados Unidos", 0.228, 0.317),
-    ("Brasil", 0.358, 0.655),
-    ("Francia", 0.506, 0.269),
-    ("Italia", 0.533, 0.297),
-    ("Reino Unido", 0.494, 0.214),
-    ("Marruecos", 0.483, 0.366),
-    ("Egipto", 0.583, 0.400),
-    ("Sudafrica", 0.569, 0.793),
-    ("India", 0.719, 0.434),
-    ("China", 0.789, 0.345),
-    ("Japon", 0.883, 0.338),
-    ("Australia", 0.872, 0.759),
-]
 
 COLORES_BANDERAS = {
     "Argentina": ("#75AADB", "#FFFFFF", "#75AADB"),
@@ -157,29 +115,10 @@ VISTAS_MAPA_CONTINENTE = {
     "\u00c1frica": {"src": "mapa_africa.png", "marco": (0.417, 0.681, 0.324, 0.848), "proporcion": 1.25},
 }
 
-# Ajustes solo para paises muy cercanos geograficamente. Conservan la zona
-# real, pero evitan que sus pines se monten unos sobre otros.
-AJUSTES_PINES_AMERICA = {
-    "Guatemala": (-42, -28),
-    "El Salvador": (-34, 20),
-    "Honduras": (-7, -30),
-    "Nicaragua": (25, -2),
-    "Costa Rica": (38, 22),
-    "Panama": (60, 30),
-}
-
 BANDERAS_IMAGEN = {
     "Cuba": "banderas/cuba.png",
     "Chile": "banderas/chile.png",
     "Republica Dominicana": "banderas/republica_dominicana.png",
-}
-
-BANDEJAS_PAISES = {
-    "Argentina": "🇦🇷", "Bolivia": "🇧🇴", "Chile": "🇨🇱", "Colombia": "🇨🇴",
-    "Costa Rica": "🇨🇷", "Cuba": "🇨🇺", "Ecuador": "🇪🇨", "El Salvador": "🇸🇻",
-    "España": "🇪🇸", "Guatemala": "🇬🇹", "Guinea Ecuatorial": "🇬🇶", "Honduras": "🇭🇳",
-    "México": "🇲🇽", "Nicaragua": "🇳🇮", "Panamá": "🇵🇦", "Paraguay": "🇵🇾",
-    "Perú": "🇵🇪", "República Dominicana": "🇩🇴", "Uruguay": "🇺🇾", "Venezuela": "🇻🇪",
 }
 
 NOMBRES_PAISES = {
@@ -189,15 +128,6 @@ NOMBRES_PAISES = {
     "Peru": "Per\u00fa",
     "Republica Dominicana": "Rep\u00fablica Dominicana",
 }
-
-BANDEJAS_PAISES.update({
-    "Espana": "\U0001F1EA\U0001F1F8",
-    "Mexico": "\U0001F1F2\U0001F1FD",
-    "Panama": "\U0001F1F5\U0001F1E6",
-    "Peru": "\U0001F1F5\U0001F1EA",
-    "Republica Dominicana": "\U0001F1E9\U0001F1F4",
-})
-
 
 def main(page: ft.Page):
     AppStartupService.configurar_page(page)
@@ -232,7 +162,6 @@ def main(page: ft.Page):
 
         try:
             AppStartupService.preparar_estructura_base()
-            AppStartupService.intentar_backup_auto()
             AppStartupService.inicializar_estado(page)
 
             router = Router(page, nivel=nivel)
@@ -244,6 +173,7 @@ def main(page: ft.Page):
             AppStartupService.registrar_vistas(router, page)
             AppStartupService.crear_navigation_bar(page, router)
             router.iniciar("inicio")
+            AppStartupService.precalentar_biblia(page)
 
             ultimo_modo = {"movil": router._es_movil()}
 
@@ -295,55 +225,6 @@ def main(page: ft.Page):
         if alto_mapa > alto_maximo_mapa:
             alto_mapa = alto_maximo_mapa
             ancho_mapa = int(alto_mapa * proporcion_mapa)
-
-        def cantidad_pais(nombre):
-            return 0
-            paises = {}
-            alternativas = {
-                nombre,
-                NOMBRES_PAISES.get(nombre, nombre),
-                nombre.replace("Espana", "España"),
-                nombre.replace("Mexico", "México"),
-                nombre.replace("Panama", "Panamá"),
-                nombre.replace("Peru", "Perú"),
-                nombre.replace("Republica", "República"),
-            }
-            for alternativa in alternativas:
-                if alternativa in paises:
-                    return int(paises.get(alternativa, 0) or 0)
-            return 0
-
-        def marcador_registro(nombre, posicion_x, posicion_y, vista):
-            return None
-            cantidad = cantidad_pais(nombre)
-            if cantidad <= 0:
-                return None
-            marco = vista.get("marco") if vista else None
-            if marco:
-                x1, x2, y1, y2 = marco
-                proporcion_x = (posicion_x - x1) / (x2 - x1)
-                proporcion_y = (posicion_y - y1) / (y2 - y1)
-            else:
-                proporcion_x, proporcion_y = posicion_x, posicion_y
-            if not (0 <= proporcion_x <= 1 and 0 <= proporcion_y <= 1):
-                return None
-            return ft.Container(
-                left=max(3, min(ancho_mapa - 48, int(proporcion_x * ancho_mapa) - 18)),
-                top=max(3, min(alto_mapa - 29, int(proporcion_y * alto_mapa) - 14)),
-                padding=ft.Padding(left=5, top=3, right=5, bottom=3),
-                border_radius=10,
-                bgcolor="#5F3A2C",
-                border=ft.Border.all(1, "#FFF9EF"),
-                tooltip=f"{NOMBRES_PAISES.get(nombre, nombre)}: {cantidad} registro(s)",
-                content=ft.Row(
-                    tight=True,
-                    spacing=3,
-                    controls=[
-                        bandera_pais(nombre, ancho=15, alto=10),
-                        ft.Text(str(cantidad), size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
-                    ],
-                ),
-            )
 
         def adaptar_selector_pais(evento=None):
             if selector_niveles_activo["valor"]:
@@ -835,15 +716,17 @@ def main(page: ft.Page):
             )
             guardar_clave = ft.Checkbox(
                 label="Recordar acceso en este dispositivo",
-                value=True,
+                value=False,
             )
             error = ft.Text("", color=ft.Colors.RED, size=12, visible=False)
 
             def confirmar_clave(ev=None):
-                if PermisosService.validar_clave(nivel, clave.value or ""):
-                    PermisosService.autorizar(nivel, guardar=bool(guardar_clave.value))
+                try:
+                    PermisosService.autorizar(nivel, clave.value or "", guardar=bool(guardar_clave.value))
                     iniciar_app(nivel)
                     return
+                except ValueError:
+                    pass
                 error.value = "La clave no es correcta."
                 error.visible = True
                 page.update()

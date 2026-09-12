@@ -32,10 +32,10 @@ from ui.tema import (
 
 class Router:
     RUTAS_POR_NIVEL = {
-        1: {"inicio", "biblia", "ajustes"},
-        2: {"inicio", "biblia", "calculadora", "tiempo", "ajustes"},
-        3: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "ajustes"},
-        4: {"inicio", "pizarra", "colores", "biblia", "tiempo", "calculadora", "ajustes"},
+        1: {"inicio", "biblia", "aro_arcoiris", "tiempo", "ajustes"},
+        2: {"inicio", "biblia", "aro_arcoiris", "calculadora", "tiempo", "ajustes"},
+        3: {"inicio", "pizarra", "colores", "biblia", "aro_arcoiris", "tiempo", "calculadora", "ajustes"},
+        4: {"inicio", "pizarra", "colores", "biblia", "aro_arcoiris", "tiempo", "calculadora", "ajustes"},
     }
 
     # Las vistas consultan estas capacidades para proteger sus acciones, no solo

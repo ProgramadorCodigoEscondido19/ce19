@@ -1,5 +1,4 @@
 from pathlib import Path
-import importlib
 import traceback
 
 import flet as ft
@@ -37,32 +36,25 @@ class AppStartupService:
             Path(ruta).mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def intentar_backup_auto():
-        try:
-            modulo = importlib.import_module("core.backup_datos")
-        except Exception:
-            return False, "Módulo de backup no disponible"
-
-        for nombre_funcion in (
-            "crear_backup_automatico_diario",
-            "crear_backup_automatico",
-            "backup_automatico_diario",
-            "backup_automatico",
-        ):
-            funcion = getattr(modulo, nombre_funcion, None)
-            if callable(funcion):
-                try:
-                    funcion()
-                    return True, nombre_funcion
-                except Exception as error:
-                    return False, str(error)
-
-        return False, "No se encontró una función de backup automático compatible"
-
-    @staticmethod
     def inicializar_estado(page=None):
         state.historial = Historial(page=page)
         return state
+
+    @staticmethod
+    def precalentar_biblia(page):
+        """Carga los datos en segundo plano para que Biblia abra sin espera."""
+        def cargar():
+            try:
+                from services.biblia_service import BibliaService
+
+                BibliaService.libros()
+            except Exception:
+                pass
+
+        try:
+            page.run_thread(cargar)
+        except (AttributeError, RuntimeError):
+            pass
 
     @staticmethod
     def registrar_vistas(router, page):

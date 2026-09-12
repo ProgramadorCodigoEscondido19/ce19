@@ -7,7 +7,7 @@ class CodificadorService:
 
     def __init__(self):
         self.nombre_alfabeto = ""
-        self.seleccionar_alfabeto()
+        self.usar_alfabeto_temporal(AlfabetosService.activo_id())
 
     def seleccionar_alfabeto(self, identificador=None):
         alfabeto = AlfabetosService.seleccionar(identificador or AlfabetosService.activo_id())

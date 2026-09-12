@@ -1,9 +1,5 @@
-"""Servicios reutilizables para Codigo Escondido 19."""
+"""Servicios reutilizables para Codigo Escondido 19.
 
-try:
-    from .app_paths import AppPaths
-    from .biblia_service import BibliaService, CATEGORIAS_RANDOM_BIBLIA
-    from .codificador_service import CodificadorService
-except Exception:
-    # Evita que un import parcial bloquee el arranque de la app.
-    pass
+Los servicios se importan desde su modulo concreto para mantener liviano el
+arranque y evitar cargar la Biblia cuando solo se necesita la configuracion.
+"""

@@ -12,7 +12,7 @@ class PermisosService:
 
     CLAVE_CONFIG = "niveles_autorizados"
     CLAVE_VERSION_CONFIG = "niveles_autorizados_version"
-    VERSION_CREDENCIALES = "2026-08-seguras"
+    VERSION_CREDENCIALES = "2026-09-validacion-explicita"
     _SAL = b"CE19.niveles.2026"
     _ITERACIONES = 120000
     _HASHES_INICIALES = {
@@ -90,8 +90,10 @@ class PermisosService:
         return int(nivel) in cls.niveles_autorizados()
 
     @classmethod
-    def autorizar(cls, nivel, guardar=True):
+    def autorizar(cls, nivel, clave, guardar=False):
         nivel = int(nivel)
+        if not cls.validar_clave(nivel, clave):
+            raise ValueError("La clave no es correcta.")
         if not guardar:
             return nivel
         datos = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})

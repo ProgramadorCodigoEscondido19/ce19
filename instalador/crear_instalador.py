@@ -49,6 +49,8 @@ EXCLUSIONES_PAQUETE = [
     "dist",
     "dist_windows",
     "release",
+    "Para_compartir",
+    "CODIGO-ESCONDIDO-19-*",
     "backups",
     "logs",
     "storage",
@@ -68,6 +70,9 @@ EXCLUSIONES_PAQUETE = [
     "datos/guardados.json",
     "datos/carpetas.json",
     "datos/config_tiempo.json",
+    "datos/config_app.json",
+    "config_app.json",
+    "datos_usuario",
     "datos/analisis_colores_historial.json",
     "datos/historial_referencias_biblia.json",
     "datos/favoritos_biblia.json",
@@ -82,7 +87,12 @@ ARCHIVOS_REQUERIDOS_APP_ZIP = [
     "ui/__init__.py",
     "ui/tema.py",
     "vistas/analizador_colores.py",
+    "vistas/circulo_biblico.py",
     "logica/analizador_colores.py",
+    "logica/circulo_biblico.py",
+    "services/circulo_biblico_service.py",
+    "services/exportador_circulo_biblico.py",
+    "ui/leyenda_colores.py",
 ]
 ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP = [
     "main.pyc",
@@ -91,7 +101,12 @@ ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP = [
     "ui/__init__.pyc",
     "ui/tema.pyc",
     "vistas/analizador_colores.pyc",
+    "vistas/circulo_biblico.pyc",
     "logica/analizador_colores.pyc",
+    "logica/circulo_biblico.pyc",
+    "services/circulo_biblico_service.pyc",
+    "services/exportador_circulo_biblico.pyc",
+    "ui/leyenda_colores.pyc",
     "datos/biblia_rvr1960.json.gz",
     "assets/icon.png",
 ]
@@ -102,7 +117,12 @@ ARCHIVOS_REQUERIDOS_ANDROID_APP_ZIP = [
     "ui/__init__.pyc",
     "ui/tema.pyc",
     "vistas/analizador_colores.pyc",
+    "vistas/circulo_biblico.pyc",
     "logica/analizador_colores.pyc",
+    "logica/circulo_biblico.pyc",
+    "services/circulo_biblico_service.pyc",
+    "services/exportador_circulo_biblico.pyc",
+    "ui/leyenda_colores.pyc",
     "datos/biblia_rvr1960.json.gz",
     "assets/icon.png",
 ]
@@ -245,6 +265,7 @@ def comando_build(destino):
         "--yes",
         "--skip-flutter-doctor",
         "--cleanup-app",
+        "--compile-app",
         "--exclude",
         *EXCLUSIONES_PAQUETE,
     ]
@@ -466,7 +487,11 @@ def copiar_salida_windows():
     if not exe.exists():
         return None, None
 
-    recrear_app_zip_windows(origen)
+    archivo_app = origen / "data" / "flutter_assets" / "app" / "app.zip"
+    try:
+        validar_app_zip_windows(archivo_app)
+    except (OSError, RuntimeError, zipfile.BadZipFile):
+        recrear_app_zip_windows(origen)
 
     raiz = ROOT / "dist_windows"
     destino = raiz / APP_NOMBRE
@@ -481,7 +506,8 @@ def copiar_salida_windows():
         else:
             shutil.copy2(elemento, salida)
 
-    zip_base = ROOT / "CODIGO-ESCONDIDO-19-Windows"
+    (ROOT / "Para_compartir").mkdir(exist_ok=True)
+    zip_base = ROOT / "Para_compartir" / f"CODIGO-ESCONDIDO-19-Windows-v{VERSION}"
     zip_path = Path(str(zip_base) + ".zip")
     if zip_path.exists():
         zip_path.unlink()
@@ -642,6 +668,13 @@ def validar_app_zip_bytes(datos, origen, plataforma=None):
             if requerido not in nombres:
                 errores.append(f"Falta {requerido} en {origen}")
 
+        if plataforma in {"windows", "android"}:
+            for requerido in ("services/permisos_service.pyc",):
+                if requerido not in nombres:
+                    errores.append(f"Falta {requerido} en {origen}")
+        if "datos/config_app.json" in nombres:
+            errores.append("El paquete incluye configuracion privada y accesos del equipo de desarrollo.")
+
         if plataforma == "source":
             for archivo, marcadores in MARCADORES_REQUERIDOS_APP_ZIP.items():
                 if archivo not in nombres:
@@ -753,8 +786,11 @@ def reconstruir_apk_android_con_app_zip_actualizado():
 
 
 def copiar_salida_android():
-    recrear_app_zip_android()
-    reconstruir_apk_android_con_app_zip_actualizado()
+    try:
+        validar_app_zip_android(ROOT / "build" / "flutter" / "app" / "app.zip")
+    except (OSError, RuntimeError, zipfile.BadZipFile):
+        recrear_app_zip_android()
+        reconstruir_apk_android_con_app_zip_actualizado()
 
     origen = ROOT / "build" / "flutter" / "build" / "app" / "outputs" / "flutter-apk" / "app-release.apk"
     if not origen.exists():
@@ -764,7 +800,13 @@ def copiar_salida_android():
 
     validar_apk_android(origen)
 
-    destino = ROOT / "CODIGO-ESCONDIDO-19-Android.apk"
+    salida_flet = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
+    salida_flet.parent.mkdir(parents=True, exist_ok=True)
+    if origen.resolve() != salida_flet.resolve():
+        shutil.copy2(origen, salida_flet)
+
+    (ROOT / "Para_compartir").mkdir(exist_ok=True)
+    destino = ROOT / "Para_compartir" / f"CODIGO-ESCONDIDO-19-Android-v{VERSION}.apk"
     if destino.exists():
         destino.unlink()
     shutil.copy2(origen, destino)
@@ -888,7 +930,6 @@ def nombre_sistema(sistema):
     nombres = {
         "Windows": "Windows",
         "Linux": "Linux",
-        "Darwin": "macOS",
     }
     return nombres.get(sistema, sistema)
 

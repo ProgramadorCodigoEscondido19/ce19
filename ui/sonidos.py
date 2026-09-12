@@ -2,18 +2,27 @@
 import flet_audio as fa
 
 from core.error_logger import registrar_error
+from services.app_config_service import AppConfigService
+from services.app_paths import AppPaths
+
+
+def resultado_8_habilitado():
+    datos = AppConfigService.leer_json(AppPaths.CONFIG_APP, {})
+    return not (isinstance(datos, dict) and datos.get("resultado_8_muted", False))
 
 
 def reproducir_resultado_8(page):
     """Una reproduccion por calculo, sin bucle ni reproductores superpuestos."""
     try:
+        if not resultado_8_habilitado():
+            return
         audio = getattr(page, "_audio_resultado_8", None)
         if audio is None:
             estado = {"cargado": False, "pendiente": True}
 
             async def al_cargar(e):
                 estado["cargado"] = True
-                if estado["pendiente"]:
+                if estado["pendiente"] and resultado_8_habilitado():
                     estado["pendiente"] = False
                     try:
                         await audio.play(position=0)
@@ -38,7 +47,8 @@ def reproducir_resultado_8(page):
 
         async def reproducir():
             try:
-                await audio.play(position=0)
+                if resultado_8_habilitado():
+                    await audio.play(position=0)
             except Exception as error:
                 registrar_error("sonidos.resultado_8", error)
 

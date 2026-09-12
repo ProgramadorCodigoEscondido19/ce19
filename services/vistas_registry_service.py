@@ -26,6 +26,10 @@ class VistasRegistryService:
             from vistas.biblia import BibliaView
             return BibliaView(page, router)
 
+        def crear_aro_arcoiris():
+            from vistas.circulo_biblico import CirculoBiblicoView
+            return CirculoBiblicoView(page, router)
+
         def crear_tiempo():
             from vistas.tiempo import TiempoView
             return TiempoView(page, router)
@@ -43,6 +47,7 @@ class VistasRegistryService:
             "pizarra": crear_pizarra,
             "colores": crear_colores,
             "biblia": crear_biblia,
+            "aro_arcoiris": crear_aro_arcoiris,
             "tiempo": crear_tiempo,
             "calculadora": crear_calculadora,
             "ajustes": crear_ajustes,

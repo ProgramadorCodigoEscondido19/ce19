@@ -45,6 +45,17 @@ class AjustesView:
         self._guardar_config("intro_audio_muted", not bool(e.control.value))
         self._snack("La preferencia de sonido se aplicara en la proxima introduccion.")
 
+    async def _cambiar_sonido_resultado(self, e):
+        self._guardar_config("resultado_8_muted", not bool(e.control.value))
+        if not e.control.value:
+            estado = getattr(self.page, "_estado_audio_resultado_8", None)
+            if estado is not None:
+                estado["pendiente"] = False
+            audio = getattr(self.page, "_audio_resultado_8", None)
+            if audio is not None:
+                await audio.pause()
+        self.page.update()
+
     def _recargar(self):
         alfabetos = AlfabetosService.listar()
         activo = AlfabetosService.activo_id()
@@ -282,6 +293,9 @@ class AjustesView:
     def eliminar_alfabeto(self, alfabeto, e=None):
         AlfabetosService.eliminar(alfabeto["id"])
         self._recargar()
+        inicio = self.router.vistas.get("inicio")
+        if inicio is not None:
+            inicio.actualizar_alfabeto(actualizar_pantalla=False)
         self._snack("Alfabeto eliminado.")
 
     def _preferencias(self):
@@ -305,6 +319,7 @@ class AjustesView:
                 ft.Text("Preferencias", size=18, weight=ft.FontWeight.BOLD),
                 fondo,
                 audio,
+                ft.Switch(label="Sonido añeñe al obtener el número 8", value=not datos.get("resultado_8_muted", False), on_change=self._cambiar_sonido_resultado),
                 ft.Text("Los cambios visuales se aplican al volver a abrir la pantalla.", size=11, color="#6E6374"),
             ]),
         )
@@ -325,7 +340,7 @@ class AjustesView:
                         ],
                     ),
                     ft.Text(
-                        "Los instaladores de Windows, Android y macOS se descargan manualmente desde GitHub.",
+                        "Los instaladores de Windows y Android se descargan manualmente desde GitHub.",
                         size=12,
                         color="#6E6374",
                     ),
@@ -371,11 +386,11 @@ class AjustesView:
                 ),
             ),
             self._descargas_app(),
+            self._preferencias(),
         ]
 
         if nivel >= 4:
             controles.extend([
-                self._preferencias(),
                 ft.Container(
                     padding=16,
                     border_radius=16,
