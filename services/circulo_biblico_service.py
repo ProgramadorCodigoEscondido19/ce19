@@ -5,7 +5,6 @@ from logica.circulo_biblico import (
     ALCANCE_BIBLIA, ALCANCE_CAPITULO, ALCANCE_LIBRO, ALCANCE_VERSICULO,
     ModeloAro, anillo_dividido, anillo_solido, reducir_a_un_digito,
 )
-from services.alfabetos_service import AlfabetosService
 from services.biblia_service import BibliaService
 
 
@@ -33,11 +32,10 @@ class CirculoBiblicoService:
         cantidad = len(libros)
         primera_suma = sum(int(c) for c in str(cantidad))
         reduccion = reducir_a_un_digito(cantidad)
-        cantidades_capitulos = [len(libro.get("capitulos", [])) for libro in libros]
         return ModeloAro(
             ALCANCE_BIBLIA, "biblia-completa", "BIBLIA COMPLETA", f"{cantidad} libros",
-            anillo_solido("Cantidad total de libros", cantidad, f"{cantidad} → {primera_suma} → {reduccion}"),
-            anillo_dividido("Libros según su cantidad de capítulos", cantidad, "L", cantidades_capitulos),
+            anillo_solido("Cantidad total de libros", cantidad, f"{cantidad} → {primera_suma} → {reduccion}", valor_borde=cantidad),
+            anillo_dividido("Libros según su número", cantidad, "L", valor_borde=cantidad),
             "BORDE: TOTAL DE LIBROS", "INTERIOR: LIBROS",
         )
 
@@ -48,8 +46,8 @@ class CirculoBiblicoService:
         return ModeloAro(
             ALCANCE_LIBRO, f"libro-{numero_libro}", str(libro.get("nombre", nombre)).upper(),
             f"Libro {numero_libro} · {len(capitulos)} capítulos",
-            anillo_dividido("Número del libro", numero_libro, "L"),
-            anillo_dividido("Capítulos", len(capitulos), "C"),
+            anillo_dividido("Número del libro", numero_libro, "L", valor_borde=numero_libro),
+            anillo_dividido("Capítulos", len(capitulos), "C", valor_borde=len(capitulos)),
             f"BORDE: LIBRO {numero_libro}", "INTERIOR: CAPÍTULOS",
         )
 
@@ -64,9 +62,12 @@ class CirculoBiblicoService:
         return ModeloAro(
             ALCANCE_CAPITULO, f"capitulo-{nombre}-{capitulo}", f"{nombre.upper()} {capitulo}",
             f"{len(capitulos)} capítulos · capítulo {capitulo}: {cantidad_versiculos} versículos",
-            anillo_dividido("Capítulos del libro", len(capitulos), "C"),
-            anillo_dividido("Versículos del capítulo", cantidad_versiculos, "V"),
-            "BORDE: CAPÍTULOS", "INTERIOR: VERSÍCULOS",
+            anillo_dividido(
+                "Número del capítulo", capitulo, "C",
+                valor_borde=len(capitulos) if capitulo > 1 else None,
+            ),
+            anillo_dividido("Versículos del capítulo", cantidad_versiculos, "V", valor_borde=cantidad_versiculos),
+            f"BORDE: CAPÍTULO {capitulo}", "INTERIOR: VERSÍCULOS",
         )
 
     @classmethod
@@ -76,17 +77,24 @@ class CirculoBiblicoService:
         texto = BibliaService.obtener_versiculo(nombre, capitulo, versiculo)
         if not texto:
             raise ValueError("El versículo seleccionado no existe.")
-        alfabeto = AlfabetosService.obtener()
-        analisis = analizar_codigo_visual(texto, alfabeto.get("valores"))
+        # La Biblia cargada está en español: se usa el alfabeto numérico base
+        # para que el resultado no cambie si el usuario dejó activo hebreo,
+        # griego o un diccionario personalizado en CODICOLOR.
+        analisis = analizar_codigo_visual(texto)
         suma = int(analisis.get("total_codigo", 0))
+        cifras = [int(cifra) for cifra in str(abs(suma))] or [0]
         pasos = " → ".join(str(valor) for valor in analisis.get("pasos_reduccion", []))
+        cantidad_versiculos = cls.cantidad_versiculos(nombre, capitulo)
         return ModeloAro(
             ALCANCE_VERSICULO, f"versiculo-{nombre}-{capitulo}-{versiculo}",
             f"{nombre.upper()} {capitulo}:{versiculo}",
             f"Versículo {versiculo} · suma del texto: {suma} → {analisis['resultado_final']}",
-            anillo_dividido("Número de versículo", versiculo, "V"),
-            anillo_solido("Suma numérica del texto", suma, f"Σ {suma} → {analisis['resultado_final']}"),
-            f"BORDE: VERSÍCULO {versiculo}", "INTERIOR: TEXTO NUMÉRICO", f"Reducción: {pasos}",
+            anillo_dividido("Número de versículo", versiculo, "V", valor_borde=cantidad_versiculos),
+            anillo_dividido(
+                "Cifras de la suma alfabética", len(cifras), "D", valores=cifras,
+                etiquetas=[f"D{cifra}" for cifra in cifras], valor_borde=suma,
+            ),
+            f"BORDE: VERSÍCULO {versiculo}", "INTERIOR: CIFRAS DE LA SUMA", f"Reducción: {pasos}",
         )
 
     @classmethod

@@ -93,6 +93,7 @@ ARCHIVOS_REQUERIDOS_APP_ZIP = [
     "services/circulo_biblico_service.py",
     "services/exportador_circulo_biblico.py",
     "ui/leyenda_colores.py",
+    "ui/selector_pdf_arcoiris.py",
 ]
 ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP = [
     "main.pyc",
@@ -107,6 +108,7 @@ ARCHIVOS_REQUERIDOS_WINDOWS_APP_ZIP = [
     "services/circulo_biblico_service.pyc",
     "services/exportador_circulo_biblico.pyc",
     "ui/leyenda_colores.pyc",
+    "ui/selector_pdf_arcoiris.pyc",
     "datos/biblia_rvr1960.json.gz",
     "assets/icon.png",
 ]
@@ -123,6 +125,7 @@ ARCHIVOS_REQUERIDOS_ANDROID_APP_ZIP = [
     "services/circulo_biblico_service.pyc",
     "services/exportador_circulo_biblico.pyc",
     "ui/leyenda_colores.pyc",
+    "ui/selector_pdf_arcoiris.pyc",
     "datos/biblia_rvr1960.json.gz",
     "assets/icon.png",
 ]

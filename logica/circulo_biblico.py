@@ -45,6 +45,7 @@ class AnilloAro:
     color_solido: str | None = None
     etiqueta_solida: str = ""
     digito_solido: int = 0
+    color_borde: str = COLOR_CONTORNO
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,7 @@ class ModeloAro:
     texto_centro_3: str = "Inicio arriba · sentido horario"
 
 
-def crear_secciones(cantidad: int, prefijo: str, valores=None) -> tuple[SeccionAro, ...]:
+def crear_secciones(cantidad: int, prefijo: str, valores=None, etiquetas=None) -> tuple[SeccionAro, ...]:
     """Crea sectores independientes, comenzando a las 12 y avanzando a la derecha."""
     cantidad = max(0, int(cantidad or 0))
     if not cantidad:
@@ -68,6 +69,9 @@ def crear_secciones(cantidad: int, prefijo: str, valores=None) -> tuple[SeccionA
     valores = list(valores) if valores is not None else list(range(1, cantidad + 1))
     if len(valores) != cantidad:
         raise ValueError("La cantidad de valores debe coincidir con los sectores.")
+    etiquetas = list(etiquetas) if etiquetas is not None else [f"{prefijo}{indice}" for indice in range(1, cantidad + 1)]
+    if len(etiquetas) != cantidad:
+        raise ValueError("La cantidad de etiquetas debe coincidir con los sectores.")
     angulo = 360.0 / cantidad
     resultado = []
     for indice, valor in enumerate(valores, start=1):
@@ -76,7 +80,7 @@ def crear_secciones(cantidad: int, prefijo: str, valores=None) -> tuple[SeccionA
         digito = reducir_a_un_digito(valor)
         resultado.append(SeccionAro(
             numero=indice,
-            etiqueta=f"{prefijo}{indice}",
+            etiqueta=str(etiquetas[indice - 1]),
             valor=valor,
             digito=digito,
             color=color_para_numero(valor),
@@ -87,10 +91,21 @@ def crear_secciones(cantidad: int, prefijo: str, valores=None) -> tuple[SeccionA
     return tuple(resultado)
 
 
-def anillo_dividido(nombre: str, cantidad: int, prefijo: str, valores=None) -> AnilloAro:
-    return AnilloAro(nombre=nombre, secciones=crear_secciones(cantidad, prefijo, valores))
+def anillo_dividido(nombre: str, cantidad: int, prefijo: str, valores=None, etiquetas=None, valor_borde=None) -> AnilloAro:
+    color_borde = COLOR_CONTORNO if valor_borde is None else color_para_numero(valor_borde)
+    return AnilloAro(
+        nombre=nombre,
+        secciones=crear_secciones(cantidad, prefijo, valores, etiquetas),
+        color_borde=color_borde,
+    )
 
 
-def anillo_solido(nombre: str, valor: int, etiqueta: str) -> AnilloAro:
+def anillo_solido(nombre: str, valor: int, etiqueta: str, valor_borde=None) -> AnilloAro:
     digito = reducir_a_un_digito(valor)
-    return AnilloAro(nombre=nombre, color_solido=color_para_numero(valor), etiqueta_solida=etiqueta, digito_solido=digito)
+    return AnilloAro(
+        nombre=nombre,
+        color_solido=color_para_numero(valor),
+        etiqueta_solida=etiqueta,
+        digito_solido=digito,
+        color_borde=color_para_numero(valor if valor_borde is None else valor_borde),
+    )
