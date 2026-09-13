@@ -7,6 +7,8 @@ import zlib
 from logica.analizador_colores import DIGITO_COLORES
 from logica.circulo_biblico import COLOR_CONTORNO, ModeloAro, color_texto_para_digito
 
+MULTIPLICADOR_BORDE_SUMA = 4
+
 
 def _rgb(color):
     color = str(color).lstrip("#")
@@ -39,6 +41,7 @@ def generar_png_circulo_nativo(modelo: ModeloAro, lado=900) -> bytes:
     # Al generarse al doble de resolución y reducirse en pantalla, este trazo
     # queda fino y suavizado sin dominar los colores del aro.
     grosor = max(0.65, lado / 1000)
+    grosor_borde_suma = grosor * MULTIPLICADOR_BORDE_SUMA
 
     def color_anillo(solido, colores, cantidad, angulo):
         if solido:
@@ -72,9 +75,12 @@ def generar_png_circulo_nativo(modelo: ModeloAro, lado=900) -> bytes:
                     division = es_division(cantidad_interior, angulo, radio)
                 if division:
                     color = contorno
-                if abs(radio - radio_exterior) <= grosor:
+                if abs(radio - radio_exterior) <= grosor_borde_suma:
                     color = borde_exterior
-                elif abs(radio - radio_limite) <= grosor or abs(radio - radio_hueco) <= grosor:
+                elif (
+                    abs(radio - radio_limite) <= grosor_borde_suma
+                    or abs(radio - radio_hueco) <= grosor_borde_suma
+                ):
                     color = borde_interior
             fila.extend(color)
         filas.extend(fila)

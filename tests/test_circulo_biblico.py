@@ -10,7 +10,7 @@ from logica.circulo_biblico import reducir_a_un_digito
 from services.biblia_service import BibliaService
 from services.circulo_biblico_service import CirculoBiblicoService
 from services.exportador_circulo_biblico import (
-    generar_pdf_modelos_nativo, generar_png_circulo_nativo,
+    MULTIPLICADOR_BORDE_SUMA, generar_pdf_modelos_nativo, generar_png_circulo_nativo,
 )
 from services.rutas_service import RutasService
 from ui.selector_pdf_arcoiris import SelectorPdfAro
@@ -74,6 +74,10 @@ class CirculoBiblicoTest(unittest.TestCase):
         self.assertEqual([seccion.valor for seccion in modelo.interior.secciones], [int(cifra) for cifra in str(suma)])
         self.assertFalse(modelo.interior.color_solido)
         self.assertIn("suma del texto", modelo.resumen)
+
+        genesis_3_4 = CirculoBiblicoService.modelo_versiculo("Génesis", 3, 4)
+        self.assertEqual(genesis_3_4.exterior.color_borde, "#FDD835")
+        self.assertEqual(MULTIPLICADOR_BORDE_SUMA, 4)
 
     def test_orientacion_independiente(self):
         for anillo in (self.genesis_24.exterior, self.genesis_1.interior):

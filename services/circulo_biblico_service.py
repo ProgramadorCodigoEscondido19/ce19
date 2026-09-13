@@ -84,12 +84,13 @@ class CirculoBiblicoService:
         suma = int(analisis.get("total_codigo", 0))
         cifras = [int(cifra) for cifra in str(abs(suma))] or [0]
         pasos = " → ".join(str(valor) for valor in analisis.get("pasos_reduccion", []))
-        cantidad_versiculos = cls.cantidad_versiculos(nombre, capitulo)
         return ModeloAro(
             ALCANCE_VERSICULO, f"versiculo-{nombre}-{capitulo}-{versiculo}",
             f"{nombre.upper()} {capitulo}:{versiculo}",
             f"Versículo {versiculo} · suma del texto: {suma} → {analisis['resultado_final']}",
-            anillo_dividido("Número de versículo", versiculo, "V", valor_borde=cantidad_versiculos),
+            # El borde exterior representa el número del versículo elegido,
+            # no la cantidad total de versículos del capítulo.
+            anillo_dividido("Número de versículo", versiculo, "V", valor_borde=versiculo),
             anillo_dividido(
                 "Cifras de la suma alfabética", len(cifras), "D", valores=cifras,
                 etiquetas=[f"D{cifra}" for cifra in cifras], valor_borde=suma,
