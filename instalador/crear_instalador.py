@@ -5,6 +5,7 @@ import os
 import shutil
 import fnmatch
 import hashlib
+import re
 import zipfile
 import ast
 import tempfile
@@ -728,7 +729,7 @@ def validar_zip_windows(zip_path):
         validar_app_zip_bytes(paquete.read(app_zip), app_zip, plataforma="windows")
 
 
-def validar_apk_android(apk_path):
+def validar_apk_android(apk_path, build_number_esperado=None):
     app_zip = "assets/flutter_assets/app/app.zip"
     with zipfile.ZipFile(apk_path) as paquete:
         nombres = set(paquete.namelist())
@@ -746,8 +747,12 @@ def validar_apk_android(apk_path):
     manifiesto = resultado.stdout or ""
     if resultado.returncode != 0:
         raise RuntimeError("No se pudo leer el manifiesto de version del APK.")
-    if f"versionCode='{BUILD_NUMBER}'" not in manifiesto:
-        raise RuntimeError(f"El APK no usa versionCode {BUILD_NUMBER}.")
+    coincidencia_build = re.search(r"versionCode='(\d+)'", manifiesto)
+    if not coincidencia_build:
+        raise RuntimeError("El APK no declara un versionCode válido.")
+    build_number = coincidencia_build.group(1)
+    if build_number_esperado is not None and build_number != str(build_number_esperado):
+        raise RuntimeError(f"El APK no usa versionCode {build_number_esperado}.")
     if f"versionName='{VERSION_NATIVA}'" not in manifiesto:
         raise RuntimeError(f"El APK no usa versionName {VERSION_NATIVA}.")
 
@@ -801,7 +806,7 @@ def copiar_salida_android():
     if not origen.exists():
         return None
 
-    validar_apk_android(origen)
+    validar_apk_android(origen, BUILD_NUMBER)
 
     salida_flet = ROOT / "build" / "apk" / f"{APP_NOMBRE}.apk"
     salida_flet.parent.mkdir(parents=True, exist_ok=True)
