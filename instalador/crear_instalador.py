@@ -5,10 +5,12 @@ import os
 import shutil
 import fnmatch
 import hashlib
+import io
 import re
 import zipfile
 import ast
 import tempfile
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -18,6 +20,15 @@ PROJECT_NAME = "codigo_escondido_19"
 BUNDLE_ID = "com.flet.app_ce_19"
 ORG = "com.flet"
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def leer_dependencias_proyecto():
+    with (ROOT / "pyproject.toml").open("rb") as archivo:
+        proyecto = tomllib.load(archivo).get("project", {})
+    dependencias = proyecto.get("dependencies", [])
+    if not dependencias:
+        raise RuntimeError("pyproject.toml no declara dependencias para empaquetar.")
+    return tuple(str(dependencia) for dependencia in dependencias)
 
 
 def leer_constante_tema(nombre, predeterminado):
@@ -601,7 +612,7 @@ def copiar_fuente_limpia(destino):
             shutil.copy2(ruta, salida)
 
 
-def recrear_app_zip_compilado(app_dir, plataforma):
+def recrear_app_zip_compilado(app_dir, plataforma, incluir_dependencias=False):
     flutter_dir = ROOT / "build" / "flutter"
     if not (flutter_dir / "pubspec.yaml").exists():
         raise RuntimeError(
@@ -623,11 +634,20 @@ def recrear_app_zip_compilado(app_dir, plataforma):
             plataforma,
             "--asset",
             "app/app.zip",
-            "--skip-site-packages",
             "--compile-app",
             "--cleanup-app",
         ]
-        resultado = subprocess.run(comando, cwd=flutter_dir)
+        if incluir_dependencias:
+            for dependencia in leer_dependencias_proyecto():
+                comando.extend(["--requirements", dependencia])
+            comando.extend(["--compile-packages", "--cleanup-packages"])
+        else:
+            comando.append("--skip-site-packages")
+        entorno = os.environ.copy()
+        entorno["SERIOUS_PYTHON_SITE_PACKAGES"] = str(
+            ROOT / "build" / "site-packages"
+        )
+        resultado = subprocess.run(comando, cwd=flutter_dir, env=entorno)
         if resultado.returncode != 0:
             raise RuntimeError(f"No se pudo recrear app.zip compilado para {plataforma}.")
 
@@ -649,14 +669,16 @@ def recrear_app_zip_windows_compilado(app_dir):
 
 
 def recrear_app_zip_android_compilado(app_dir):
-    zip_path = recrear_app_zip_compilado(app_dir, "Android")
+    zip_path = recrear_app_zip_compilado(
+        app_dir,
+        "Android",
+        incluir_dependencias=True,
+    )
     validar_app_zip_android(zip_path)
     return zip_path
 
 
 def validar_app_zip_bytes(datos, origen, plataforma=None):
-    import io
-
     errores = []
     with zipfile.ZipFile(io.BytesIO(datos)) as paquete:
         nombres = set(paquete.namelist())
@@ -736,6 +758,19 @@ def validar_apk_android(apk_path, build_number_esperado=None):
         if app_zip not in nombres:
             raise RuntimeError(f"Falta {app_zip} dentro del APK")
         validar_app_zip_bytes(paquete.read(app_zip), app_zip, plataforma="android")
+        modulos_requeridos = ("certifi", "flet", "flet_audio", "httpx", "PIL")
+        for arquitectura in ("arm64-v8a", "armeabi-v7a", "x86_64"):
+            bundle = f"lib/{arquitectura}/libpythonsitepackages.so"
+            if bundle not in nombres:
+                raise RuntimeError(f"Falta {bundle} dentro del APK")
+            with zipfile.ZipFile(io.BytesIO(paquete.read(bundle))) as python_bundle:
+                incluidos = set(python_bundle.namelist())
+                for modulo in modulos_requeridos:
+                    prefijo = f"{modulo}/"
+                    if not any(nombre.startswith(prefijo) for nombre in incluidos):
+                        raise RuntimeError(
+                            f"Falta {modulo} en el paquete Python para {arquitectura}."
+                        )
 
     resultado = subprocess.run(
         [str(aapt_ejecutable()), "dump", "badging", str(apk_path)],
@@ -788,6 +823,13 @@ def reconstruir_apk_android_con_app_zip_actualizado():
     ]
     entorno = os.environ.copy()
     entorno["SERIOUS_PYTHON_SITE_PACKAGES"] = str(ROOT / "build" / "site-packages")
+    limpieza = subprocess.run(
+        [str(flutter_ejecutable()), "clean"],
+        cwd=flutter_dir,
+        env=entorno,
+    )
+    if limpieza.returncode != 0:
+        raise RuntimeError("No se pudo limpiar el build Android anterior.")
     resultado = subprocess.run(comando, cwd=flutter_dir, env=entorno)
     if resultado.returncode != 0:
         raise RuntimeError("No se pudo reconstruir el APK Android con el app.zip corregido.")
