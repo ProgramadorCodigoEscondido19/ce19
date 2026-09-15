@@ -14,6 +14,8 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image
+
 
 APP_NOMBRE = "CODIGO ESCONDIDO 19"
 PROJECT_NAME = "codigo_escondido_19"
@@ -245,6 +247,31 @@ def aapt_ejecutable():
 
 def normalizar_ruta_cmake(ruta):
     return str(ruta).replace("\\", "/")
+
+
+def validar_icono_fuente():
+    icono = ROOT / "assets" / "icon.png"
+    if not icono.exists():
+        raise RuntimeError("Falta assets/icon.png para generar los iconos de la aplicación.")
+
+    with Image.open(icono) as imagen:
+        if imagen.format != "PNG":
+            raise RuntimeError("assets/icon.png debe ser una imagen PNG.")
+        if imagen.size != (1024, 1024):
+            raise RuntimeError(
+                "assets/icon.png debe medir 1024 x 1024 px para conservar nitidez."
+            )
+        if "A" not in imagen.getbands():
+            raise RuntimeError("assets/icon.png debe conservar transparencia RGBA.")
+
+        limites = imagen.getchannel("A").getbbox()
+        if limites is None:
+            raise RuntimeError("assets/icon.png está completamente transparente.")
+        izquierda, arriba, derecha, abajo = limites
+        centro_x = (izquierda + derecha) / 2
+        centro_y = (arriba + abajo) / 2
+        if abs(centro_x - 512) > 2 or abs(centro_y - 512) > 2:
+            raise RuntimeError("El emblema de assets/icon.png no está centrado.")
 
 
 def comando_build(destino):
@@ -494,6 +521,49 @@ def completar_windows_si_falla():
         cwd=build_dir,
     )
     return resultado.returncode == 0
+
+
+def reconstruir_windows_con_icono_multiresolucion():
+    flutter_dir = ROOT / "build" / "flutter"
+    icono_generado = (
+        flutter_dir / "windows" / "runner" / "resources" / "app_icon.ico"
+    )
+    if (
+        not (flutter_dir / "pubspec.yaml").exists()
+        or not icono_generado.parent.exists()
+    ):
+        return 1
+
+    tamanos = [
+        (16, 16),
+        (20, 20),
+        (24, 24),
+        (32, 32),
+        (40, 40),
+        (48, 48),
+        (64, 64),
+        (128, 128),
+        (256, 256),
+    ]
+    with Image.open(ROOT / "assets" / "icon.png") as imagen:
+        imagen.convert("RGBA").save(icono_generado, format="ICO", sizes=tamanos)
+
+    with Image.open(icono_generado) as icono:
+        generados = set(icono.ico.sizes())
+    if not set(tamanos).issubset(generados):
+        raise RuntimeError("No se pudieron generar todas las escalas del icono Windows.")
+
+    comando = [
+        str(flutter_ejecutable()),
+        "build",
+        "windows",
+        "--release",
+        "--build-name",
+        VERSION_NATIVA,
+        "--build-number",
+        BUILD_NUMBER,
+    ]
+    return subprocess.run(comando, cwd=flutter_dir).returncode
 
 
 def copiar_salida_windows():
@@ -823,6 +893,14 @@ def reconstruir_apk_android_con_app_zip_actualizado():
     ]
     entorno = os.environ.copy()
     entorno["SERIOUS_PYTHON_SITE_PACKAGES"] = str(ROOT / "build" / "site-packages")
+    gradle = flutter_dir / "android" / "gradlew.bat"
+    if gradle.exists():
+        subprocess.run(
+            [str(gradle), "--stop"],
+            cwd=gradle.parent,
+            env=entorno,
+            check=False,
+        )
     limpieza = subprocess.run(
         [str(flutter_ejecutable()), "clean"],
         cwd=flutter_dir,
@@ -932,6 +1010,7 @@ def main(opcion=None):
         mostrar_requisito_windows(estado_cpp)
         return 0
 
+    validar_icono_fuente()
     comando = comando_build(destino)
     print(
         "\nEjecutando:\n" + " ".join(f'"{c}"' if " " in c else c for c in comando),
@@ -948,6 +1027,10 @@ def main(opcion=None):
     entorno["TERM"] = "dumb"
     resultado = subprocess.run(comando, env=entorno, cwd=ROOT)
     codigo = resultado.returncode
+
+    if destino == "windows":
+        print("\nGenerando y compilando el icono Windows multirresolución...")
+        codigo = reconstruir_windows_con_icono_multiresolucion()
 
     if destino == "windows" and codigo != 0:
         print("\nIntentando completar el paquete Windows con el runtime local...")
