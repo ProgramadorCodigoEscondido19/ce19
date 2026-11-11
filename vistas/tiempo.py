@@ -9,11 +9,14 @@ from logica.calendario_360 import (
     MESES_360,
     calcular_calendario_360,
     cargar_base_calendario,
+    _civil_desde_dias,
+    _dias_desde_civil,
     fecha_gregoriana_desde_biblica,
     formatear_fecha_real,
     parsear_fecha_consulta,
     texto_calendario_360,
 )
+from logica.calendarios_historicos import convertir_fecha as convertir_calendario_historico
 from logica.exportar_calendario import (
     exportar_convertidor_calendario_xlsx,
     exportar_almanaque_pdf,
@@ -221,6 +224,7 @@ class TiempoView:
         self.router = router
         self.responsive = Responsive(page)
         self._timer_activo = False
+        self._consulta_historica_activa = False
         self.base_real = cargar_base_calendario()
         self.datos_actuales = calcular_calendario_360(base_real=self.base_real)
         self.datos_consulta = None
@@ -255,6 +259,45 @@ class TiempoView:
                 ),
             ],
             on_change=self._cambiar_tipo_consulta,
+        )
+        self.consulta_dias_input = ft.TextField(
+            label="Cantidad de días",
+            hint_text="Ej.: 10",
+            value="0",
+            width=150,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            on_submit=self.calcular_consulta,
+            on_tap_outside=lambda e: ocultar_teclado(self.page, e.control),
+        )
+        self.consulta_direccion = ft.SegmentedButton(
+            selected=["adelante"],
+            show_selected_icon=False,
+            segments=[
+                ft.Segment(value="atras", label="Hacia atrás"),
+                ft.Segment(value="adelante", label="Hacia adelante"),
+            ],
+        )
+        self.consulta_desplazamiento = ft.Row(
+            wrap=True,
+            spacing=8,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[self.consulta_dias_input, self.consulta_direccion],
+        )
+        self.consulta_calendario_destino = ft.Dropdown(
+            label="Calendario de destino",
+            value="gregoriano",
+            options=[
+                ft.dropdown.Option("gregoriano", "Gregoriano"),
+                ft.dropdown.Option("maya", "Maya · Cuenta Larga GMT"),
+                ft.dropdown.Option("egipcio", "Egipcio civil · era Nabonassar"),
+                ft.dropdown.Option("lunar", "Lunar · Hijri tabular civil"),
+                ft.dropdown.Option("israelita", "Israelita · hebreo fijo"),
+                ft.dropdown.Option("sumerio", "Sumerio · Nippur (reconstrucción)") ,
+                ft.dropdown.Option("babilonico", "Babilónico · ciclo metónico proléptico"),
+                ft.dropdown.Option("romano", "Romano · Kalendas, Nonas e Idus"),
+                ft.dropdown.Option("juliano", "Juliano · proléptico"),
+                ft.dropdown.Option("helenico", "Helénico ático · ciclo metónico proléptico"),
+            ],
         )
         self.consulta_alcance = ft.SegmentedButton(
             selected=["exacta"],
@@ -876,6 +919,7 @@ class TiempoView:
         )
 
     def abrir_consultas(self, e=None):
+        self._consulta_historica_activa = True
         es_movil = self._ancho_pantalla_actual() < 700
         ancho = self._ancho_dialogo_fecha(es_movil)
         ventana = getattr(self.page, "window", None)
@@ -945,6 +989,15 @@ class TiempoView:
                 ),
                 self.consulta_calendario,
                 self.consulta_input,
+                ft.Text("Desplazar la fecha (opcional)", size=12, color=TEXTO_SECUNDARIO, weight=ft.FontWeight.BOLD),
+                self.consulta_desplazamiento,
+                ft.Text("Calendario de destino", size=12, color=TEXTO_SECUNDARIO, weight=ft.FontWeight.BOLD),
+                self.consulta_calendario_destino,
+                ft.Text(
+                    "Se usan variantes de cálculo documentadas. El calendario Hijri tabular puede diferir de la observación lunar local.",
+                    size=11,
+                    color=TEXTO_SECUNDARIO,
+                ),
                 self.consulta_opciones_biblicas,
                 self.consulta_opciones_gregorianas,
                 ft.Row(
@@ -971,6 +1024,7 @@ class TiempoView:
         return min(620, max(220, self._ancho_pantalla_actual() - margen))
 
     def abrir_consulta_fecha_real(self, e=None):
+        self._consulta_historica_activa = False
         es_movil = self._ancho_pantalla_actual() < 700
         ancho = self._ancho_dialogo_fecha(es_movil)
         self._actualizar_resultado_consulta_visible()
@@ -1130,6 +1184,25 @@ class TiempoView:
         )
         self.consulta_opciones_biblicas.visible = False
         self.consulta_opciones_gregorianas.visible = not es_biblico
+        destino_equivalente = "gregoriano" if es_biblico else "biblico"
+        opciones_destino = [
+            ft.dropdown.Option(destino_equivalente, "Gregoriano" if es_biblico else "Bíblico"),
+            ft.dropdown.Option("maya", "Maya · Cuenta Larga GMT"),
+            ft.dropdown.Option("egipcio", "Egipcio civil · era Nabonassar"),
+            ft.dropdown.Option("lunar", "Lunar · Hijri tabular civil"),
+            ft.dropdown.Option("israelita", "Israelita · hebreo fijo"),
+            ft.dropdown.Option("sumerio", "Sumerio · Nippur (reconstrucción)"),
+            ft.dropdown.Option("babilonico", "Babilónico · ciclo metónico proléptico"),
+            ft.dropdown.Option("romano", "Romano · Kalendas, Nonas e Idus"),
+            ft.dropdown.Option("juliano", "Juliano · proléptico"),
+            ft.dropdown.Option("helenico", "Helénico ático · ciclo metónico proléptico"),
+        ]
+        if self.consulta_calendario_destino.value not in {
+            destino_equivalente, "maya", "egipcio", "lunar", "israelita",
+            "sumerio", "babilonico", "romano", "juliano", "helenico"
+        }:
+            self.consulta_calendario_destino.value = destino_equivalente
+        self.consulta_calendario_destino.options = opciones_destino
         self.consulta_resultado.value = ""
         self._actualizar_resultado_consulta_visible()
         try:
@@ -1201,6 +1274,34 @@ class TiempoView:
         if hasattr(self.page, "run_task"):
             self.page.run_task(self._ciclo_reloj)
 
+    def _anexar_conversion_destino(self, fecha, resultado):
+        if not self._consulta_historica_activa:
+            return resultado
+        destino = self.consulta_calendario_destino.value or "gregoriano"
+        nombres = {
+            "gregoriano": "Calendario gregoriano",
+            "biblico": "Calendario bíblico",
+            "maya": "Calendario maya (Long Count GMT)",
+            "egipcio": "Calendario egipcio civil (era Nabonassar)",
+            "lunar": "Calendario lunar Hijri tabular civil",
+            "israelita": "Calendario israelita hebreo fijo",
+            "sumerio": "Calendario sumerio de Nippur (reconstrucción)",
+            "babilonico": "Calendario babilónico (ciclo metónico proléptico)",
+            "romano": "Calendario romano (Kalendas, Nonas e Idus)",
+            "juliano": "Calendario juliano proléptico",
+            "helenico": "Calendario helénico ático (ciclo metónico proléptico)",
+        }
+        if destino == "gregoriano":
+            conversion = formatear_fecha_real(fecha)
+        elif destino == "biblico":
+            datos = self.datos_consulta
+            conversion = self._texto_fecha_biblica(
+                datos["anio"], datos["mes_numero"], datos["dia_mes"]
+            )
+        else:
+            conversion = convertir_calendario_historico(fecha, destino)
+        return f"{resultado}\n\n{nombres[destino]}:\n{conversion}"
+
     def _refrescar_tarjetas_flip(self, tarjetas):
         controles = [tarjeta.control for tarjeta in tarjetas]
         if controles:
@@ -1258,6 +1359,14 @@ class TiempoView:
             ocultar_teclado(self.page, e.control)
         try:
             dia, mes, anio = self._partes_fecha_consulta()
+            try:
+                cantidad_dias = int((self.consulta_dias_input.value or "0").strip())
+            except ValueError as error:
+                raise ValueError("Ingrese una cantidad entera de días para desplazar la fecha.") from error
+            if cantidad_dias < 0:
+                raise ValueError("La cantidad de días debe ser 0 o mayor; elija la dirección aparte.")
+            direccion = self._valor_segmentado(self.consulta_direccion, "adelante")
+            desplazamiento = cantidad_dias if direccion == "adelante" else -cantidad_dias
             calendario = self._valor_segmentado(
                 self.consulta_calendario, "biblico"
             )
@@ -1271,13 +1380,24 @@ class TiempoView:
                         f"El calendario bíblico admite años del 1 al {BASE_ANIO}."
                     )
                 fecha_exacta = fecha_gregoriana_desde_biblica(anio, mes, dia)
+                if desplazamiento:
+                    indice = ((anio - BASE_ANIO) * 360) + ((mes - 1) * 30) + dia - 1 + desplazamiento
+                    anio = BASE_ANIO + indice // 360
+                    resto = indice % 360
+                    mes = resto // 30 + 1
+                    dia = resto % 30 + 1
+                    if anio < 1 or anio > BASE_ANIO:
+                        raise ValueError(f"La fecha desplazada queda fuera del rango bíblico (1 a {BASE_ANIO}).")
+                    fecha_exacta = fecha_gregoriana_desde_biblica(anio, mes, dia)
                 self.datos_consulta = calcular_calendario_360(
                     fecha_exacta,
                     base_real=self.base_real,
                 )
                 self.consulta_resultado.value = (
-                    f"Bíblico: {self._texto_fecha_biblica(anio, mes, dia)}\n"
-                    f"Gregoriano: {self._fecha_sin_hora(fecha_exacta)}"
+                    f"Fecha bíblica desplazada: {self._texto_fecha_biblica(anio, mes, dia)}"
+                )
+                self.consulta_resultado.value = self._anexar_conversion_destino(
+                    fecha_exacta, self.consulta_resultado.value
                 )
             else:
                 era = self._valor_segmentado(self.consulta_era, "DC")
@@ -1285,11 +1405,24 @@ class TiempoView:
                     f"{dia:02d}/{mes:02d}/{anio}",
                     era,
                 )
+                if desplazamiento:
+                    base = fecha.anio_astronomico
+                    dias_civiles = (base, fecha.mes, fecha.dia)
+                    anio_astro, mes, dia = _civil_desde_dias(
+                        _dias_desde_civil(*dias_civiles) + desplazamiento
+                    )
+                    era = "DC" if anio_astro >= 1 else "AC"
+                    anio = anio_astro if era == "DC" else 1 - anio_astro
+                    fecha = parsear_fecha_consulta(f"{dia:02d}/{mes:02d}/{anio}", era)
                 self.datos_consulta = calcular_calendario_360(
                     fecha,
                     base_real=self.base_real,
                 )
                 datos = self.datos_consulta
+                fecha_dia = fecha.dia
+                fecha_mes = fecha.mes
+                fecha_anio = fecha.anio
+                fecha_era = fecha.era
                 alcance = self._valor_segmentado(
                     self.consulta_alcance, "exacta"
                 )
@@ -1309,10 +1442,11 @@ class TiempoView:
                     self.consulta_resultado.value = "\n".join(lineas)
                 else:
                     self.consulta_resultado.value = (
-                        f"Gregoriano: {dia:02d}-{mes:02d}-{anio:04d} {era}\n"
-                        "Bíblico: "
-                        f"{self._texto_fecha_biblica(datos['anio'], datos['mes_numero'], datos['dia_mes'])}"
+                        f"Fecha gregoriana desplazada: {fecha_dia:02d}-{fecha_mes:02d}-{fecha_anio:04d} {fecha_era}"
                     )
+                self.consulta_resultado.value = self._anexar_conversion_destino(
+                    fecha, self.consulta_resultado.value
+                )
         except ValueError as error:
             self.datos_consulta = None
             self.consulta_resultado.value = str(error)
@@ -1327,6 +1461,7 @@ class TiempoView:
         self.consulta_input.value = datetime.now().strftime("%d-%m-%Y")
         self.consulta_calendario.selected = ["gregoriano"]
         self.consulta_era.selected = ["DC"]
+        self.consulta_dias_input.value = "0"
         self._cambiar_tipo_consulta()
         self.calcular_consulta()
 
@@ -1480,7 +1615,13 @@ class TiempoView:
         )
 
     def _dias_hasta_texto(self, destino, texto):
-        dias = (destino.date() - datetime.now().date()).days
+        if not isinstance(destino, datetime):
+            anio = destino.anio if destino.era == "DC" else 1 - destino.anio
+            ordinal = _dias_desde_civil(anio, destino.mes, destino.dia)
+            hoy = datetime.now().date()
+            dias = ordinal - _dias_desde_civil(hoy.year, hoy.month, hoy.day)
+        else:
+            dias = (destino.date() - datetime.now().date()).days
         if dias >= 0:
             return f"Faltan {dias} días {texto}"
         return f"Pasaron {abs(dias)} días {texto}"
@@ -1535,6 +1676,33 @@ class TiempoView:
                     self._control_linea_tiempo(izquierda, y_gregoriano, ancho_linea, LINEA_TIEMPO_VERDE),
                 ]
             )
+            if modo == "estrellas":
+                fecha_fin_estrellas = fecha_gregoriana_desde_biblica(6000, 12, 30)
+                controles.append(
+                    ft.Container(
+                        left=max(0, (ancho - min(ancho_linea, 360)) / 2),
+                        top=y_gregoriano + 58,
+                        content=self._panel_dato_linea_tiempo(
+                        "Cuenta regresiva · Edad de las Estrellas",
+                        self._dias_hasta_texto(fecha_fin_estrellas, "para completar el año bíblico 6000"),
+                        LINEA_TIEMPO_AMARILLO,
+                        min(ancho_linea, 360),
+                        ),
+                    )
+                )
+            elif modo == "apophis":
+                controles.append(
+                    ft.Container(
+                        left=max(0, (ancho - min(ancho_linea, 360)) / 2),
+                        top=y_gregoriano + 58,
+                        content=self._panel_dato_linea_tiempo(
+                        "Cuenta regresiva · Apophis",
+                        self._dias_hasta_texto(FECHA_APOPHIS, "para el encuentro previsto"),
+                        LINEA_TIEMPO_VIOLETA,
+                        min(ancho_linea, 360),
+                        ),
+                    )
+                )
             for valor, etiqueta in ((1, "1"), (2000, "2000"), (4000, "4000"), (6000, "6000")):
                 x = self._posicion_linea_tiempo(valor, 1, BASE_ANIO, ancho, margen)
                 controles.extend(self._marca_linea_tiempo(x, y_biblico, LINEA_TIEMPO_MARRON, etiqueta))
@@ -1556,6 +1724,16 @@ class TiempoView:
                     *self._marca_linea_tiempo(x_violeta, y_violeta, LINEA_TIEMPO_VIOLETA, "hoy", False),
                     *self._marca_linea_tiempo(x_llegada, y_violeta, ft.Colors.BLACK, "13/04/2029", True),
                     self._texto_linea_tiempo("6000 + 2 días", max(0, x_llegada - 54), y_violeta - 48, ft.Colors.BLACK, 12, 108),
+                    ft.Container(
+                        left=max(0, (ancho - min(ancho_linea, 300)) / 2),
+                        top=y_violeta + 42,
+                        content=self._panel_dato_linea_tiempo(
+                            "Cuenta regresiva · Apophis",
+                            self._dias_hasta_texto(FECHA_APOPHIS, "para el encuentro previsto"),
+                            LINEA_TIEMPO_VIOLETA,
+                            min(ancho_linea, 300),
+                        ),
+                    ),
                     ft.Icon(ft.Icons.ARROW_DROP_UP, color=LINEA_TIEMPO_VERDE, size=54, left=x_gregoriano - 27, top=y_gregoriano + 6),
                     self._texto_linea_tiempo(formatear_fecha_real(fecha_real), max(0, x_gregoriano - 88), y_gregoriano + 60, LINEA_TIEMPO_VERDE, 12, 176),
                     self._texto_linea_tiempo("ANTES DE CRISTO", izquierda, y_gregoriano - 28, LINEA_TIEMPO_VERDE, 12, ancho_linea / 2),
@@ -1682,7 +1860,7 @@ class TiempoView:
         al_mover_fecha=None,
         al_ir_anio_redondo=None,
     ):
-        alto = 285 if es_movil else 340
+        alto = 390 if es_movil else 340
         margen = 16 if es_movil else 30
         izquierda = margen
         derecha = ancho - margen
@@ -1785,8 +1963,82 @@ class TiempoView:
                         ),
                     ]
                 )
+                panel_apophis_x = max(izquierda, derecha - 272) if paneles_izquierda else izquierda
+                controles.append(
+                    ft.Container(
+                        left=panel_apophis_x,
+                        top=52,
+                        width=242,
+                        padding=ft.Padding(10, 7, 10, 7),
+                        border=ft.Border.all(1, ft.Colors.with_opacity(0.75, LINEA_TIEMPO_VIOLETA)),
+                        border_radius=6,
+                        bgcolor=SUPERFICIE_PERLADA,
+                        content=ft.Text(
+                            self._dias_hasta_texto(FECHA_APOPHIS, "para Apophis"),
+                            size=11,
+                            color=LINEA_TIEMPO_VIOLETA,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    )
+                )
+            else:
+                controles.extend(
+                    [
+                        ft.Container(
+                            left=izquierda,
+                            top=290,
+                            width=ancho_linea,
+                            padding=ft.Padding(8, 5, 8, 5),
+                            border=ft.Border.all(1, ft.Colors.with_opacity(0.75, LINEA_TIEMPO_MARRON)),
+                            border_radius=6,
+                            bgcolor=SUPERFICIE_PERLADA,
+                            content=ft.Text(
+                                self._dias_hasta_texto(datetime(2029, 4, 11), "para el año 6000 bíblico"),
+                                size=10,
+                                color=LINEA_TIEMPO_MARRON,
+                                weight=ft.FontWeight.BOLD,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ),
+                        ft.Container(
+                            left=izquierda,
+                            top=338,
+                            width=ancho_linea,
+                            padding=ft.Padding(8, 5, 8, 5),
+                            border=ft.Border.all(1, ft.Colors.with_opacity(0.75, LINEA_TIEMPO_VIOLETA)),
+                            border_radius=6,
+                            bgcolor=SUPERFICIE_PERLADA,
+                            content=ft.Text(
+                                self._dias_hasta_texto(FECHA_APOPHIS, "para Apophis"),
+                                size=10,
+                                color=LINEA_TIEMPO_VIOLETA,
+                                weight=ft.FontWeight.BOLD,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ),
+                    ]
+                )
         else:
             titulo, _, _, color = eras[modo]
+            if modo == "estrellas":
+                controles.append(
+                    ft.Container(
+                        left=izquierda,
+                        top=290 if es_movil else 275,
+                        width=ancho_linea,
+                        padding=ft.Padding(8, 5, 8, 5),
+                        border=ft.Border.all(1, ft.Colors.with_opacity(0.75, LINEA_TIEMPO_AMARILLO)),
+                        border_radius=6,
+                        bgcolor=SUPERFICIE_PERLADA,
+                        content=ft.Text(
+                            self._dias_hasta_texto(datetime(2029, 4, 11), "para completar el año bíblico 6000"),
+                            size=10 if es_movil else 11,
+                            color=LINEA_TIEMPO_AMARILLO,
+                            weight=ft.FontWeight.BOLD,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                    )
+                )
             if not es_movil:
                 controles.append(
                     ft.GestureDetector(
